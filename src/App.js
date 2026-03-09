@@ -14,7 +14,7 @@ const thisWeekStart = () => {
 const STATUSES = ["New", "In Progress", "Waiting on Client", "Completed"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin"];
-const OWNERS = ["You", "Boss"];
+const OWNERS = ["You", "Sean"];
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#3b82f6", High: "#f59e0b", Urgent: "#ef4444" };
 const STATUS_COLOR = { New: "#8b5cf6", "In Progress": "#3b82f6", "Waiting on Client": "#f59e0b", Completed: "#10b981" };
 
@@ -227,7 +227,7 @@ export default function App() {
     { id:"completed", label:"Completed", icon:"✓", count:byStatus("Completed").length },
     { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length },
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
-    { id:"boss", label:"Boss Tasks", icon:"◈", count:bossTasks.length },
+    { id:"Sean", label:"Sean's Tasks", icon:"◈", count:Sena'sTasks.length },
     { id:"all", label:"All Tasks", icon:"≡" },
   ];
 
