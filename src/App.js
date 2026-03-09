@@ -22,7 +22,7 @@ const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
   date_received: TODAY(), owner: "You", status: "New", priority: "Medium",
   expected_date: "", actual_date: "", next_action: "", notes: "", outcome: "",
-  task_type: "Information Request", client_response_date: "", time_spent: "", revenue_linked: "",
+  task_type: "Information Request", client_response_date: "", time_spent: "",
   ...overrides,
 });
 
@@ -88,7 +88,7 @@ function TaskForm({ initial, onSave, onClose }) {
         </>)}
         <Field label="Client Response Date"><input type="date" style={inp} value={form.client_response_date} onChange={(e)=>set("client_response_date",e.target.value)} /></Field>
         <Field label="Time Spent (hrs)"><input style={inp} value={form.time_spent} onChange={(e)=>set("time_spent",e.target.value)} placeholder="0.0" /></Field>
-        <div style={{ gridColumn:"1/-1" }}><Field label="Revenue Linked (£)"><input style={inp} value={form.revenue_linked} onChange={(e)=>set("revenue_linked",e.target.value)} placeholder="0.00" /></Field></div>
+      
       </div>
       <div style={{ marginTop:24,display:"flex",gap:10,justifyContent:"flex-end" }}>
         <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:14 }}>Cancel</button>
