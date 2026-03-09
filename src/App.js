@@ -227,7 +227,7 @@ export default function App() {
     { id:"completed", label:"Completed", icon:"✓", count:byStatus("Completed").length },
     { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length },
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
-    { id:"boss", label:"Sean's Tasks", icon:"◈", count:boss.length },
+    { id:"boss", label:"Sean's Tasks", icon:"◈", count:bossTasks.length },
     { id:"all", label:"All Tasks", icon:"≡" },
   ];
 
