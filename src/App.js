@@ -19,22 +19,22 @@ const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#3b82f6", High: "#f59e0b", Urg
 const STATUS_COLOR = { New: "#8b5cf6", "In Progress": "#3b82f6", "Waiting on Client": "#f59e0b", Completed: "#10b981" };
 
 const newTask = (overrides = {}) => ({
-  subject: "", client: "", company: "", email: "",
-  date_received: TODAY(), owner: "You", status: "New", priority: "Medium",
-  expected_date: "", actual_date: "", next_action: "", notes: "", outcome: "",
-  task_type: "Information Request", client_response_date: "", time_spent: "",
+  subject: "",
+  client: "",
+  company: "",
+  email: "",
+  date_received: TODAY(),
+  owner: "You",
+  status: "New",
+  priority: "Medium",
+  expected_date: "",
+  actual_date: "",
+  next_action: "",
+  notes: "",
+  outcome: "",
+  task_type: "Information Request",
   ...overrides,
 });
-
-function exportToCSV(tasks) {
-  const headers = ["Task ID","Subject","Client","Company","Email","Date Received","Owner","Status","Priority","Expected Date","Actual Date","Next Action","Notes","Outcome","Task Type","Client Response Date","Time Spent","Revenue Linked"];
-  const rows = tasks.map((t) => [t.id,t.subject,t.client,t.company,t.email,t.date_received,t.owner,t.status,t.priority,t.expected_date,t.actual_date,t.next_action,t.notes,t.outcome,t.task_type,t.client_response_date,t.time_spent,t.revenue_linked]);
-  const csv = [headers,...rows].map((r) => r.map((c) => `"${(c||"").replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = `workflow-${TODAY()}.csv`; a.click();
-  URL.revokeObjectURL(url);
-}
 
 function Modal({ children, onClose }) {
   return (
@@ -66,7 +66,7 @@ function TaskForm({ initial, onSave, onClose }) {
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24 }}>
-        <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#e2e8f0",fontFamily:"'DM Serif Display',Georgia,serif" }}>{initial.id ? "Edit Task" : "New Task"}</h2>
+        <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#e2e8f0" }}>{initial.id ? "Edit Task" : "New Task"}</h2>
         <button onClick={onClose} style={{ background:"none",border:"none",color:"#6b7280",cursor:"pointer",fontSize:20 }}>✕</button>
       </div>
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
@@ -82,13 +82,9 @@ function TaskForm({ initial, onSave, onClose }) {
         <Field label="Expected Completion Date" required><input type="date" style={inp} value={form.expected_date} onChange={(e)=>set("expected_date",e.target.value)} /></Field>
         <div style={{ gridColumn:"1/-1" }}><Field label="Next Action" required><input style={inp} value={form.next_action} onChange={(e)=>set("next_action",e.target.value)} placeholder="What happens next?" /></Field></div>
         <div style={{ gridColumn:"1/-1" }}><Field label="Notes / Summary"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes} onChange={(e)=>set("notes",e.target.value)} placeholder="Background, context, details…" /></Field></div>
-        {form.status === "Completed" && (<>
-          <Field label="Actual Completion Date"><input type="date" style={inp} value={form.actual_date} onChange={(e)=>set("actual_date",e.target.value)} /></Field>
+        {form.status === "Completed" && (
           <div style={{ gridColumn:"1/-1" }}><Field label="Outcome"><input style={inp} value={form.outcome} onChange={(e)=>set("outcome",e.target.value)} placeholder="What was the result?" /></Field></div>
-        </>)}
-        <Field label="Client Response Date"><input type="date" style={inp} value={form.client_response_date} onChange={(e)=>set("client_response_date",e.target.value)} /></Field>
-        <Field label="Time Spent (hrs)"><input style={inp} value={form.time_spent} onChange={(e)=>set("time_spent",e.target.value)} placeholder="0.0" /></Field>
-      
+        )}
       </div>
       <div style={{ marginTop:24,display:"flex",gap:10,justifyContent:"flex-end" }}>
         <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:14 }}>Cancel</button>
@@ -131,10 +127,8 @@ function TaskCard({ task, onClick, compact }) {
 
 function Stat({ label, value, color, onClick }) {
   return (
-    <div onClick={onClick} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:12,padding:"20px 24px",cursor:onClick?"pointer":"default",borderTop:`3px solid ${color}`,transition:"border-color 0.2s" }}
-      onMouseEnter={(e)=>{ if(onClick) e.currentTarget.style.borderColor="#6366f1"; }}
-      onMouseLeave={(e)=>{ if(onClick) e.currentTarget.style.borderColor="#2a2a45"; }}>
-      <div style={{ fontSize:32,fontWeight:800,color,fontFamily:"'DM Serif Display',Georgia,serif" }}>{value}</div>
+    <div onClick={onClick} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:12,padding:"20px 24px",cursor:onClick?"pointer":"default",borderTop:`3px solid ${color}` }}>
+      <div style={{ fontSize:32,fontWeight:800,color }}>{value}</div>
       <div style={{ fontSize:11,color:"#6b7280",marginTop:4,fontWeight:500,letterSpacing:"0.06em",textTransform:"uppercase" }}>{label}</div>
     </div>
   );
@@ -145,7 +139,7 @@ function KanbanCol({ status, tasks, onClick, onDrop }) {
   return (
     <div onDragOver={(e)=>{ e.preventDefault(); setOver(true); }} onDragLeave={()=>setOver(false)}
       onDrop={(e)=>{ e.preventDefault(); setOver(false); onDrop(e.dataTransfer.getData("taskId"), status); }}
-      style={{ flex:1,minWidth:220,background:over?"#1e1e35":"#13131f",border:`1px solid ${over?STATUS_COLOR[status]:"#2a2a45"}`,borderRadius:12,padding:14,transition:"background 0.2s,border-color 0.2s" }}>
+      style={{ flex:1,minWidth:220,background:over?"#1e1e35":"#13131f",border:`1px solid ${over?STATUS_COLOR[status]:"#2a2a45"}`,borderRadius:12,padding:14 }}>
       <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:14 }}>
         <div style={{ width:10,height:10,borderRadius:"50%",background:STATUS_COLOR[status] }} />
         <span style={{ fontWeight:700,color:"#e2e8f0",fontSize:13 }}>{status}</span>
@@ -172,7 +166,7 @@ export default function App() {
   const loadTasks = useCallback(async () => {
     const { data, error } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     if (!error) { setTasks(data || []); setStatus("Live"); }
-    else setStatus("Error loading");
+    else { console.error(error); setStatus("Error loading"); }
   }, []);
 
   useEffect(() => {
@@ -184,9 +178,31 @@ export default function App() {
   }, [loadTasks]);
 
   const upsertTask = async (form) => {
-    if (form.id) { await supabase.from("tasks").update(form).eq("id", form.id); }
-    else { await supabase.from("tasks").insert([form]); }
+    const payload = {
+      subject: form.subject,
+      client: form.client,
+      company: form.company,
+      email: form.email,
+      date_received: form.date_received,
+      owner: form.owner,
+      status: form.status,
+      priority: form.priority,
+      expected_date: form.expected_date,
+      actual_date: form.actual_date || null,
+      next_action: form.next_action,
+      notes: form.notes,
+      outcome: form.outcome,
+      task_type: form.task_type,
+    };
+    if (form.id) {
+      const { error } = await supabase.from("tasks").update(payload).eq("id", form.id);
+      if (error) console.error("Update error:", error);
+    } else {
+      const { error } = await supabase.from("tasks").insert([payload]);
+      if (error) console.error("Insert error:", error);
+    }
   };
+
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id", id); };
   const moveTask = async (id, newStatus) => {
     const extra = newStatus === "Completed" ? { actual_date: TODAY() } : {};
@@ -220,13 +236,13 @@ export default function App() {
   const Sidebar = (
     <div style={{ width:220,background:"#0a0a16",borderRight:"1px solid #1e1e30",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
       <div style={{ padding:"0 8px 24px",borderBottom:"1px solid #1e1e30" }}>
-        <div style={{ fontSize:18,fontWeight:800,color:"#e2e8f0",fontFamily:"'DM Serif Display',Georgia,serif" }}>Workflow</div>
+        <div style={{ fontSize:18,fontWeight:800,color:"#e2e8f0" }}>Workflow</div>
         <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Operations Tracker</div>
       </div>
       <div style={{ marginTop:16,flex:1,overflowY:"auto" }}>
         {VIEWS.map((v)=>(
           <button key={v.id} onClick={()=>{ setView(v.id); setSidebarOpen(false); }}
-            style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#a78bfa":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,transition:"all 0.15s",marginBottom:2 }}>
+            style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#a78bfa":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
             {v.count!==undefined && v.count>0 && <span style={{ background:v.id==="overdue"?"#7f1d1d":"#2a2a45",color:v.id==="overdue"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
@@ -243,18 +259,17 @@ export default function App() {
   );
 
   return (
-    <div style={{ minHeight:"100vh",background:"#0d0d1a",color:"#e2e8f0",fontFamily:"'DM Sans',system-ui,sans-serif",display:"flex",flexDirection:"column" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display&display=swap'); *{box-sizing:border-box;} ::-webkit-scrollbar{width:5px;height:5px;} ::-webkit-scrollbar-track{background:#0d0d1a;} ::-webkit-scrollbar-thumb{background:#2a2a45;border-radius:3px;} select option{background:#1e1e30;}`}</style>
+    <div style={{ minHeight:"100vh",background:"#0d0d1a",color:"#e2e8f0",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column" }}>
+      <style>{`*{box-sizing:border-box;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#0d0d1a;} ::-webkit-scrollbar-thumb{background:#2a2a45;border-radius:3px;} select option{background:#1e1e30;}`}</style>
 
       <div style={{ display:"flex",alignItems:"center",padding:"14px 16px",borderBottom:"1px solid #1e1e30",background:"#0a0a16",gap:12 }}>
         <button onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#6b7280",cursor:"pointer",padding:"6px 10px",fontSize:16 }}>☰</button>
-        <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",fontFamily:"'DM Serif Display',Georgia,serif",flex:1 }}>{VIEWS.find((v)=>v.id===view)?.label}</span>
-        <button onClick={()=>exportToCSV(tasks)} style={{ padding:"7px 12px",background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#6b7280",cursor:"pointer",fontSize:12 }}>↓ CSV</button>
+        <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1 }}>{VIEWS.find((v)=>v.id===view)?.label}</span>
         <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#6366f1",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
       </div>
 
       <div style={{ flex:1,display:"flex",overflow:"hidden" }}>
-        <div style={{ display:window.innerWidth>=768?"flex":"none",flexDirection:"column" }}>{Sidebar}</div>
+        <div style={{ display:"flex",flexDirection:"column" }}>{Sidebar}</div>
 
         {sidebarOpen && (
           <div style={{ position:"fixed",inset:0,zIndex:500,display:"flex" }} onClick={()=>setSidebarOpen(false)}>
@@ -264,16 +279,11 @@ export default function App() {
         )}
 
         <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-          <div style={{ padding:"14px 20px",borderBottom:"1px solid #1e1e30",background:"#0a0a16",display:window.innerWidth>=768?"flex":"none",alignItems:"center",gap:12 }}>
+          <div style={{ padding:"14px 20px",borderBottom:"1px solid #1e1e30",background:"#0a0a16",display:"flex",alignItems:"center",gap:12 }}>
             <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search tasks…" style={{ ...inp,maxWidth:340,padding:"8px 14px" }} />
-            <div style={{ flex:1 }} />
-            <button onClick={()=>exportToCSV(tasks)} style={{ padding:"8px 16px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:13 }}>↓ Export CSV</button>
-          </div>
-          <div style={{ padding:"10px 16px",borderBottom:"1px solid #1e1e30",display:window.innerWidth<768?"block":"none" }}>
-            <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp }} />
           </div>
 
-          <div style={{ flex:1,overflowY:"auto",padding:window.innerWidth>=768?28:14 }}>
+          <div style={{ flex:1,overflowY:"auto",padding:28 }}>
             {view==="dashboard" && (
               <div>
                 <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:28 }}>
@@ -284,7 +294,7 @@ export default function App() {
                   <Stat label="No Next Action" value={noNextAction.length} color="#f97316" />
                   <Stat label="Total Tasks" value={tasks.length} color="#8b5cf6" onClick={()=>setView("all")} />
                 </div>
-                <div style={{ display:"grid",gridTemplateColumns:window.innerWidth>=768?"1fr 1fr":"1fr",gap:20 }}>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
                   {[
                     { title:"⚠ Overdue", items:overdue.slice(0,5), empty:"No overdue tasks 🎉" },
                     { title:"⚡ No Next Action", items:noNextAction.slice(0,5), empty:"All tasks have next actions ✓" },
