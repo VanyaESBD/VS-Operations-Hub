@@ -214,7 +214,7 @@ export default function App() {
   const byStatus = (s) => filtered.filter((t)=>t.status===s);
   const overdue = filtered.filter(isOverdue);
   const myTasks = filtered.filter((t)=>t.owner==="You");
-  const SeanTasks = filtered.filter((t)=>t.owner==="Sean");
+  const bossTasks = filtered.filter((t)=>t.owner==="boss");
   const noNextAction = filtered.filter((t)=>!t.next_action && t.status!=="Completed");
   const completedThisWeek = tasks.filter((t)=>t.status==="Completed" && t.actual_date>=thisWeekStart());
 
@@ -227,11 +227,11 @@ export default function App() {
     { id:"completed", label:"Completed", icon:"✓", count:byStatus("Completed").length },
     { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length },
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
-    { id:"Sean", label:"Sean's Tasks", icon:"◈", count:SeansTasks.length },
+    { id:"boss", label:"Sean's Tasks", icon:"◈", count:boss.length },
     { id:"all", label:"All Tasks", icon:"≡" },
   ];
 
-  const viewTasks = { new:byStatus("New"), active:byStatus("In Progress"), waiting:byStatus("Waiting on Client"), completed:byStatus("Completed"), overdue, mine:myTasks, Sean:SeanTasks, all:filtered };
+  const viewTasks = { new:byStatus("New"), active:byStatus("In Progress"), waiting:byStatus("Waiting on Client"), completed:byStatus("Completed"), overdue, mine:myTasks, boss:bossTasks, all:filtered };
 
   const Sidebar = (
     <div style={{ width:220,background:"#0a0a16",borderRight:"1px solid #1e1e30",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
