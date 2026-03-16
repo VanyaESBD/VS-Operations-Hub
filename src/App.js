@@ -415,25 +415,47 @@ export default function App() {
           <div style={{ flex:1,overflowY:"auto",padding:28 }}>
            {view==="dashboard" && (
   <div>
-   {/* FYI BULLETIN BOARD - subtle */}
-    {tasks.filter(t=>t.task_type==="FYI" && t.status!=="Done").length > 0 && (
-      <div style={{ marginBottom:24 }}>
-        <div style={{ fontSize:11,fontWeight:700,color:"#7c3aed",marginBottom:8,letterSpacing:"0.08em",textTransform:"uppercase",display:"flex",alignItems:"center",gap:6 }}>
-          <span>📌</span> FYI <span style={{ background:"#7c3aed22",borderRadius:99,padding:"1px 8px",fontSize:10,color:"#a78bfa" }}>{tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length}</span>
+ {(tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length > 0 || seanTasks.filter(t=>t.status==="FYA").length > 0) && (
+  <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
+    <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45",display:"flex",alignItems:"center",gap:8 }}>
+      <div style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase" }}>Daily Briefing</div>
+    </div>
+    <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr" }}>
+      <div style={{ padding:"14px 16px",borderRight:"0.5px solid #2a2a45" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
+          <div style={{ width:8,height:8,borderRadius:"50%",background:"#f97316" }} />
+          <span style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>FYA — Sean</span>
+          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{seanTasks.filter(t=>t.status==="FYA").length}</span>
         </div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
-          {tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").map(t=>(
-            <div key={t.id} onClick={()=>setModalTask(t)}
-              style={{ background:"#13131f",border:"1px solid #7c3aed33",borderLeft:"3px solid #7c3aed",borderRadius:8,padding:"10px 12px",cursor:"pointer",transition:"border-color 0.15s" }}
-              onMouseEnter={(e)=>e.currentTarget.style.borderColor="#7c3aed"}
-              onMouseLeave={(e)=>e.currentTarget.style.borderColor="#7c3aed33"}>
-              <div style={{ fontSize:13,fontWeight:600,color:"#c4b5fd",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{t.subject}</div>
-              <div style={{ fontSize:11,color:"#4b5563" }}>{t.client||t.owner} · {fmtDate(t.date_received)}</div>
+        {seanTasks.filter(t=>t.status==="FYA").length===0
+          ? <div style={{ fontSize:12,color:"#374151",padding:"8px 0" }}>No FYA for Sean</div>
+          : seanTasks.filter(t=>t.status==="FYA").map(t=>(
+            <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #f97316",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
+              <div style={{ fontSize:13,fontWeight:500,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
+              <div style={{ fontSize:11,color:"#6b7280" }}>{t.client||t.company||"—"} · {fmtDate(t.date_received)}</div>
             </div>
-          ))}
-        </div>
+          ))
+        }
       </div>
-    )}
+      <div style={{ padding:"14px 16px" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
+          <div style={{ width:8,height:8,borderRadius:"50%",background:"#7c3aed" }} />
+          <span style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>FYI</span>
+          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length}</span>
+        </div>
+        {tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length===0
+          ? <div style={{ fontSize:12,color:"#374151",padding:"8px 0" }}>No FYI items</div>
+          : tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").map(t=>(
+            <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #7c3aed",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
+              <div style={{ fontSize:13,fontWeight:500,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
+              <div style={{ fontSize:11,color:"#6b7280" }}>{t.client||t.company||"—"} · {fmtDate(t.date_received)}</div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+)}
     <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:28 }}>
       <Stat label="FYA" value={byStatus("FYA").length} color="#f97316" onClick={()=>setView("fya")} />
       <Stat label="To Do" value={byStatus("To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
