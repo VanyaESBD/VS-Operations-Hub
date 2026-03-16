@@ -415,39 +415,25 @@ export default function App() {
           <div style={{ flex:1,overflowY:"auto",padding:28 }}>
            {view==="dashboard" && (
   <div>
-    {/* FYI BULLETIN BOARD */}
+   {/* FYI BULLETIN BOARD - subtle */}
     {tasks.filter(t=>t.task_type==="FYI" && t.status!=="Done").length > 0 && (
-      <div style={{ marginBottom:28,border:"2px solid #7c3aed",borderRadius:16,overflow:"hidden" }}>
-        <div style={{ background:"linear-gradient(135deg,#4c1d95,#7c3aed)",padding:"12px 20px",display:"flex",alignItems:"center",gap:12 }}>
-          <span style={{ fontSize:20 }}>📌</span>
-          <div>
-            <div style={{ fontSize:13,fontWeight:900,color:"#fff",letterSpacing:"0.15em",textTransform:"uppercase" }}>FYI Bulletin</div>
-            <div style={{ fontSize:10,color:"#c4b5fd",letterSpacing:"0.08em" }}>ES Business Development — {new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</div>
-          </div>
-          <span style={{ marginLeft:"auto",background:"#ffffff22",borderRadius:99,padding:"3px 10px",fontSize:11,color:"#e9d5ff",fontWeight:700 }}>{tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length} items</span>
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontSize:11,fontWeight:700,color:"#7c3aed",marginBottom:8,letterSpacing:"0.08em",textTransform:"uppercase",display:"flex",alignItems:"center",gap:6 }}>
+          <span>📌</span> FYI <span style={{ background:"#7c3aed22",borderRadius:99,padding:"1px 8px",fontSize:10,color:"#a78bfa" }}>{tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length}</span>
         </div>
-        <div style={{ background:"#0d0d1a",padding:16,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12 }}>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
           {tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").map(t=>(
-            <div key={t.id} onClick={()=>setModalTask(t)} style={{ background:"#13131f",border:"1px solid #7c3aed44",borderRadius:10,padding:14,cursor:"pointer",position:"relative",transition:"transform 0.15s,box-shadow 0.15s" }}
-              onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(124,58,237,0.3)"; }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-              <div style={{ position:"absolute",top:10,right:12,fontSize:16 }}>📌</div>
-              <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:6 }}>
-                <span style={{ fontSize:10,padding:"2px 8px",borderRadius:99,background:"#7c3aed33",color:"#a78bfa",fontWeight:700,letterSpacing:"0.06em" }}>🟣 FYI</span>
-                {t.client && <span style={{ fontSize:10,color:"#6b7280" }}>{t.client}</span>}
-              </div>
-              <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:6,lineHeight:1.4,paddingRight:24 }}>{t.subject}</div>
-              {t.notes && <div style={{ fontSize:12,color:"#6b7280",marginBottom:8,lineHeight:1.5,fontStyle:"italic" }}>"{t.notes}"</div>}
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,paddingTop:8,borderTop:"1px solid #2a2a45" }}>
-                <span style={{ fontSize:10,color:"#4b5563" }}>{t.owner} · {fmtDate(t.date_received)}</span>
-                {t.next_action && <span style={{ fontSize:10,color:"#7c3aed" }}>→ {t.next_action}</span>}
-              </div>
+            <div key={t.id} onClick={()=>setModalTask(t)}
+              style={{ background:"#13131f",border:"1px solid #7c3aed33",borderLeft:"3px solid #7c3aed",borderRadius:8,padding:"10px 12px",cursor:"pointer",transition:"border-color 0.15s" }}
+              onMouseEnter={(e)=>e.currentTarget.style.borderColor="#7c3aed"}
+              onMouseLeave={(e)=>e.currentTarget.style.borderColor="#7c3aed33"}>
+              <div style={{ fontSize:13,fontWeight:600,color:"#c4b5fd",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{t.subject}</div>
+              <div style={{ fontSize:11,color:"#4b5563" }}>{t.client||t.owner} · {fmtDate(t.date_received)}</div>
             </div>
           ))}
         </div>
       </div>
     )}
-
     <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:28 }}>
       <Stat label="FYA" value={byStatus("FYA").length} color="#f97316" onClick={()=>setView("fya")} />
       <Stat label="To Do" value={byStatus("To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
