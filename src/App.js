@@ -468,7 +468,6 @@ export default function App() {
       {[
         { title:"⚠️ Overdue", items:overdue.slice(0,5), empty:"No overdue tasks 🎉" },
         { title:"⚡ No Next Action", items:noNextAction.slice(0,5), empty:"All tasks have next actions ✓" },
-        { title:"🟠 FYA — Sean", items:seanTasks.filter(t=>t.status==="FYA").slice(0,5), empty:"No FYA for Sean" },
         { title:"✅ Done This Week", items:completedThisWeek.slice(0,5), empty:"None yet this week" },
       ].map(({ title, items, empty })=>(
         <div key={title}>
