@@ -120,7 +120,7 @@ function TaskCard({ task, onClick, compact }) {
           <div style={{ fontSize:11,color:over?"#fca5a5":"#6b7280" }}>{fmtDate(task.expected_date)}</div>
         </div>
       </div>
-      {!compact && task.next_action && <div style={{ marginTop:8,fontSize:12,color:"#a78bfa",borderTop:"1px solid #2a2a45",paddingTop:8 }}>→ {task.next_action}</div>}
+      {!compact && task.next_action && <div style={{ marginTop:8,fontSize:12,color:"#0891b2",borderTop:"1px solid #2a2a45",paddingTop:8 }}>→ {task.next_action}</div>}
     </div>
   );
 }
@@ -253,7 +253,7 @@ export default function App() {
         <div style={{ fontSize:10,color:"#374151",textAlign:"center",marginBottom:8 }}>
           <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:status==="Live"?"#10b981":status==="Connecting…"?"#f59e0b":"#ef4444",marginRight:6,verticalAlign:"middle" }} />{status}
         </div>
-        <button onClick={()=>setModalTask({})} style={{ width:"100%",padding:"10px",background:"#6366f1",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ New Task</button>
+        <button onClick={()=>setModalTask({})} style={{ width:"100%",padding:"10px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ New Task</button>
       </div>
     </div>
   );
@@ -265,7 +265,7 @@ export default function App() {
       <div style={{ display:"flex",alignItems:"center",padding:"14px 16px",borderBottom:"1px solid #1e1e30",background:"#0a0a16",gap:12 }}>
         <button onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#6b7280",cursor:"pointer",padding:"6px 10px",fontSize:16 }}>☰</button>
         <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1 }}>{VIEWS.find((v)=>v.id===view)?.label}</span>
-        <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#6366f1",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
+        <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#0891b2",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
       </div>
 
       <div style={{ flex:1,display:"flex",overflow:"hidden" }}>
