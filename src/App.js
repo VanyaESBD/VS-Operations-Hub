@@ -236,7 +236,7 @@ export default function App() {
   const Sidebar = (
     <div style={{ width:220,background:"#0a0a16",borderRight:"1px solid #1e1e30",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
       <div style={{ padding:"0 8px 24px",borderBottom:"1px solid #1e1e30" }}>
-        <div style={{ fontSize:18,fontWeight:800,color:"#e2e8f0" }}>Workflow</div>
+        <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:120,marginBottom:6 }} />
         <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Operations Tracker</div>
       </div>
       <div style={{ marginTop:16,flex:1,overflowY:"auto" }}>
