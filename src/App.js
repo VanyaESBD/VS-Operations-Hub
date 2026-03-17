@@ -152,8 +152,27 @@ function LeadForm({ initial, onSave, onClose }) {
   );
 }
 
-function TaskCard({ task, onClick, compact }) {
+function TaskCard({ task, onClick, compact, onComplete }) {
   const over = isOverdue(task);
+  const [completing, setCompleting] = useState(false);
+
+  const handleComplete = async (e) => {
+    e.stopPropagation();
+    setCompleting(true);
+    setTimeout(() => onComplete && onComplete(task.id), 600);
+  };
+
+  if (completing) return (
+    <div style={{ borderRadius:10,marginBottom:compact?6:10,overflow:"hidden",animation:"completeFlash 0.6s ease-out forwards" }}>
+      <style>{`@keyframes completeFlash { 0%{background:#0891b2;transform:scale(1);opacity:1} 50%{background:#10b981;transform:scale(1.02);opacity:1} 100%{background:#10b981;transform:scale(0.95);opacity:0;height:0;padding:0;margin:0} }`}</style>
+      <div style={{ padding:compact?"10px 12px":"14px 16px",display:"flex",alignItems:"center",gap:10 }}>
+        <div style={{ width:22,height:22,borderRadius:"50%",background:"#10b981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14 }}>✓</div>
+        <span style={{ fontSize:14,fontWeight:600,color:"#fff",textDecoration:"line-through" }}>{task.subject}</span>
+        <span style={{ marginLeft:"auto",fontSize:12,color:"#a7f3d0" }}>Done! 🎉</span>
+      </div>
+    </div>
+  );
+
   return (
     <div onClick={()=>onClick(task)}
       style={{ background:"#1a1a2e",border:`1px solid ${over?"#7f1d1d":"#2a2a45"}`,borderLeft:`3px solid ${STATUS_COLOR[task.status]}`,borderRadius:10,padding:compact?"10px 12px":"14px 16px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:compact?6:10 }}
