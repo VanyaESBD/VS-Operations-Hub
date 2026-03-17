@@ -21,7 +21,6 @@ const LEAD_STAGE_EMOJI = { Cold: "🧊", Warm: "🌡️", Hot: "🔥", Negotiati
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "Done": "#0891b2" };
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "Done": "✅" };
-const FYI_COLOR = "#1e3a8a";
 
 const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
@@ -176,7 +175,7 @@ function TaskCard({ task, onClick, compact, onComplete }) {
   return (
     <div onClick={()=>onClick(task)}
       style={{ background:"#1a1a2e",border:`1px solid ${over?"#7f1d1d":"#2a2a45"}`,borderLeft:`3px solid ${STATUS_COLOR[task.status]}`,borderRadius:10,padding:compact?"10px 12px":"14px 16px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:compact?6:10 }}
-     onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
+      onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
       onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
         {task.status !== "Done" && (
@@ -254,7 +253,7 @@ function KanbanCol({ status, tasks, onClick, onDrop }) {
       </div>
       {tasks.map(t=>(
         <div key={t.id} draggable onDragStart={(e)=>e.dataTransfer.setData("taskId",String(t.id))}>
-          <TaskCard task={t} onClick={onClick} compact />
+          <TaskCard task={t} onClick={onClick} onComplete={null} compact />
         </div>
       ))}
       {tasks.length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"#374151",fontSize:12 }}>Drop tasks here</div>}
@@ -573,7 +572,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
                 <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:28 }}>
                   <Stat label="FYA" value={byStatus("FYA").length} color="#f97316" onClick={()=>setView("fya")} />
                   <Stat label="To Do" value={byStatus("To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
@@ -590,7 +588,10 @@ export default function App() {
                   ].map(({title,items,empty})=>(
                     <div key={title}>
                       <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:"0.06em",textTransform:"uppercase" }}>{title}</div>
-                      {items.length===0?<div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div>:items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />
+                      {items.length===0
+                        ? <div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div>
+                        : items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />)
+                      }
                     </div>
                   ))}
                 </div>
