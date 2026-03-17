@@ -254,7 +254,7 @@ function KanbanCol({ status, tasks, onClick, onDrop }) {
       </div>
       {tasks.map(t=>(
         <div key={t.id} draggable onDragStart={(e)=>e.dataTransfer.setData("taskId",String(t.id))}>
-          <TaskCard task={t} onClick={onClick} compact />)}
+          <TaskCard task={t} onClick={onClick} compact />
         </div>
       ))}
       {tasks.length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"#374151",fontSize:12 }}>Drop tasks here</div>}
