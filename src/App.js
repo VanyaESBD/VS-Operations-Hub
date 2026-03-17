@@ -176,9 +176,15 @@ function TaskCard({ task, onClick, compact, onComplete }) {
   return (
     <div onClick={()=>onClick(task)}
       style={{ background:"#1a1a2e",border:`1px solid ${over?"#7f1d1d":"#2a2a45"}`,borderLeft:`3px solid ${STATUS_COLOR[task.status]}`,borderRadius:10,padding:compact?"10px 12px":"14px 16px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:compact?6:10 }}
-      onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
+     onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
       onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
+        {task.status !== "Done" && (
+          <div onClick={handleComplete} style={{ flexShrink:0,width:22,height:22,borderRadius:"50%",border:"2px solid #2a2a45",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,transition:"all 0.2s" }}
+            onMouseEnter={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#10b981"; e.currentTarget.style.background="#10b98122"; }}
+            onMouseLeave={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#2a2a45"; e.currentTarget.style.background="none"; }}>
+          </div>
+        )}
         <div style={{ flex:1,minWidth:0 }}>
           <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap" }}>
             <span style={{ fontSize:10,color:"#6b7280",fontFamily:"monospace" }}>#{task.id?.toString().slice(-4)}</span>
@@ -584,7 +590,7 @@ export default function App() {
                   ].map(({title,items,empty})=>(
                     <div key={title}>
                       <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:"0.06em",textTransform:"uppercase" }}>{title}</div>
-                      {items.length===0?<div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div>:items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} compact />)}
+                      {items.length===0?<div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div>:items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />
                     </div>
                   ))}
                 </div>
@@ -636,7 +642,7 @@ export default function App() {
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
-                  : (viewTasks[view]||[]).map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} />)
+                  : (viewTasks[view]||[]).map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} />))
                 }
               </div>
             )}
