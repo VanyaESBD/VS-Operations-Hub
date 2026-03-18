@@ -154,13 +154,11 @@ function LeadForm({ initial, onSave, onClose }) {
 function TaskCard({ task, onClick, compact, onComplete }) {
   const over = isOverdue(task);
   const [completing, setCompleting] = useState(false);
-
   const handleComplete = async (e) => {
     e.stopPropagation();
     setCompleting(true);
     setTimeout(() => onComplete && onComplete(task.id), 600);
   };
-
   if (completing) return (
     <div style={{ borderRadius:10,marginBottom:compact?6:10,overflow:"hidden",animation:"completeFlash 0.6s ease-out forwards" }}>
       <style>{`@keyframes completeFlash { 0%{background:#0891b2;transform:scale(1);opacity:1} 50%{background:#10b981;transform:scale(1.02);opacity:1} 100%{background:#10b981;transform:scale(0.95);opacity:0;height:0;padding:0;margin:0} }`}</style>
@@ -171,7 +169,6 @@ function TaskCard({ task, onClick, compact, onComplete }) {
       </div>
     </div>
   );
-
   return (
     <div onClick={()=>onClick(task)}
       style={{ background:"#1a1a2e",border:`1px solid ${over?"#7f1d1d":"#2a2a45"}`,borderLeft:`3px solid ${STATUS_COLOR[task.status]}`,borderRadius:10,padding:compact?"10px 12px":"14px 16px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:compact?6:10 }}
@@ -181,8 +178,7 @@ function TaskCard({ task, onClick, compact, onComplete }) {
         {task.status !== "Done" && (
           <div onClick={handleComplete} style={{ flexShrink:0,width:22,height:22,borderRadius:"50%",border:"2px solid #2a2a45",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,transition:"all 0.2s" }}
             onMouseEnter={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#10b981"; e.currentTarget.style.background="#10b98122"; }}
-            onMouseLeave={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#2a2a45"; e.currentTarget.style.background="none"; }}>
-          </div>
+            onMouseLeave={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#2a2a45"; e.currentTarget.style.background="none"; }} />
         )}
         <div style={{ flex:1,minWidth:0 }}>
           <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap" }}>
@@ -208,7 +204,7 @@ function LeadCard({ lead, onClick }) {
   const color = LEAD_STAGE_COLOR[lead.stage];
   return (
     <div onClick={()=>onClick(lead)}
-      style={{ background:"#1a1a2e",border:`1px solid #2a2a45`,borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
+      style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
       onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
       onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
@@ -240,7 +236,7 @@ function Stat({ label, value, color, onClick }) {
   );
 }
 
-function KanbanCol({ status, tasks, onClick, onDrop }) {
+function KanbanCol({ status, tasks, onClick, onDrop, onComplete }) {
   const [over, setOver] = useState(false);
   return (
     <div onDragOver={(e)=>{ e.preventDefault(); setOver(true); }} onDragLeave={()=>setOver(false)}
@@ -253,7 +249,7 @@ function KanbanCol({ status, tasks, onClick, onDrop }) {
       </div>
       {tasks.map(t=>(
         <div key={t.id} draggable onDragStart={(e)=>e.dataTransfer.setData("taskId",String(t.id))}>
-          <TaskCard task={t} onClick={onClick} onComplete={null} compact />
+          <TaskCard task={t} onClick={onClick} onComplete={onComplete} compact />
         </div>
       ))}
       {tasks.length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"#374151",fontSize:12 }}>Drop tasks here</div>}
@@ -325,7 +321,6 @@ function StickyNote({ onClose }) {
   const [newNote, setNewNote] = useState("");
   const [author, setAuthor] = useState("You");
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     loadNotes();
     const channel = supabase.channel("notes-changes")
@@ -333,21 +328,17 @@ function StickyNote({ onClose }) {
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
-
   const loadNotes = async () => {
     const { data } = await supabase.from("notes").select("*").order("created_at", { ascending: false }).limit(20);
     if (data) setNotes(data);
     setLoading(false);
   };
-
   const addNote = async () => {
     if (!newNote.trim()) return;
     await supabase.from("notes").insert([{ content: newNote.trim(), author }]);
     setNewNote("");
   };
-
   const deleteNote = async (id) => { await supabase.from("notes").delete().eq("id", id); };
-
   return (
     <div style={{ position:"fixed",bottom:80,right:20,width:300,background:"#13131f",border:"1px solid #1e3a8a",borderRadius:12,zIndex:900,boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
       <div style={{ background:"#1e3a8a",borderRadius:"12px 12px 0 0",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
@@ -395,20 +386,14 @@ export default function App() {
   const [modalLead, setModalLead] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("Connecting…");
-const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [leadStageFilter, setLeadStageFilter] = useState("All");
   const [seenTaskIds, setSeenTaskIds] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }
   });
-  const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));
-  const markAllSeen = () => {
-    const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];
-    setSeenTaskIds(allIds);
-    sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));
-    setShowNotifications(false);
-  };
 
   const loadTasks = useCallback(async () => {
     const { data, error } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -453,6 +438,13 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
     await supabase.from("tasks").update({status:newStatus,...extra}).eq("id",id);
   };
 
+  const markAllSeen = () => {
+    const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];
+    setSeenTaskIds(allIds);
+    sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));
+    setShowNotifications(false);
+  };
+
   const q = search.toLowerCase();
   const filtered = tasks.filter(t=>!q||[t.subject,t.client,t.company,t.owner,t.status,t.next_action].some(f=>(f||"").toLowerCase().includes(q)));
   const byStatus = (s) => filtered.filter(t=>t.status===s);
@@ -465,6 +457,7 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
   const andreaTasks = tasks.filter(t=>t.owner==="Andrea");
   const filteredLeads = leadStageFilter==="All" ? leads : leads.filter(l=>l.stage===leadStageFilter);
   const hotLeads = leads.filter(l=>l.stage==="Hot"||l.stage==="Negotiating");
+  const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
@@ -519,13 +512,13 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
         <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1 }}>{VIEWS.find(v=>v.id===view)?.label}</span>
         <button onClick={()=>setShowNotes(!showNotes)} style={{ padding:"7px 12px",background:"none",border:"1px solid #1e3a8a",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600 }}>📝</button>
         <button onClick={()=>setShowSummary(true)} style={{ padding:"7px 12px",background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#0891b2",cursor:"pointer",fontSize:12,fontWeight:600 }}>📋</button>
-       <div style={{ position:"relative" }}>
-          <button onClick={()=>{ setShowNotifications(!showNotifications); }} style={{ background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#6b7280",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
+        <div style={{ position:"relative" }}>
+          <button onClick={()=>setShowNotifications(!showNotifications)} style={{ background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#6b7280",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
             🔔
             {newTasks.length>0 && <span style={{ position:"absolute",top:-6,right:-6,background:"#ef4444",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center" }}>{newTasks.length}</span>}
           </button>
           {showNotifications && (
-            <div style={{ position:"absolute",top:40,right:0,width:300,background:"#13131f",border:"1px solid #2a2a45",borderRadius:12,zIndex:800,boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
+            <div style={{ position:"absolute",top:42,right:0,width:300,background:"#13131f",border:"1px solid #2a2a45",borderRadius:12,zIndex:800,boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
               <div style={{ padding:"10px 14px",borderBottom:"1px solid #2a2a45",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                 <span style={{ fontSize:13,fontWeight:700,color:"#e2e8f0" }}>🔔 New Today</span>
                 <button onClick={markAllSeen} style={{ background:"none",border:"none",color:"#0891b2",cursor:"pointer",fontSize:11 }}>Mark all seen</button>
@@ -554,26 +547,23 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
 
       <div style={{ flex:1,display:"flex",overflow:"hidden" }}>
         <div style={{ display:"flex",flexDirection:"column" }}>{Sidebar}</div>
-
         {sidebarOpen && (
           <div style={{ position:"fixed",inset:0,zIndex:500,display:"flex" }} onClick={()=>setSidebarOpen(false)}>
             <div style={{ width:240,height:"100%",background:"#0a0a16" }} onClick={e=>e.stopPropagation()}>{Sidebar}</div>
             <div style={{ flex:1,background:"rgba(0,0,0,0.5)" }} />
           </div>
         )}
-
         <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden" }}>
           <div style={{ padding:"14px 20px",borderBottom:"1px solid #1e1e30",background:"#0a0a16",display:"flex",alignItems:"center",gap:12 }}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp,maxWidth:340,padding:"8px 14px" }} />
           </div>
-
           <div style={{ flex:1,overflowY:"auto",padding:28 }}>
 
             {view==="dashboard" && (
               <div>
                 {(tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length>0||seanTasks.filter(t=>t.status==="FYA").length>0) && (
                   <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
-                    <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45",display:"flex",alignItems:"center",gap:8 }}>
+                    <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
                       <div style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase" }}>Daily Briefing</div>
                     </div>
                     <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr" }}>
@@ -628,10 +618,7 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
                   ].map(({title,items,empty})=>(
                     <div key={title}>
                       <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:"0.06em",textTransform:"uppercase" }}>{title}</div>
-                      {items.length===0
-                        ? <div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div>
-                        : items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />)
-                      }
+                      {items.length===0 ? <div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div> : items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />)}
                     </div>
                   ))}
                 </div>
@@ -640,7 +627,7 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
 
             {view==="kanban" && (
               <div style={{ display:"flex",gap:12,overflowX:"auto",paddingBottom:8,minHeight:400 }}>
-                {STATUSES.map(s=><KanbanCol key={s} status={s} tasks={tasks.filter(t=>t.status===s)} onClick={t=>setModalTask(t)} onDrop={moveTask} />)}
+                {STATUSES.map(s=><KanbanCol key={s} status={s} tasks={tasks.filter(t=>t.status===s)} onClick={t=>setModalTask(t)} onDrop={moveTask} onComplete={(id)=>moveTask(id,"Done")} />)}
               </div>
             )}
 
