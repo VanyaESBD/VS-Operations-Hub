@@ -397,7 +397,18 @@ export default function App() {
   const [showNotes, setShowNotes] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("Connecting…");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+ const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [seenTaskIds, setSeenTaskIds] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }
+  });
+  const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));
+  const markAllSeen = () => {
+    const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];
+    setSeenTaskIds(allIds);
+    sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));
+    setShowNotifications(false);
+  };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };   const [showNotifications, setShowNotifications] = useState(false);   const [seenTaskIds, setSeenTaskIds] = useState(() => {     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }   });   const newTasks = tasks.filter(t => t.date_received === TODAY() && !seenTaskIds.includes(t.id));   const markAllSeen = () => {     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];     setSeenTaskIds(allIds);     sessionStorage.setItem("seenTaskIds", JSON.stringify(allIds));     setShowNotifications(false);   };
   const [leadStageFilter, setLeadStageFilter] = useState("All");
 
   const loadTasks = useCallback(async () => {
@@ -509,6 +520,36 @@ export default function App() {
         <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1 }}>{VIEWS.find(v=>v.id===view)?.label}</span>
         <button onClick={()=>setShowNotes(!showNotes)} style={{ padding:"7px 12px",background:"none",border:"1px solid #1e3a8a",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600 }}>📝</button>
         <button onClick={()=>setShowSummary(true)} style={{ padding:"7px 12px",background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#0891b2",cursor:"pointer",fontSize:12,fontWeight:600 }}>📋</button>
+       <div style={{ position:"relative" }}>
+          <button onClick={()=>{ setShowNotifications(!showNotifications); }} style={{ background:"none",border:"1px solid #2a2a45",borderRadius:7,color:"#6b7280",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
+            🔔
+            {newTasks.length>0 && <span style={{ position:"absolute",top:-6,right:-6,background:"#ef4444",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center" }}>{newTasks.length}</span>}
+          </button>
+          {showNotifications && (
+            <div style={{ position:"absolute",top:40,right:0,width:300,background:"#13131f",border:"1px solid #2a2a45",borderRadius:12,zIndex:800,boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
+              <div style={{ padding:"10px 14px",borderBottom:"1px solid #2a2a45",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <span style={{ fontSize:13,fontWeight:700,color:"#e2e8f0" }}>🔔 New Today</span>
+                <button onClick={markAllSeen} style={{ background:"none",border:"none",color:"#0891b2",cursor:"pointer",fontSize:11 }}>Mark all seen</button>
+              </div>
+              <div style={{ maxHeight:280,overflowY:"auto" }}>
+                {newTasks.length===0
+                  ? <div style={{ padding:16,fontSize:12,color:"#6b7280",textAlign:"center" }}>No new tasks today</div>
+                  : newTasks.map(t=>(
+                    <div key={t.id} onClick={()=>{ setModalTask(t); setShowNotifications(false); }} style={{ padding:"10px 14px",borderBottom:"1px solid #1e1e30",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start" }}
+                      onMouseEnter={(e)=>e.currentTarget.style.background="#1a1a2e"}
+                      onMouseLeave={(e)=>e.currentTarget.style.background="none"}>
+                      <div style={{ width:8,height:8,borderRadius:"50%",background:STATUS_COLOR[t.status],marginTop:4,flexShrink:0 }} />
+                      <div>
+                        <div style={{ fontSize:13,fontWeight:600,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
+                        <div style={{ fontSize:11,color:"#6b7280" }}>{t.owner} · {t.status}</div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+        </div>
         <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#0891b2",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
       </div>
 
