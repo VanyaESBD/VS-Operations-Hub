@@ -21,6 +21,8 @@ const LEAD_STAGE_EMOJI = { Cold: "🧊", Warm: "🌡️", Hot: "🔥", Negotiati
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "Done": "#0891b2" };
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "Done": "✅" };
+const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to Sign", "📊 Slides", "🎫 Ticket", "🔗 Link", "📅 Meeting Prep", "📦 Other"];
+const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#0891b2","🎫 Ticket":"#10b981","🔗 Link":"#6b7280","📅 Meeting Prep":"#f97316","📦 Other":"#4b5563" };
 
 const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
@@ -378,9 +380,145 @@ function StickyNote({ onClose }) {
   );
 }
 
+function SeanWeekView({ items, onAdd, onDelete }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title:"", category:"📦 Other", reference:"", date_needed:"" });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const save = async () => {
+    if (!form.title) return;
+    await onAdd(form);
+    setForm({ title:"", category:"📦 Other", reference:"", date_needed:"" });
+    setShowForm(false);
+  };
+  const grouped = WEEK_CATEGORIES.reduce((acc,cat)=>{ acc[cat]=items.filter(i=>i.category===cat); return acc; },{});
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+        <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>Sean's Week Ahead</div>
+        <button onClick={()=>setShowForm(!showForm)} style={{ padding:"8px 16px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ Add Item</button>
+      </div>
+      {showForm && (
+        <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:12,padding:20,marginBottom:20 }}>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+            <div style={{ gridColumn:"1/-1" }}><Field label="Title" required><input style={inp} value={form.title} onChange={e=>set("title",e.target.value)} placeholder="e.g. Flight to Johannesburg" /></Field></div>
+            <Field label="Category"><select style={inp} value={form.category} onChange={e=>set("category",e.target.value)}>{WEEK_CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></Field>
+            <Field label="Date Needed"><input type="date" style={inp} value={form.date_needed} onChange={e=>set("date_needed",e.target.value)} /></Field>
+            <div style={{ gridColumn:"1/-1" }}><Field label="Reference / Link"><input style={inp} value={form.reference} onChange={e=>set("reference",e.target.value)} placeholder="Booking ref, URL, file name..." /></Field></div>
+          </div>
+          <div style={{ marginTop:14,display:"flex",gap:10,justifyContent:"flex-end" }}>
+            <button onClick={()=>setShowForm(false)} style={{ padding:"8px 16px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer" }}>Cancel</button>
+            <button onClick={save} style={{ padding:"8px 20px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontWeight:700 }}>Save</button>
+          </div>
+        </div>
+      )}
+      {items.length===0 && !showForm
+        ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📅</div><div>Nothing added yet — click + Add Item to get started</div></div>
+        : WEEK_CATEGORIES.map(cat=>{
+          const catItems = grouped[cat];
+          if (!catItems||catItems.length===0) return null;
+          const color = WEEK_CAT_COLOR[cat]||"#6b7280";
+          return (
+            <div key={cat} style={{ marginBottom:20 }}>
+              <div style={{ fontSize:11,fontWeight:700,color,marginBottom:8,letterSpacing:"0.06em",textTransform:"uppercase" }}>{cat}</div>
+              {catItems.map(item=>(
+                <div key={item.id} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:4 }}>{item.title}</div>
+                    {item.reference && (
+                      item.reference.startsWith("http")
+                        ? <a href={item.reference} target="_blank" rel="noreferrer" style={{ fontSize:12,color:"#0891b2",textDecoration:"none" }}>🔗 {item.reference}</a>
+                        : <div style={{ fontSize:12,color:"#6b7280" }}>📋 {item.reference}</div>
+                    )}
+                  </div>
+                  <div style={{ display:"flex",alignItems:"center",gap:10,flexShrink:0,marginLeft:12 }}>
+                    {item.date_needed && <div style={{ fontSize:11,color:"#6b7280" }}>{fmtDate(item.date_needed)}</div>}
+                    <button onClick={()=>onDelete(item.id)} style={{ background:"none",border:"none",color:"#4b5563",cursor:"pointer",fontSize:14 }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+}
+
+function InboxTriageView({ items, onAdd, onClear }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ subject:"", action:"Delete", next_action:"" });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const save = async () => {
+    if (!form.subject) return;
+    await onAdd(form);
+    setForm({ subject:"", action:"Delete", next_action:"" });
+    setShowForm(false);
+  };
+  const pending = items.filter(i=>!i.cleared);
+  const cleared = items.filter(i=>i.cleared);
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>Inbox Triage</div>
+          <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Sean flags → You action → Inbox stays clean</div>
+        </div>
+        <button onClick={()=>setShowForm(!showForm)} style={{ padding:"8px 16px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ Flag Email</button>
+      </div>
+      {showForm && (
+        <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:12,padding:20,marginBottom:20 }}>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+            <div style={{ gridColumn:"1/-1" }}><Field label="Email Subject + Sender" required><input style={inp} value={form.subject} onChange={e=>set("subject",e.target.value)} placeholder="e.g. Re: Invoice — from Niren Dwarika" /></Field></div>
+            <Field label="Action">
+              <div style={{ display:"flex",gap:8 }}>
+                {["Delete","Follow Up"].map(a=>(
+                  <button key={a} onClick={()=>set("action",a)} style={{ flex:1,padding:"8px",background:form.action===a?(a==="Delete"?"#7f1d1d":"#1e3a8a"):"#1e1e30",border:`1px solid ${form.action===a?(a==="Delete"?"#ef4444":"#3b82f6"):"#2a2a45"}`,borderRadius:8,color:form.action===a?"#fff":"#6b7280",cursor:"pointer",fontSize:13,fontWeight:600 }}>{a==="Delete"?"🗑️ Delete":"→ Follow Up"}</button>
+                ))}
+              </div>
+            </Field>
+            {form.action==="Follow Up" && <Field label="Next Action"><input style={inp} value={form.next_action} onChange={e=>set("next_action",e.target.value)} placeholder="What needs to happen?" /></Field>}
+          </div>
+          <div style={{ marginTop:14,display:"flex",gap:10,justifyContent:"flex-end" }}>
+            <button onClick={()=>setShowForm(false)} style={{ padding:"8px 16px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer" }}>Cancel</button>
+            <button onClick={save} style={{ padding:"8px 20px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontWeight:700 }}>Flag It</button>
+          </div>
+        </div>
+      )}
+      {pending.length===0 && !showForm
+        ? <div style={{ textAlign:"center",padding:"40px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📭</div><div>Inbox is clear! Nothing flagged.</div></div>
+        : pending.map(item=>(
+          <div key={item.id} style={{ background:"#1a1a2e",border:`1px solid ${item.action==="Delete"?"#7f1d1d22":"#1e3a8a44"}`,borderLeft:`3px solid ${item.action==="Delete"?"#ef4444":"#3b82f6"}`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+            <div style={{ flex:1,minWidth:0 }}>
+              <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
+                <span style={{ fontSize:11,padding:"2px 8px",borderRadius:99,background:item.action==="Delete"?"#7f1d1d":"#1e3a8a",color:item.action==="Delete"?"#fca5a5":"#93c5fd",fontWeight:700 }}>{item.action==="Delete"?"🗑️ Delete":"→ Follow Up"}</span>
+              </div>
+              <div style={{ fontSize:13,fontWeight:600,color:"#e2e8f0",marginBottom:2 }}>{item.subject}</div>
+              {item.next_action && <div style={{ fontSize:12,color:"#6b7280" }}>→ {item.next_action}</div>}
+            </div>
+            <button onClick={()=>onClear(item.id)} style={{ flexShrink:0,marginLeft:12,padding:"6px 12px",background:"#10b98122",border:"1px solid #10b981",borderRadius:6,color:"#10b981",cursor:"pointer",fontSize:11,fontWeight:700 }}>✓ Done</button>
+          </div>
+        ))
+      }
+      {cleared.length>0 && (
+        <div style={{ marginTop:24 }}>
+          <div style={{ fontSize:11,fontWeight:600,color:"#374151",marginBottom:8,letterSpacing:"0.06em",textTransform:"uppercase" }}>Recently Cleared</div>
+          {cleared.slice(0,5).map(item=>(
+            <div key={item.id} style={{ background:"#13131f",border:"1px solid #1e1e30",borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:0.5 }}>
+              <div style={{ fontSize:12,color:"#6b7280",textDecoration:"line-through" }}>{item.subject}</div>
+              <span style={{ fontSize:10,color:"#374151" }}>Cleared</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [tasks, setTasks] = useState([]);
   const [leads, setLeads] = useState([]);
+  const [seanWeek, setSeanWeek] = useState([]);
+  const [inboxTriage, setInboxTriage] = useState([]);
   const [view, setView] = useState("dashboard");
   const [modalTask, setModalTask] = useState(null);
   const [modalLead, setModalLead] = useState(null);
@@ -406,18 +544,25 @@ export default function App() {
     if (data) setLeads(data);
   }, []);
 
+  const loadSeanWeek = useCallback(async () => {
+    const { data } = await supabase.from("sean_week").select("*").order("date_needed", { ascending: true });
+    if (data) setSeanWeek(data);
+  }, []);
+
+  const loadInboxTriage = useCallback(async () => {
+    const { data } = await supabase.from("inbox_triage").select("*").order("created_at", { ascending: false });
+    if (data) setInboxTriage(data);
+  }, []);
+
   useEffect(() => {
-    loadTasks();
-    loadLeads();
-    const taskChannel = supabase.channel("tasks-changes")
-      .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, loadTasks)
-      .subscribe();
-    const leadChannel = supabase.channel("leads-changes")
-      .on("postgres_changes", { event:"*", schema:"public", table:"leads" }, loadLeads)
-      .subscribe();
-    const interval = setInterval(() => { loadTasks(); loadLeads(); }, 30000);
-    return () => { supabase.removeChannel(taskChannel); supabase.removeChannel(leadChannel); clearInterval(interval); };
-  }, [loadTasks, loadLeads]);
+    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage();
+    const taskCh = supabase.channel("tasks-ch").on("postgres_changes",{event:"*",schema:"public",table:"tasks"},loadTasks).subscribe();
+    const leadCh = supabase.channel("leads-ch").on("postgres_changes",{event:"*",schema:"public",table:"leads"},loadLeads).subscribe();
+    const weekCh = supabase.channel("week-ch").on("postgres_changes",{event:"*",schema:"public",table:"sean_week"},loadSeanWeek).subscribe();
+    const inboxCh = supabase.channel("inbox-ch").on("postgres_changes",{event:"*",schema:"public",table:"inbox_triage"},loadInboxTriage).subscribe();
+    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); }, 30000);
+    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); clearInterval(interval); };
+  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage]);
 
   const upsertTask = async (form) => {
     const payload = { subject:form.subject, client:form.client, company:form.company, email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type };
@@ -431,6 +576,10 @@ export default function App() {
     else { await supabase.from("leads").insert([payload]); }
   };
 
+  const addSeanWeekItem = async (form) => { await supabase.from("sean_week").insert([form]); };
+  const deleteSeanWeekItem = async (id) => { await supabase.from("sean_week").delete().eq("id",id); };
+  const addInboxItem = async (form) => { await supabase.from("inbox_triage").insert([form]); };
+  const clearInboxItem = async (id) => { await supabase.from("inbox_triage").update({cleared:true}).eq("id",id); };
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id",id); };
   const deleteLead = async (id) => { await supabase.from("leads").delete().eq("id",id); };
   const moveTask = async (id, newStatus) => {
@@ -458,6 +607,7 @@ export default function App() {
   const filteredLeads = leadStageFilter==="All" ? leads : leads.filter(l=>l.stage===leadStageFilter);
   const hotLeads = leads.filter(l=>l.stage==="Hot"||l.stage==="Negotiating");
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
+  const pendingInbox = inboxTriage.filter(i=>!i.cleared);
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
@@ -470,6 +620,8 @@ export default function App() {
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
     { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length },
     { id:"leads", label:"Leads & Pipeline", icon:"🎯", count:hotLeads.length },
+    { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
+    { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
     { id:"team", label:"Team", icon:"👥" },
     { id:"all", label:"All Tasks", icon:"≡" },
   ];
@@ -488,7 +640,7 @@ export default function App() {
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
           </button>
         ))}
       </div>
@@ -658,6 +810,9 @@ export default function App() {
               </div>
             )}
 
+            {view==="seanweek" && <SeanWeekView items={seanWeek} onAdd={addSeanWeekItem} onDelete={deleteSeanWeekItem} />}
+            {view==="inbox" && <InboxTriageView items={inboxTriage} onAdd={addInboxItem} onClear={clearInboxItem} />}
+
             {view==="team" && (
               <div>
                 <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:16,letterSpacing:"0.06em",textTransform:"uppercase" }}>Team Performance</div>
@@ -666,7 +821,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","kanban","leads","team"].includes(view) && (
+            {!["dashboard","kanban","leads","seanweek","inbox","team"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
