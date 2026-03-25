@@ -65,7 +65,7 @@ export default function Sean() {
   ];
 
   const s = {
-    page: { minHeight: "100vh", background: "#0d0d1a", color: "#e2e8f0", fontFamily: "system-ui,sans-serif", maxWidth: 480, margin: "0 auto", paddingBottom: 40 },
+    page: { minHeight: "100vh", background: "#0d0d1a", color: "#e2e8f0", fontFamily: "system-ui,sans-serif", width: "100%", paddingBottom: 40 },
     header: { background: "#0a0a16", padding: "16px 20px", borderBottom: "1px solid #1e1e30", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 },
     logo: { width: 80 },
     greeting: { fontSize: 12, color: "#4b5563" },
