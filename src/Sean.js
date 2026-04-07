@@ -6,6 +6,7 @@ const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB",
 const isOverdue = (t) => t.status !== "Done" && t.expected_date && t.expected_date < TODAY();
 
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "Done": "#0891b2" };
+const STATUSES = ["To Do", "FYA", "Follow Up", "Done"];
 
 export default function Sean() {
   const [tasks, setTasks] = useState([]);
@@ -14,6 +15,8 @@ export default function Sean() {
   const [activeTab, setActiveTab] = useState("fya");
   const [newInbox, setNewInbox] = useState("");
   const [newInboxAction, setNewInboxAction] = useState("Delete");
+  const [editingTask, setEditingTask] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -34,6 +37,18 @@ export default function Sean() {
     load();
   };
 
+  const saveEdit = async () => {
+    await supabase.from("tasks").update({
+      status: editForm.status,
+      expected_date: editForm.expected_date,
+      notes: editForm.notes,
+      next_action: editForm.next_action,
+      actual_date: editForm.status === "Done" ? TODAY() : null,
+    }).eq("id", editingTask.id);
+    setEditingTask(null);
+    load();
+  };
+
   const clearInbox = async (id) => {
     await supabase.from("inbox_triage").update({ cleared: true }).eq("id", id);
     load();
@@ -44,6 +59,16 @@ export default function Sean() {
     await supabase.from("inbox_triage").insert([{ subject: newInbox.trim(), action: newInboxAction }]);
     setNewInbox("");
     load();
+  };
+
+  const openEdit = (task) => {
+    setEditingTask(task);
+    setEditForm({
+      status: task.status,
+      expected_date: task.expected_date || "",
+      notes: task.notes || "",
+      next_action: task.next_action || "",
+    });
   };
 
   const seanTasks = tasks.filter(t => t.owner === "Sean" && t.status !== "Done");
@@ -71,15 +96,18 @@ export default function Sean() {
     greeting: { fontSize: 12, color: "#4b5563" },
     tabs: { display: "flex", overflowX: "auto", gap: 6, padding: "12px 16px", borderBottom: "1px solid #1e1e30", background: "#0a0a16", position: "sticky", top: 57, zIndex: 99 },
     tab: (active) => ({ flexShrink: 0, padding: "8px 14px", borderRadius: 99, border: `1px solid ${active ? "#0891b2" : "#2a2a45"}`, background: active ? "#0891b233" : "none", color: active ? "#0891b2" : "#6b7280", fontSize: 13, fontWeight: active ? 700 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }),
-    badge: (n) => ({ background: "#ef4444", color: "#fff", borderRadius: 99, padding: "1px 6px", fontSize: 10, fontWeight: 700 }),
     content: { padding: "16px" },
     card: (over) => ({ background: "#1a1a2e", border: `1px solid ${over ? "#7f1d1d" : "#2a2a45"}`, borderRadius: 14, padding: "16px", marginBottom: 12 }),
     cardTitle: { fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 6, lineHeight: 1.3 },
     cardMeta: { fontSize: 12, color: "#6b7280", marginBottom: 10 },
     doneBtn: { width: "100%", padding: "12px", background: "#10b98122", border: "1px solid #10b981", borderRadius: 10, color: "#10b981", fontSize: 15, fontWeight: 700, cursor: "pointer" },
+    editBtn: { width: "100%", padding: "10px", background: "#0891b222", border: "1px solid #0891b2", borderRadius: 10, color: "#0891b2", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8 },
     sectionTitle: { fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12, marginTop: 4 },
     empty: { textAlign: "center", padding: "40px 0", color: "#374151" },
     inp: { background: "#1e1e30", border: "1px solid #2a2a45", borderRadius: 10, padding: "12px 14px", color: "#e2e8f0", fontSize: 15, outline: "none", width: "100%", boxSizing: "border-box" },
+    label: { fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6, display: "block" },
+    overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" },
+    sheet: { background: "#13131f", border: "1px solid #2a2a45", borderRadius: "16px 16px 0 0", padding: "24px 20px", width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" },
   };
 
   if (loading) return (
@@ -97,10 +125,12 @@ export default function Sean() {
             {task.client && <span>{task.client}{task.company ? ` · ${task.company}` : ""} · </span>}
             <span style={{ color: isOverdue(task) ? "#fca5a5" : "#6b7280" }}>Due {fmtDate(task.expected_date)}</span>
           </div>
-          {task.next_action && <div style={{ fontSize: 13, color: "#0891b2", marginBottom: 10 }}>→ {task.next_action}</div>}
+          {task.next_action && <div style={{ fontSize: 13, color: "#0891b2", marginBottom: 6 }}>→ {task.next_action}</div>}
+          {task.notes && <div style={{ fontSize: 12, color: "#6b7280", fontStyle: "italic", marginBottom: 10 }}>📝 {task.notes}</div>}
         </div>
         {isOverdue(task) && <span style={{ flexShrink: 0, fontSize: 10, background: "#7f1d1d", color: "#fca5a5", borderRadius: 99, padding: "2px 8px", fontWeight: 700 }}>OVERDUE</span>}
       </div>
+      <button onClick={() => openEdit(task)} style={s.editBtn}>✏️ Edit / Add Note</button>
       <button onClick={() => markDone(task.id)} style={s.doneBtn}>✓ Mark Done</button>
     </div>
   );
@@ -151,53 +181,36 @@ export default function Sean() {
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={s.tab(activeTab === tab.id)}>
             <span>{tab.emoji}</span>
             <span>{tab.label}</span>
-            {tab.count > 0 && <span style={s.badge(tab.count)}>{tab.count}</span>}
+            {tab.count > 0 && <span style={{ background: "#ef4444", color: "#fff", borderRadius: 99, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{tab.count}</span>}
           </button>
         ))}
       </div>
 
       <div style={s.content}>
-
         {activeTab === "fya" && (
           <div>
             <div style={s.sectionTitle}>🟠 For Your Attention</div>
-            {fya.length === 0
-              ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div><div>Nothing needs your attention</div></div>
-              : fya.map(t => <TaskCard key={t.id} task={t} />)
-            }
+            {fya.length === 0 ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div><div>Nothing needs your attention</div></div> : fya.map(t => <TaskCard key={t.id} task={t} />)}
           </div>
         )}
-
         {activeTab === "todo" && (
           <div>
             <div style={s.sectionTitle}>🔴 To Do</div>
-            {todo.length === 0
-              ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>✅</div><div>Nothing on your to do list</div></div>
-              : todo.map(t => <TaskCard key={t.id} task={t} />)
-            }
+            {todo.length === 0 ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>✅</div><div>Nothing on your to do list</div></div> : todo.map(t => <TaskCard key={t.id} task={t} />)}
           </div>
         )}
-
         {activeTab === "followup" && (
           <div>
             <div style={s.sectionTitle}>🏌️ Follow Up</div>
-            {followUp.length === 0
-              ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>🏌️</div><div>No follow ups pending</div></div>
-              : followUp.map(t => <TaskCard key={t.id} task={t} />)
-            }
+            {followUp.length === 0 ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>🏌️</div><div>No follow ups pending</div></div> : followUp.map(t => <TaskCard key={t.id} task={t} />)}
           </div>
         )}
-
         {activeTab === "fyi" && (
           <div>
             <div style={s.sectionTitle}>🟣 For Your Information</div>
-            {fyi.length === 0
-              ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>📭</div><div>No FYI items</div></div>
-              : fyi.map(t => <FYICard key={t.id} task={t} />)
-            }
+            {fyi.length === 0 ? <div style={s.empty}><div style={{ fontSize: 32, marginBottom: 8 }}>📭</div><div>No FYI items</div></div> : fyi.map(t => <FYICard key={t.id} task={t} />)}
           </div>
         )}
-
         {activeTab === "team" && (
           <div>
             <div style={s.sectionTitle}>👥 Team Update</div>
@@ -205,7 +218,6 @@ export default function Sean() {
             <TeamMini name="Andrea" tasks={andreaTasks} />
           </div>
         )}
-
         {activeTab === "inbox" && (
           <div>
             <div style={s.sectionTitle}>🗑️ Inbox Triage</div>
@@ -235,6 +247,49 @@ export default function Sean() {
           </div>
         )}
       </div>
+
+      {editingTask && (
+        <div style={s.overlay} onClick={() => setEditingTask(null)}>
+          <div style={s.sheet} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0" }}>Edit Task</div>
+              <button onClick={() => setEditingTask(null)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 20 }}>✕</button>
+            </div>
+            <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 20, lineHeight: 1.4 }}>{editingTask.subject}</div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={s.label}>Status</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {STATUSES.map(st => (
+                  <button key={st} onClick={() => setEditForm(f => ({ ...f, status: st }))}
+                    style={{ padding: "8px 14px", borderRadius: 99, border: `1px solid ${editForm.status === st ? STATUS_COLOR[st] : "#2a2a45"}`, background: editForm.status === st ? STATUS_COLOR[st] + "33" : "none", color: editForm.status === st ? STATUS_COLOR[st] : "#6b7280", cursor: "pointer", fontSize: 13, fontWeight: editForm.status === st ? 700 : 400 }}>
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={s.label}>Follow Up Date</label>
+              <input type="date" value={editForm.expected_date} onChange={e => setEditForm(f => ({ ...f, expected_date: e.target.value }))} style={s.inp} />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={s.label}>Next Action</label>
+              <input value={editForm.next_action} onChange={e => setEditForm(f => ({ ...f, next_action: e.target.value }))} placeholder="What needs to happen next?" style={s.inp} />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={s.label}>Notes</label>
+              <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} placeholder="Add a note..." style={{ ...s.inp, minHeight: 100, resize: "vertical" }} />
+            </div>
+
+            <button onClick={saveEdit} style={{ width: "100%", padding: "14px", background: "#0891b2", border: "none", borderRadius: 10, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              Save Changes
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
