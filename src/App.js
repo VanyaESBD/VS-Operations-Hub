@@ -198,6 +198,7 @@ function TaskCard({ task, onClick, compact, onComplete }) {
         </div>
       </div>
       {!compact && task.next_action && <div style={{ marginTop:8,fontSize:12,color:"#0891b2",borderTop:"1px solid #2a2a45",paddingTop:8 }}>→ {task.next_action}</div>}
+      {!compact && task.notes && <div style={{ marginTop:6,fontSize:12,color:"#6b7280",fontStyle:"italic" }}>📝 {task.notes}</div>}
     </div>
   );
 }
@@ -295,6 +296,38 @@ function TeamCard({ name, tasks }) {
         {showNotes?"Hide Notes":"📝 Performance Notes"}
       </button>
       {showNotes && <textarea value={notes} onChange={(e)=>setNotes(e.target.value)} placeholder={`Private notes about ${name}...`} style={{ ...inp,marginTop:8,minHeight:80,resize:"vertical" }} />}
+    </div>
+  );
+}
+
+function TaskHistory({ taskId }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from("task_history").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
+      if (data) setHistory(data);
+      setLoading(false);
+    };
+    load();
+  }, [taskId]);
+  if (loading || history.length === 0) return null;
+  return (
+    <div style={{ marginTop:16,borderTop:"1px solid #2a2a45",paddingTop:16 }}>
+      <div style={{ fontSize:11,fontWeight:700,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12 }}>⏱️ Progress History</div>
+      {history.map(h=>(
+        <div key={h.id} style={{ display:"flex",gap:12,marginBottom:12,paddingBottom:12,borderBottom:"1px solid #1e1e30" }}>
+          <div style={{ fontSize:18,flexShrink:0 }}>{STATUS_EMOJI[h.new_status]||"📌"}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
+              <div style={{ fontSize:12,color:"#e2e8f0",fontWeight:600 }}>{h.old_status} → {h.new_status}</div>
+              <div style={{ fontSize:11,color:"#4b5563" }}>{fmtDate(h.created_at?.split("T")[0])}</div>
+            </div>
+            {h.note && <div style={{ fontSize:12,color:"#9ca3af",fontStyle:"italic" }}>"{h.note}"</div>}
+            <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>by {h.changed_by}</div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -566,8 +599,23 @@ export default function App() {
 
   const upsertTask = async (form) => {
     const payload = { subject:form.subject, client:form.client, company:form.company, email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type };
-    if (form.id) { const {error} = await supabase.from("tasks").update(payload).eq("id",form.id); if(error) console.error(error); }
-    else { const {error} = await supabase.from("tasks").insert([payload]); if(error) console.error(error); }
+    if (form.id) {
+      const original = tasks.find(t => t.id === form.id);
+      const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
+      if(error) console.error(error);
+      if (original && original.status !== form.status) {
+        await supabase.from("task_history").insert([{
+          task_id: form.id,
+          changed_by: "You",
+          old_status: original.status,
+          new_status: form.status,
+          note: form.notes || null
+        }]);
+      }
+    } else {
+      const {error} = await supabase.from("tasks").insert([payload]);
+      if(error) console.error(error);
+    }
   };
 
   const upsertLead = async (form) => {
@@ -583,8 +631,18 @@ export default function App() {
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id",id); };
   const deleteLead = async (id) => { await supabase.from("leads").delete().eq("id",id); };
   const moveTask = async (id, newStatus) => {
+    const original = tasks.find(t => t.id === parseInt(id));
     const extra = newStatus==="Done"?{actual_date:TODAY()}:{};
     await supabase.from("tasks").update({status:newStatus,...extra}).eq("id",id);
+    if (original && original.status !== newStatus) {
+      await supabase.from("task_history").insert([{
+        task_id: parseInt(id),
+        changed_by: "You",
+        old_status: original.status,
+        new_status: newStatus,
+        note: null
+      }]);
+    }
   };
 
   const markAllSeen = () => {
@@ -838,6 +896,7 @@ export default function App() {
           {modalTask.id
             ? <div>
                 <TaskForm initial={modalTask} onSave={upsertTask} onClose={()=>setModalTask(null)} />
+                <TaskHistory taskId={modalTask.id} />
                 <div style={{ marginTop:16,borderTop:"1px solid #2a2a45",paddingTop:16,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:12,color:"#4b5563" }}>Received {fmtDate(modalTask.date_received)}</div>
                   <button onClick={()=>{ if(window.confirm("Delete this task?")){ deleteTask(modalTask.id); setModalTask(null); }}} style={{ padding:"6px 14px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:12 }}>Delete Task</button>
@@ -867,3 +926,4 @@ export default function App() {
     </div>
   );
 }
+
