@@ -11,7 +11,7 @@ const thisWeekStart = () => {
   return d.toISOString().split("T")[0];
 };
 
-const STATUSES = ["To Do", "FYA", "Follow Up", "Done"];
+const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
 const OWNERS = ["You", "Sean", "Jason", "Andrea"];
@@ -19,8 +19,8 @@ const LEAD_STAGES = ["Cold", "Warm", "Hot", "Negotiating", "Won", "Lost"];
 const LEAD_STAGE_COLOR = { Cold: "#3b82f6", Warm: "#f59e0b", Hot: "#ef4444", Negotiating: "#8b5cf6", Won: "#10b981", Lost: "#6b7280" };
 const LEAD_STAGE_EMOJI = { Cold: "🧊", Warm: "🌡️", Hot: "🔥", Negotiating: "🤝", Won: "✅", Lost: "❌" };
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
-const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "Done": "#0891b2" };
-const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "Done": "✅" };
+const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
+const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
 const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to Sign", "📊 Slides", "🎫 Ticket", "🔗 Link", "📅 Meeting Prep", "📦 Other"];
 const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#0891b2","🎫 Ticket":"#10b981","🔗 Link":"#6b7280","📅 Meeting Prep":"#f97316","📦 Other":"#4b5563" };
 
@@ -40,7 +40,7 @@ const newLead = (overrides = {}) => ({
 function generateSummary(tasks) {
   const today = TODAY();
   const seanFYA = tasks.filter(t => t.owner === "Sean" && t.status === "FYA");
-  const fyi = tasks.filter(t => t.task_type === "FYI" && t.status !== "Done");
+  const fyi = tasks.filter(t => t.status === "FYI" || t.task_type === "FYI").filter(t => t.status !== "Done");
   const urgent = tasks.filter(t => t.priority === "Urgent" && t.status !== "Done");
   const followUp = tasks.filter(t => t.status === "Follow Up");
   const jasonTasks = tasks.filter(t => t.owner === "Jason" && t.status !== "Done");
@@ -666,6 +666,7 @@ export default function App() {
   const hotLeads = leads.filter(l=>l.stage==="Hot"||l.stage==="Negotiating");
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
+  const fyiTasks = filtered.filter(t=>t.status==="FYI");
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
@@ -673,6 +674,7 @@ export default function App() {
     { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length },
     { id:"fya", label:"FYA", icon:"🟠", count:byStatus("FYA").length },
     { id:"followup", label:"Follow Up", icon:"🏌️", count:byStatus("Follow Up").length },
+    { id:"fyi", label:"FYI", icon:"🟣", count:byStatus("FYI").length },
     { id:"done", label:"Done", icon:"✅", count:byStatus("Done").length },
     { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length },
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
@@ -684,7 +686,7 @@ export default function App() {
     { id:"all", label:"All Tasks", icon:"≡" },
   ];
 
-  const viewTasks = { todo:byStatus("To Do"), fya:byStatus("FYA"), followup:byStatus("Follow Up"), done:byStatus("Done"), overdue, mine:myTasks, sean:seanTasks, all:filtered };
+  const viewTasks = { todo:byStatus("To Do"), fya:byStatus("FYA"), followup:byStatus("Follow Up"), fyi:fyiTasks, done:byStatus("Done"), overdue, mine:myTasks, sean:seanTasks, all:filtered };
 
   const Sidebar = (
     <div style={{ width:220,background:"#0a0a16",borderRight:"1px solid #1e1e30",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
@@ -771,7 +773,7 @@ export default function App() {
 
             {view==="dashboard" && (
               <div>
-                {(tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length>0||seanTasks.filter(t=>t.status==="FYA").length>0) && (
+                {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||seanTasks.filter(t=>t.status==="FYA").length>0) && (
                   <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
                     <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
                       <div style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase" }}>Daily Briefing</div>
@@ -795,14 +797,14 @@ export default function App() {
                       </div>
                       <div style={{ padding:"14px 16px" }}>
                         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
-                          <div style={{ width:8,height:8,borderRadius:"50%",background:"#1e3a8a" }} />
+                          <div style={{ width:8,height:8,borderRadius:"50%",background:"#8b5cf6" }} />
                           <span style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>FYI</span>
-                          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length}</span>
+                          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length}</span>
                         </div>
-                        {tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").length===0
+                        {tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length===0
                           ? <div style={{ fontSize:12,color:"#374151",padding:"8px 0" }}>No FYI items</div>
-                          : tasks.filter(t=>t.task_type==="FYI"&&t.status!=="Done").map(t=>(
-                            <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #1e3a8a",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
+                          : tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").map(t=>(
+                            <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #8b5cf6",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
                               <div style={{ fontSize:13,fontWeight:500,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
                               <div style={{ fontSize:11,color:"#6b7280" }}>{t.client||t.company||"—"} · {fmtDate(t.date_received)}</div>
                             </div>
@@ -816,9 +818,9 @@ export default function App() {
                   <Stat label="FYA" value={byStatus("FYA").length} color="#f97316" onClick={()=>setView("fya")} />
                   <Stat label="To Do" value={byStatus("To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
                   <Stat label="Follow Up" value={byStatus("Follow Up").length} color="#10b981" onClick={()=>setView("followup")} />
+                  <Stat label="FYI" value={byStatus("FYI").length} color="#8b5cf6" onClick={()=>setView("fyi")} />
                   <Stat label="Overdue" value={overdue.length} color="#ef4444" onClick={()=>setView("overdue")} />
                   <Stat label="Done This Week" value={completedThisWeek.length} color="#0891b2" />
-                  <Stat label="Hot Leads" value={hotLeads.length} color="#1e3a8a" onClick={()=>setView("leads")} />
                 </div>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
                   {[
@@ -926,4 +928,3 @@ export default function App() {
     </div>
   );
 }
-
