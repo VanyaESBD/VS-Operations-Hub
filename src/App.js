@@ -112,6 +112,7 @@ function TaskForm({ initial, onSave, onClose }) {
         <Field label="Task Type"><select style={inp} value={form.task_type} onChange={(e)=>set("task_type",e.target.value)}>{TASK_TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
         <Field label="Expected Date" required><input type="date" style={inp} value={form.expected_date} onChange={(e)=>set("expected_date",e.target.value)} /></Field>
         <div style={{ gridColumn:"1/-1" }}><Field label="Next Action" required><input style={inp} value={form.next_action} onChange={(e)=>set("next_action",e.target.value)} /></Field></div>
+        <div style={{ gridColumn:"1/-1" }}><Field label="Notes"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes} onChange={(e)=>set("notes",e.target.value)} placeholder="Add context, details or background..." /></Field></div>
         {form.status === "Done" && <div style={{ gridColumn:"1/-1" }}><Field label="Outcome"><input style={inp} value={form.outcome} onChange={(e)=>set("outcome",e.target.value)} /></Field></div>}
       </div>
       <div style={{ marginTop:24,display:"flex",gap:10,justifyContent:"flex-end" }}>
@@ -202,6 +203,7 @@ function TaskCard({ task, onClick, compact, onComplete }) {
         </div>
       </div>
       {!compact && task.next_action && <div style={{ marginTop:8,fontSize:12,color:"#0891b2",borderTop:"1px solid #2a2a45",paddingTop:8 }}>→ {task.next_action}</div>}
+      {!compact && task.notes && <div style={{ marginTop:6,fontSize:12,color:"#6b7280",fontStyle:"italic",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>💬 {task.notes.length > 80 ? task.notes.substring(0,80)+"..." : task.notes}</div>}
     </div>
   );
 }
@@ -674,6 +676,16 @@ export default function App() {
           old_status: original.status,
           new_status: form.status,
           note: null
+        }]);
+      }
+      if (original && original.notes !== form.notes && form.notes && form.notes.trim()) {
+        await supabase.from("task_history").insert([{
+          task_id: form.id,
+          changed_by: "You",
+          entry_type: "note",
+          old_status: null,
+          new_status: null,
+          note: form.notes.trim()
         }]);
       }
     } else {
