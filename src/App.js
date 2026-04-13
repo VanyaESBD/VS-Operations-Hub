@@ -303,7 +303,7 @@ function TeamCard({ name, tasks }) {
   );
 }
 
-function TaskActivityFeed({ taskId, onNoteAdded }) {
+function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
@@ -341,14 +341,8 @@ function TaskActivityFeed({ taskId, onNoteAdded }) {
     <div style={{ marginTop:20,borderTop:"1px solid #2a2a45",paddingTop:20 }}>
       <div style={{ fontSize:11,fontWeight:700,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:14 }}>📋 Activity & Notes</div>
 
-      {/* Add note input */}
       <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:10,padding:12,marginBottom:16 }}>
-        <textarea
-          value={newNote}
-          onChange={e=>setNewNote(e.target.value)}
-          placeholder="Add an update or note..."
-          style={{ ...inp,minHeight:60,resize:"vertical",marginBottom:8,background:"#13131f" }}
-        />
+        <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add an update or note..." style={{ ...inp,minHeight:60,resize:"vertical",marginBottom:8,background:"#13131f" }} />
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <select value={author} onChange={e=>setAuthor(e.target.value)} style={{ ...inp,width:"auto",fontSize:12,padding:"5px 10px",background:"#13131f" }}>
             {OWNERS.map(o=><option key={o}>{o}</option>)}
@@ -359,35 +353,40 @@ function TaskActivityFeed({ taskId, onNoteAdded }) {
         </div>
       </div>
 
-      {/* Activity feed */}
-      {history.length === 0
+      {taskNotes && taskNotes.trim() && (
+        <div style={{ display:"flex",gap:12,marginBottom:0 }}>
+          <div style={{ display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0 }}>
+            <div style={{ width:28,height:28,borderRadius:"50%",background:"#1e3a8a",border:"2px solid #3b82f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12 }}>📌</div>
+            {history.length > 0 && <div style={{ width:2,flex:1,background:"#1e1e30",minHeight:16,margin:"2px 0" }} />}
+          </div>
+          <div style={{ flex:1,paddingBottom:16 }}>
+            <div style={{ fontSize:12,fontWeight:600,color:"#60a5fa",marginBottom:4 }}>📌 Original Notes</div>
+            <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#e2e8f0",lineHeight:1.5 }}>{taskNotes}</div>
+          </div>
+        </div>
+      )}
+
+      {history.length === 0 && (!taskNotes || !taskNotes.trim())
         ? <div style={{ fontSize:12,color:"#374151",textAlign:"center",padding:"12px 0" }}>No activity yet</div>
         : history.map((h,i) => (
           <div key={h.id} style={{ display:"flex",gap:12,marginBottom:0 }}>
-            {/* Timeline line */}
             <div style={{ display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0 }}>
               <div style={{ width:28,height:28,borderRadius:"50%",background:h.entry_type==="note"?"#1e3a8a":STATUS_COLOR[h.new_status]+"33",border:`2px solid ${h.entry_type==="note"?"#3b82f6":STATUS_COLOR[h.new_status]||"#2a2a45"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12 }}>
                 {h.entry_type==="note"?"💬":STATUS_EMOJI[h.new_status]||"📌"}
               </div>
               {i < history.length-1 && <div style={{ width:2,flex:1,background:"#1e1e30",minHeight:16,margin:"2px 0" }} />}
             </div>
-
-            {/* Content */}
             <div style={{ flex:1,paddingBottom:16 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
                 <div style={{ fontSize:12,fontWeight:600,color:"#9ca3af" }}>
                   {h.entry_type==="note"
                     ? <span style={{ color:"#60a5fa" }}>{h.changed_by}</span>
-                    : <span>{h.changed_by} changed status: <span style={{ color:STATUS_COLOR[h.old_status]||"#6b7280" }}>{h.old_status}</span> → <span style={{ color:STATUS_COLOR[h.new_status]||"#0891b2" }}>{h.new_status}</span></span>
+                    : <span>{h.changed_by} changed: <span style={{ color:STATUS_COLOR[h.old_status]||"#6b7280" }}>{h.old_status}</span> → <span style={{ color:STATUS_COLOR[h.new_status]||"#0891b2" }}>{h.new_status}</span></span>
                   }
                 </div>
                 <div style={{ fontSize:10,color:"#4b5563",flexShrink:0,marginLeft:8 }}>{fmtDateTime(h.created_at)}</div>
               </div>
-              {h.note && (
-                <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#e2e8f0",lineHeight:1.5 }}>
-                  {h.note}
-                </div>
-              )}
+              {h.note && <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#e2e8f0",lineHeight:1.5 }}>{h.note}</div>}
             </div>
           </div>
         ))
@@ -964,7 +963,7 @@ export default function App() {
           {modalTask.id
             ? <div>
                 <TaskForm initial={modalTask} onSave={upsertTask} onClose={()=>setModalTask(null)} />
-                <TaskActivityFeed taskId={modalTask.id} onNoteAdded={loadTasks} />
+                <TaskActivityFeed taskId={modalTask.id} taskNotes={modalTask.notes} onNoteAdded={loadTasks} />
                 <div style={{ marginTop:16,borderTop:"1px solid #2a2a45",paddingTop:16,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:12,color:"#4b5563" }}>Received {fmtDate(modalTask.date_received)}</div>
                   <button onClick={()=>{ if(window.confirm("Delete this task?")){ deleteTask(modalTask.id); setModalTask(null); }}} style={{ padding:"6px 14px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:12 }}>Delete Task</button>
