@@ -416,8 +416,8 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
 }
 
 function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
-  const unseen = flags.filter(f => !f.seen);
-  const seen = flags.filter(f => f.seen);
+  const unseen = flags.filter(f => !f.seen && f.task_subject !== "Weekly Customer Report");
+  const seen = flags.filter(f => f.seen && f.task_subject !== "Weekly Customer Report");
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
@@ -431,14 +431,12 @@ function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
           </button>
         )}
       </div>
-
       {unseen.length === 0 && seen.length === 0 && (
         <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}>
           <div style={{ fontSize:40,marginBottom:12 }}>✅</div>
           <div>No flags from the team</div>
         </div>
       )}
-
       {unseen.length > 0 && (
         <div style={{ marginBottom:28 }}>
           <div style={{ fontSize:11,color:"#ef4444",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>⚠️ Needs Sean's Attention</div>
@@ -455,14 +453,13 @@ function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
                 <div style={{ fontSize:12,color:"#6b7280",marginBottom:8 }}>Re: {f.task_subject}</div>
               )}
               <div style={{ fontSize:14,color:"#e2e8f0",lineHeight:1.6,marginBottom:14 }}>{f.note}</div>
-              <button onClick={() => onMarkSeen(f.id)} style={{ padding:"8px 20px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
+              <button onClick={()=>onMarkSeen(f.id)} style={{ padding:"8px 20px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
                 ✓ Got it — Mark as Seen
               </button>
             </div>
           ))}
         </div>
       )}
-
       {seen.length > 0 && (
         <div>
           <div style={{ fontSize:11,color:"#374151",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>Previously Seen</div>
@@ -484,6 +481,46 @@ function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function WeeklyReportView({ flags, onMarkSeen }) {
+  const reports = flags.filter(f => f.task_subject === "Weekly Customer Report");
+  const unread = reports.filter(f => !f.seen);
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>📊 Weekly Customer Reports</div>
+          <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Sent by Andrea & Jason from the team view</div>
+        </div>
+        {unread.length > 0 && <span style={{ background:"#f97316",color:"#fff",borderRadius:99,padding:"3px 10px",fontSize:12,fontWeight:700 }}>{unread.length} new</span>}
+      </div>
+      {reports.length === 0
+        ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}>
+            <div style={{ fontSize:40,marginBottom:12 }}>📊</div>
+            <div>No weekly reports yet</div>
+            <div style={{ fontSize:12,color:"#374151",marginTop:8 }}>Andrea and Jason send these from the team view</div>
+          </div>
+        : reports.map(r => (
+          <div key={r.id} style={{ background:"#1a1a2e",border:`1px solid ${r.seen?"#2a2a45":"#3b82f6"}`,borderLeft:`3px solid ${r.seen?"#374151":"#3b82f6"}`,borderRadius:12,padding:"20px 24px",marginBottom:16 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0" }}>📊 Weekly Report</div>
+                <div style={{ fontSize:11,color:"#6b7280",marginTop:2 }}>from {r.from_name} · {fmtDateTime(r.created_at)}</div>
+              </div>
+              {!r.seen && <span style={{ fontSize:11,background:"#f97316",color:"#fff",borderRadius:99,padding:"2px 10px",fontWeight:700 }}>New</span>}
+            </div>
+            <pre style={{ background:"#0a0a16",border:"1px solid #2a2a45",borderRadius:8,padding:16,color:"#e2e8f0",fontSize:13,whiteSpace:"pre-wrap",fontFamily:"system-ui",lineHeight:1.6,margin:0 }}>{r.note}</pre>
+            {!r.seen && (
+              <button onClick={()=>onMarkSeen(r.id)} style={{ marginTop:12,padding:"8px 20px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
+                ✓ Mark as Read
+              </button>
+            )}
+          </div>
+        ))
+      }
     </div>
   );
 }
@@ -793,7 +830,7 @@ export default function App() {
   const deleteLead = async (id) => { await supabase.from("leads").delete().eq("id",id); };
   const markFlagSeen = async (id) => { await supabase.from("flags").update({seen:true}).eq("id",id); loadFlags(); };
   const markAllFlagsSeen = async () => {
-    const unseen = flags.filter(f=>!f.seen);
+    const unseen = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
     for (const f of unseen) { await supabase.from("flags").update({seen:true}).eq("id",f.id); }
     loadFlags();
   };
@@ -829,7 +866,9 @@ export default function App() {
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
   const fyiTasks = sortTasks(filtered.filter(t=>t.status==="FYI"), sortBy);
-  const unseenFlags = flags.filter(f=>!f.seen);
+  const unseenFlags = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
+  const weeklyReports = flags.filter(f=>f.task_subject === "Weekly Customer Report");
+  const unreadReports = weeklyReports.filter(f=>!f.seen);
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
@@ -843,6 +882,7 @@ export default function App() {
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
     { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length },
     { id:"flags", label:"Flags", icon:"🚨", count:unseenFlags.length },
+    { id:"weeklyreport", label:"Weekly Report", icon:"📊", count:unreadReports.length },
     { id:"leads", label:"Leads & Pipeline", icon:"🎯", count:hotLeads.length },
     { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
     { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
@@ -864,7 +904,7 @@ export default function App() {
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="weeklyreport"?"#1e3a8a":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="weeklyreport"?"#93c5fd":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
           </button>
         ))}
       </div>
@@ -923,6 +963,11 @@ export default function App() {
             🚨 {unseenFlags.length}
           </button>
         )}
+        {unreadReports.length > 0 && (
+          <button onClick={()=>setView("weeklyreport")} style={{ padding:"7px 12px",background:"#1e3a8a33",border:"1px solid #3b82f6",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:700 }}>
+            📊 {unreadReports.length}
+          </button>
+        )}
         <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#0891b2",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
       </div>
 
@@ -950,13 +995,23 @@ export default function App() {
             {view==="dashboard" && (
               <div>
                 {unseenFlags.length > 0 && (
-                  <div onClick={()=>setView("flags")} style={{ marginBottom:20,background:"#7f1d1d22",border:"1px solid #ef444466",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                  <div onClick={()=>setView("flags")} style={{ marginBottom:16,background:"#7f1d1d22",border:"1px solid #ef444466",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
                     <span style={{ fontSize:24 }}>🚨</span>
                     <div>
                       <div style={{ fontSize:14,fontWeight:700,color:"#ef4444" }}>{unseenFlags.length} new flag{unseenFlags.length>1?"s":""} from your team</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{unseenFlags.map(f=>f.from_name).join(" & ")} flagged Sean — click to view</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{unseenFlags.map(f=>f.from_name).filter((v,i,a)=>a.indexOf(v)===i).join(" & ")} flagged Sean — click to view</div>
                     </div>
                     <span style={{ marginLeft:"auto",color:"#ef4444",fontSize:18 }}>→</span>
+                  </div>
+                )}
+                {unreadReports.length > 0 && (
+                  <div onClick={()=>setView("weeklyreport")} style={{ marginBottom:20,background:"#1e3a8a22",border:"1px solid #3b82f666",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                    <span style={{ fontSize:24 }}>📊</span>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#60a5fa" }}>{unreadReports.length} new weekly report{unreadReports.length>1?"s":""}</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>from {unreadReports.map(f=>f.from_name).filter((v,i,a)=>a.indexOf(v)===i).join(" & ")} — click to view</div>
+                    </div>
+                    <span style={{ marginLeft:"auto",color:"#60a5fa",fontSize:18 }}>→</span>
                   </div>
                 )}
                 {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length>0) && (
@@ -1030,6 +1085,7 @@ export default function App() {
             )}
 
             {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} />}
+            {view==="weeklyreport" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} />}
 
             {view==="leads" && (
               <div>
@@ -1069,7 +1125,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","kanban","leads","seanweek","inbox","team","flags"].includes(view) && (
+            {!["dashboard","kanban","leads","seanweek","inbox","team","flags","weeklyreport"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
