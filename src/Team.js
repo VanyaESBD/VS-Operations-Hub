@@ -1,0 +1,449 @@
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
+
+const TODAY = () => new Date().toISOString().split("T")[0];
+const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—";
+const fmtDateTime = (ts) => {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+};
+const isOverdue = (t) => t.status !== "Done" && t.expected_date && t.expected_date < TODAY();
+
+const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
+const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
+const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
+const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+const URGENCY_LEVELS = ["Low", "Medium", "High", "Urgent"];
+const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+
+const inp = { background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
+
+function TaskActivityFeed({ taskId, taskNotes, myName }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newNote, setNewNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const { data } = await supabase.from("task_history").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
+    if (data) setHistory(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [taskId]);
+
+  const addNote = async () => {
+    if (!newNote.trim()) return;
+    setSaving(true);
+    await supabase.from("task_history").insert([{
+      task_id: taskId, changed_by: myName, entry_type: "note",
+      note: newNote.trim(), old_status: null, new_status: null,
+    }]);
+    setNewNote("");
+    setSaving(false);
+    load();
+  };
+
+  if (loading) return null;
+
+  return (
+    <div style={{ marginTop:16, borderTop:"1px solid #2a2a45", paddingTop:16 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>📋 Activity & Notes</div>
+      <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:10, padding:12, marginBottom:12 }}>
+        <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add a note or update..." style={{ ...inp, minHeight:60, resize:"vertical", marginBottom:8, background:"#13131f" }} />
+        <div style={{ display:"flex", justifyContent:"flex-end" }}>
+          <button onClick={addNote} disabled={!newNote.trim()||saving} style={{ padding:"7px 18px", background:newNote.trim()?"#0891b2":"#2a2a45", border:"none", borderRadius:7, color:newNote.trim()?"#fff":"#4b5563", cursor:newNote.trim()?"pointer":"not-allowed", fontSize:13, fontWeight:600 }}>
+            {saving ? "Saving..." : "Add Note"}
+          </button>
+        </div>
+      </div>
+      {taskNotes && taskNotes.trim() && (
+        <div style={{ display:"flex", gap:12, marginBottom:12 }}>
+          <div style={{ width:28, height:28, borderRadius:"50%", background:"#1e3a8a", border:"2px solid #3b82f6", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>📌</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"#60a5fa", marginBottom:4 }}>📌 Original Notes</div>
+            <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, padding:"10px 12px", fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{taskNotes}</div>
+          </div>
+        </div>
+      )}
+      {history.length === 0 && (!taskNotes || !taskNotes.trim())
+        ? <div style={{ fontSize:12, color:"#374151", textAlign:"center", padding:"8px 0" }}>No activity yet</div>
+        : history.map((h, i) => (
+          <div key={h.id} style={{ display:"flex", gap:12, marginBottom:0 }}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0 }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:h.entry_type==="note"?"#1e3a8a":STATUS_COLOR[h.new_status]+"33", border:`2px solid ${h.entry_type==="note"?"#3b82f6":STATUS_COLOR[h.new_status]||"#2a2a45"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>
+                {h.entry_type==="note" ? "💬" : STATUS_EMOJI[h.new_status]||"📌"}
+              </div>
+              {i < history.length-1 && <div style={{ width:2, flex:1, background:"#1e1e30", minHeight:16, margin:"2px 0" }} />}
+            </div>
+            <div style={{ flex:1, paddingBottom:12 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:"#9ca3af" }}>
+                  {h.entry_type==="note"
+                    ? <span style={{ color:"#60a5fa" }}>{h.changed_by}</span>
+                    : <span>{h.changed_by}: <span style={{ color:STATUS_COLOR[h.old_status]||"#6b7280" }}>{h.old_status}</span> → <span style={{ color:STATUS_COLOR[h.new_status]||"#0891b2" }}>{h.new_status}</span></span>
+                  }
+                </div>
+                <div style={{ fontSize:10, color:"#4b5563", flexShrink:0, marginLeft:8 }}>{fmtDateTime(h.created_at)}</div>
+              </div>
+              {h.note && <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, padding:"10px 12px", fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{h.note}</div>}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  );
+}
+
+function TaskModal({ task, myName, onClose, onUpdate }) {
+  const [form, setForm] = useState({ status: task.status, expected_date: task.expected_date || "", next_action: task.next_action || "", notes: task.notes || "" });
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const isOwn = task.owner === myName;
+
+  const save = async () => {
+    await supabase.from("tasks").update({
+      status: form.status,
+      expected_date: form.expected_date,
+      next_action: form.next_action,
+      notes: form.notes,
+      actual_date: form.status === "Done" ? TODAY() : null,
+    }).eq("id", task.id);
+    if (task.status !== form.status) {
+      await supabase.from("task_history").insert([{
+        task_id: task.id, changed_by: myName, entry_type: "status_change",
+        old_status: task.status, new_status: form.status, note: null
+      }]);
+    }
+    onUpdate();
+    onClose();
+  };
+
+  const markDone = async () => {
+    await supabase.from("tasks").update({ status: "Done", actual_date: TODAY() }).eq("id", task.id);
+    await supabase.from("task_history").insert([{
+      task_id: task.id, changed_by: myName, entry_type: "status_change",
+      old_status: task.status, new_status: "Done", note: null
+    }]);
+    onUpdate();
+    onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(10,10,20,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+          <div style={{ flex:1, paddingRight:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:STATUS_COLOR[task.status]+"33", color:STATUS_COLOR[task.status], fontWeight:700 }}>{STATUS_EMOJI[task.status]} {task.status}</span>
+              <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:PRIORITY_COLOR[task.priority]+"22", color:PRIORITY_COLOR[task.priority], fontWeight:600 }}>{task.priority}</span>
+              {isOverdue(task) && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#7f1d1d", color:"#fca5a5", fontWeight:600 }}>OVERDUE</span>}
+            </div>
+            <div style={{ fontSize:17, fontWeight:700, color:"#e2e8f0", lineHeight:1.3 }}>{task.subject}</div>
+            {(task.client || task.company) && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>{[task.client, task.company].filter(Boolean).join(" · ")}</div>}
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+        </div>
+
+        {isOwn ? (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Status</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {STATUSES.map(s => (
+                  <button key={s} onClick={() => set("status", s)} style={{ padding:"7px 12px", borderRadius:99, border:`1px solid ${form.status===s?STATUS_COLOR[s]:"#2a2a45"}`, background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>
+                    {STATUS_EMOJI[s]} {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Follow Up Date</label>
+              <input type="date" value={form.expected_date} onChange={e=>set("expected_date",e.target.value)} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Next Action</label>
+              <input value={form.next_action} onChange={e=>set("next_action",e.target.value)} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Notes</label>
+              <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{ ...inp, minHeight:72, resize:"vertical" }} />
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={save} style={{ flex:1, padding:"11px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:14, fontWeight:700 }}>Save Changes</button>
+              {task.status !== "Done" && <button onClick={markDone} style={{ padding:"11px 20px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", cursor:"pointer", fontSize:14, fontWeight:700 }}>✓ Done</button>}
+            </div>
+          </div>
+        ) : (
+          <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:10, padding:14, marginBottom:12 }}>
+            <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Assigned to <span style={{ color:"#0891b2", fontWeight:600 }}>{task.owner}</span></div>
+            {task.next_action && <div style={{ fontSize:13, color:"#0891b2" }}>→ {task.next_action}</div>}
+            {task.expected_date && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>Due {fmtDate(task.expected_date)}</div>}
+            {task.notes && <div style={{ fontSize:13, color:"#9ca3af", marginTop:8, fontStyle:"italic" }}>📝 {task.notes}</div>}
+          </div>
+        )}
+
+        <TaskActivityFeed taskId={task.id} taskNotes={task.notes} myName={myName} />
+      </div>
+    </div>
+  );
+}
+
+function FlagSeanModal({ task, myName, onClose, onSent }) {
+  const [urgency, setUrgency] = useState("Medium");
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    if (!note.trim()) return;
+    setSending(true);
+    await supabase.from("flags").insert([{
+      from_name: myName,
+      task_id: task?.id || null,
+      task_subject: task?.subject || "General flag",
+      urgency,
+      note: note.trim(),
+      seen: false,
+    }]);
+    setSending(false);
+    onSent();
+    onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(10,10,20,0.8)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #ef4444", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <div>
+            <div style={{ fontSize:18, fontWeight:700, color:"#e2e8f0" }}>🚨 Flag Sean</div>
+            {task && <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Re: {task.subject}</div>}
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+        </div>
+
+        <div style={{ marginBottom:16 }}>
+          <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:8 }}>Urgency</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {URGENCY_LEVELS.map(u => (
+              <button key={u} onClick={() => setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:`1px solid ${urgency===u?URGENCY_COLOR[u]:"#2a2a45"}`, background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom:20 }}>
+          <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:8 }}>Message to Sean</label>
+          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="What does Sean need to know or do?" style={{ ...inp, minHeight:90, resize:"vertical" }} />
+        </div>
+
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+          <button onClick={send} disabled={!note.trim()||sending} style={{ flex:2, padding:"11px", background:note.trim()?"#ef4444":"#2a2a45", border:"none", borderRadius:8, color:note.trim()?"#fff":"#4b5563", cursor:note.trim()?"pointer":"not-allowed", fontSize:14, fontWeight:700 }}>
+            {sending ? "Sending..." : "🚨 Send Flag to Sean"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Team() {
+  const [myName, setMyName] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("mine");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [flagTask, setFlagTask] = useState(undefined);
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagSent, setFlagSent] = useState(false);
+
+  const load = async () => {
+    const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    const { data: f } = await supabase.from("flags").select("*").order("created_at", { ascending: false });
+    if (t) setTasks(t);
+    if (f) setFlags(f);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!myName) return;
+    load();
+    const interval = setInterval(load, 30000);
+    const ch = supabase.channel("team-tasks").on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, load).subscribe();
+    const fch = supabase.channel("team-flags").on("postgres_changes", { event:"*", schema:"public", table:"flags" }, load).subscribe();
+    return () => { clearInterval(interval); supabase.removeChannel(ch); supabase.removeChannel(fch); };
+  }, [myName]);
+
+  const otherName = myName === "Jason" ? "Andrea" : "Jason";
+  const myTasks = tasks.filter(t => t.owner === myName && t.status !== "Done");
+  const theirTasks = tasks.filter(t => t.owner === otherName && t.status !== "Done");
+  const myDoneToday = tasks.filter(t => t.owner === myName && t.status === "Done" && t.actual_date === TODAY());
+  const myOverdue = myTasks.filter(isOverdue);
+  const myFlags = flags.filter(f => f.from_name === myName);
+
+  const s = {
+    page: { minHeight:"100vh", background:"#0d0d1a", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", width:"100%", paddingBottom:40 },
+    header: { background:"#0a0a16", padding:"16px 20px", borderBottom:"1px solid #1e1e30", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
+    tabs: { display:"flex", overflowX:"auto", gap:6, padding:"12px 16px", borderBottom:"1px solid #1e1e30", background:"#0a0a16", position:"sticky", top:57, zIndex:99 },
+    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:`1px solid ${active?"#0891b2":"#2a2a45"}`, background:active?"#0891b233":"none", color:active?"#0891b2":"#6b7280", fontSize:13, fontWeight:active?700:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
+    content: { padding:"16px" },
+    card: (over) => ({ background:"#1a1a2e", border:`1px solid ${over?"#7f1d1d":"#2a2a45"}`, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s" }),
+    sectionTitle: { fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 },
+  };
+
+  if (!myName) return (
+    <div style={{ minHeight:"100vh", background:"#0d0d1a", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"system-ui,sans-serif" }}>
+      <div style={{ textAlign:"center", padding:32 }}>
+        <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:120, marginBottom:24 }} />
+        <div style={{ fontSize:20, fontWeight:700, color:"#e2e8f0", marginBottom:8 }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}!</div>
+        <div style={{ fontSize:14, color:"#6b7280", marginBottom:28 }}>Who are you?</div>
+        <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+          {["Jason", "Andrea"].map(name => (
+            <button key={name} onClick={() => setMyName(name)} style={{ padding:"16px 32px", background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, color:"#e2e8f0", cursor:"pointer", fontSize:18, fontWeight:700, transition:"all 0.2s" }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor="#0891b2"; e.currentTarget.style.color="#0891b2"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor="#2a2a45"; e.currentTarget.style.color="#e2e8f0"; }}>
+              {name[0]}
+              <div style={{ fontSize:14, marginTop:4 }}>{name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (loading) return (
+    <div style={{ ...s.page, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ color:"#0891b2", fontSize:16 }}>Loading...</div>
+    </div>
+  );
+
+  const TaskCard = ({ task, showOwner }) => (
+    <div onClick={() => setSelectedTask(task)} style={{ ...s.card(isOverdue(task)), borderLeft:`3px solid ${STATUS_COLOR[task.status]}` }}
+      onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
+      onMouseLeave={e=>e.currentTarget.style.transform=""}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:STATUS_COLOR[task.status]+"33", color:STATUS_COLOR[task.status], fontWeight:700 }}>{STATUS_EMOJI[task.status]} {task.status}</span>
+            <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:PRIORITY_COLOR[task.priority]+"22", color:PRIORITY_COLOR[task.priority], fontWeight:600 }}>{task.priority}</span>
+            {isOverdue(task) && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#7f1d1d", color:"#fca5a5", fontWeight:600 }}>OVERDUE</span>}
+            {showOwner && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#2a2a45", color:"#9ca3af", fontWeight:600 }}>{task.owner}</span>}
+          </div>
+          <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{task.subject}</div>
+          {task.next_action && <div style={{ fontSize:12, color:"#0891b2" }}>→ {task.next_action}</div>}
+          {task.notes && <div style={{ fontSize:12, color:"#6b7280", fontStyle:"italic", marginTop:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>💬 {task.notes.length > 60 ? task.notes.substring(0,60)+"..." : task.notes}</div>}
+        </div>
+        <div style={{ textAlign:"right", flexShrink:0 }}>
+          <div style={{ fontSize:11, color:isOverdue(task)?"#fca5a5":"#6b7280" }}>{fmtDate(task.expected_date)}</div>
+          <button onClick={e=>{ e.stopPropagation(); setFlagTask(task); setShowFlagModal(true); }} style={{ marginTop:8, padding:"4px 10px", background:"#7f1d1d22", border:"1px solid #ef444444", borderRadius:6, color:"#ef4444", cursor:"pointer", fontSize:11, fontWeight:600 }}>
+            🚨 Flag
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const TABS = [
+    { id:"mine", label:"My Tasks", emoji:"◉", count:myTasks.length },
+    { id:"team", label:otherName+"'s Tasks", emoji:"◈", count:theirTasks.length },
+    { id:"flags", label:"Flagged Sean", emoji:"🚨", count:myFlags.filter(f=>!f.seen).length },
+  ];
+
+  return (
+    <div style={s.page}>
+      <div style={s.header}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:70 }} />
+          <div>
+            <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {myName}!</div>
+            <div style={{ fontSize:11, color:"#4b5563" }}>{myTasks.length} active · {myOverdue.length > 0 ? `⚠️ ${myOverdue.length} overdue` : "✅ no overdue"} · {myDoneToday.length} done today</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={() => { setFlagTask(null); setShowFlagModal(true); }} style={{ padding:"8px 14px", background:"#7f1d1d33", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+            🚨 Flag Sean
+          </button>
+          <button onClick={() => setMyName(null)} style={{ padding:"8px 12px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer", fontSize:12 }}>
+            Switch
+          </button>
+        </div>
+      </div>
+
+      {flagSent && (
+        <div style={{ background:"#10b98122", border:"1px solid #10b981", borderRadius:8, padding:"10px 16px", margin:"12px 16px", fontSize:13, color:"#10b981", fontWeight:600 }}>
+          ✅ Flag sent to Sean!
+          <button onClick={() => setFlagSent(false)} style={{ float:"right", background:"none", border:"none", color:"#10b981", cursor:"pointer", fontSize:16 }}>✕</button>
+        </div>
+      )}
+
+      <div style={s.tabs}>
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={s.tab(activeTab === tab.id)}>
+            <span>{tab.emoji}</span>
+            <span>{tab.label}</span>
+            {tab.count > 0 && <span style={{ background: tab.id==="flags"?"#ef4444":"#ef4444", color:"#fff", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{tab.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div style={s.content}>
+        {activeTab === "mine" && (
+          <div>
+            <div style={s.sectionTitle}>My Tasks — {myName}</div>
+            {myTasks.length === 0
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div>No active tasks!</div></div>
+              : myTasks.map(t => <TaskCard key={t.id} task={t} showOwner={false} />)
+            }
+          </div>
+        )}
+
+        {activeTab === "team" && (
+          <div>
+            <div style={s.sectionTitle}>{otherName}'s Tasks</div>
+            {theirTasks.length === 0
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>✅</div><div>{otherName} has no active tasks</div></div>
+              : theirTasks.map(t => <TaskCard key={t.id} task={t} showOwner={false} />)
+            }
+          </div>
+        )}
+
+        {activeTab === "flags" && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={s.sectionTitle}>Flags Sent to Sean</div>
+              <button onClick={() => { setFlagTask(null); setShowFlagModal(true); }} style={{ padding:"8px 16px", background:"#ef444422", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+                + New Flag
+              </button>
+            </div>
+            {myFlags.length === 0
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🚨</div><div>No flags sent yet</div></div>
+              : myFlags.map(f => (
+                <div key={f.id} style={{ background:"#1a1a2e", border:`1px solid ${f.seen?"#2a2a45":"#ef444444"}`, borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`, borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                    <div>
+                      <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700, marginRight:8 }}>{f.urgency}</span>
+                      {f.seen && <span style={{ fontSize:11, color:"#10b981" }}>✅ Seen by Sean</span>}
+                    </div>
+                    <div style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(f.created_at)}</div>
+                  </div>
+                  {f.task_subject && <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Re: {f.task_subject}</div>}
+                  <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{f.note}</div>
+                </div>
+              ))
+            }
+          </div>
+        )}
+      </div>
+
+      {selectedTask && (
+        <TaskModal task={selectedTask} myName={myName} onClose={() => setSelectedTask(null)} onUpdate={load} />
+      )}
+
+      {showFlagModal && (
+        <FlagSeanModal task={flagTask} myName={myName} onClose={() => { setShowFlagModal(false); setFlagTask(undefined); }} onSent={() => { setFlagSent(true); load(); setTimeout(() => setFlagSent(false), 4000); }} />
+      )}
+    </div>
+  );
+}
