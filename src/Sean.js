@@ -14,7 +14,6 @@ const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b9
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
-
 const inp = { background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
 
 export default function Sean() {
@@ -63,8 +62,12 @@ export default function Sean() {
     }).eq("id", editingTask.id);
     if (editingTask.status !== editForm.status) {
       await supabase.from("task_history").insert([{
-        task_id: editingTask.id, changed_by: "Sean", entry_type: "status_change",
-        old_status: editingTask.status, new_status: editForm.status, note: null
+        task_id: editingTask.id,
+        changed_by: "Sean",
+        entry_type: "status_change",
+        old_status: editingTask.status,
+        new_status: editForm.status,
+        note: null
       }]);
     }
     setEditingTask(null);
@@ -135,9 +138,9 @@ export default function Sean() {
     page: { minHeight:"100vh", background:"#0d0d1a", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", width:"100%", paddingBottom:40 },
     header: { background:"#0a0a16", padding:"16px 20px", borderBottom:"1px solid #1e1e30", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
     tabs: { display:"flex", overflowX:"auto", gap:6, padding:"12px 16px", borderBottom:"1px solid #1e1e30", background:"#0a0a16", position:"sticky", top:57, zIndex:99 },
-    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:"1px solid " + (active?"#0891b2":"#2a2a45"), background:active?"#0891b233":"none", color:active?"#0891b2":"#6b7280", fontSize:13, fontWeight:active?700:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
+    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:"1px solid " + (active ? "#0891b2" : "#2a2a45"), background: active ? "#0891b233" : "none", color: active ? "#0891b2" : "#6b7280", fontSize:13, fontWeight: active ? 700 : 400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
     content: { padding:"16px" },
-    card: (over) => ({ background:"#1a1a2e", border:"1px solid " + (over?"#7f1d1d":"#2a2a45"), borderRadius:14, padding:"16px", marginBottom:12 }),
+    card: (over) => ({ background:"#1a1a2e", border:"1px solid " + (over ? "#7f1d1d" : "#2a2a45"), borderRadius:14, padding:"16px", marginBottom:12 }),
     cardTitle: { fontSize:16, fontWeight:700, color:"#e2e8f0", marginBottom:6, lineHeight:1.3 },
     cardMeta: { fontSize:12, color:"#6b7280", marginBottom:10 },
     doneBtn: { width:"100%", padding:"12px", background:"#10b98122", border:"1px solid #10b981", borderRadius:10, color:"#10b981", fontSize:15, fontWeight:700, cursor:"pointer" },
@@ -146,7 +149,7 @@ export default function Sean() {
     empty: { textAlign:"center", padding:"40px 0", color:"#374151" },
     overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"flex-end", justifyContent:"center" },
     sheet: { background:"#13131f", border:"1px solid #2a2a45", borderRadius:"16px 16px 0 0", padding:"24px 20px", width:"100%", maxWidth:480, maxHeight:"85vh", overflowY:"auto" },
-    label: { fontSize:11, fontWeight:600, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6, display:"block" },
+    lbl: { fontSize:11, fontWeight:600, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6, display:"block" },
   };
 
   if (loading) return (
@@ -162,15 +165,15 @@ export default function Sean() {
           <div style={s.cardTitle}>{task.subject}</div>
           <div style={s.cardMeta}>
             {task.client && <span>{task.client}{task.company ? " · " + task.company : ""} · </span>}
-            <span style={{ color:isOverdue(task)?"#fca5a5":"#6b7280" }}>Due {fmtDate(task.expected_date)}</span>
+            <span style={{ color:isOverdue(task) ? "#fca5a5" : "#6b7280" }}>Due {fmtDate(task.expected_date)}</span>
           </div>
-          {task.next_action && <div style={{ fontSize:13, color:"#0891b2", marginBottom:6 }}>→ {task.next_action}</div>}
-          {task.notes && <div style={{ fontSize:12, color:"#6b7280", fontStyle:"italic", marginBottom:8 }}>💬 {task.notes.length > 80 ? task.notes.substring(0,80)+"..." : task.notes}</div>}
+          {task.next_action && <div style={{ fontSize:13, color:"#0891b2", marginBottom:6 }}>{"-> " + task.next_action}</div>}
+          {task.notes && <div style={{ fontSize:12, color:"#6b7280", fontStyle:"italic", marginBottom:8 }}>💬 {task.notes.length > 80 ? task.notes.substring(0,80) + "..." : task.notes}</div>}
         </div>
         {isOverdue(task) && <span style={{ flexShrink:0, fontSize:10, background:"#7f1d1d", color:"#fca5a5", borderRadius:99, padding:"2px 8px", fontWeight:700 }}>OVERDUE</span>}
       </div>
-      <button onClick={() => openEdit(task)} style={s.editBtn}>✏️ Edit / Add Note</button>
-      <button onClick={() => markDone(task.id)} style={s.doneBtn}>✓ Mark Done</button>
+      <button onClick={() => openEdit(task)} style={s.editBtn}>Edit / Add Note</button>
+      <button onClick={() => markDone(task.id)} style={s.doneBtn}>Mark Done</button>
     </div>
   );
 
@@ -192,13 +195,13 @@ export default function Sean() {
           <div style={{ width:36, height:36, borderRadius:"50%", background:"#0891b2", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff" }}>{name[0]}</div>
           <div>
             <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0" }}>{name}</div>
-            <div style={{ fontSize:12, color:"#6b7280" }}>{active.length} active{overdue.length > 0 ? " · ⚠️ " + overdue.length + " overdue" : ""}{done.length > 0 ? " · ✅ " + done.length + " done today" : ""}</div>
+            <div style={{ fontSize:12, color:"#6b7280" }}>{active.length} active{overdue.length > 0 ? " · overdue: " + overdue.length : ""}{done.length > 0 ? " · done today: " + done.length : ""}</div>
           </div>
         </div>
         {active.slice(0,3).map(t => (
           <div key={t.id} style={{ fontSize:13, color:"#9ca3af", padding:"6px 0", borderTop:"1px solid #1e1e30", display:"flex", justifyContent:"space-between" }}>
             <span>{STATUS_EMOJI[t.status]} {t.subject}</span>
-            <span style={{ color:isOverdue(t)?"#fca5a5":"#4b5563", flexShrink:0, marginLeft:8 }}>{fmtDate(t.expected_date)}</span>
+            <span style={{ color:isOverdue(t) ? "#fca5a5" : "#4b5563", flexShrink:0, marginLeft:8 }}>{fmtDate(t.expected_date)}</span>
           </div>
         ))}
       </div>
@@ -210,7 +213,9 @@ export default function Sean() {
       <div style={s.header}>
         <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:80 }} />
         <div style={{ textAlign:"right" }}>
-          <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, Sean</div>
+          <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>
+            {"Good " + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + ", Sean"}
+          </div>
           <div style={{ fontSize:11, color:"#4b5563" }}>{new Date().toLocaleDateString("en-GB", { weekday:"long", day:"2-digit", month:"long" })}</div>
         </div>
       </div>
@@ -220,7 +225,11 @@ export default function Sean() {
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={s.tab(activeTab === tab.id)}>
             <span>{tab.emoji}</span>
             <span>{tab.label}</span>
-            {tab.count > 0 && <span style={{ background: tab.id==="weeklyreport"?"#3b82f6":"#ef4444", color:"#fff", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{tab.count}</span>}
+            {tab.count > 0 && (
+              <span style={{ background: tab.id === "weeklyreport" ? "#3b82f6" : "#ef4444", color:"#fff", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>
+                {tab.count}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -229,35 +238,47 @@ export default function Sean() {
 
         {activeTab === "fya" && (
           <div>
-            <div style={s.sectionTitle}>🟠 For Your Attention</div>
-            {fya.length === 0 ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div>Nothing needs your attention</div></div> : fya.map(t => <TaskCard key={t.id} task={t} />)}
+            <div style={s.sectionTitle}>For Your Attention</div>
+            {fya.length === 0
+              ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div>Nothing needs your attention</div></div>
+              : fya.map(t => <TaskCard key={t.id} task={t} />)
+            }
           </div>
         )}
 
         {activeTab === "todo" && (
           <div>
-            <div style={s.sectionTitle}>🔴 To Do</div>
-            {todo.length === 0 ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>✅</div><div>Nothing on your to do list</div></div> : todo.map(t => <TaskCard key={t.id} task={t} />)}
+            <div style={s.sectionTitle}>To Do</div>
+            {todo.length === 0
+              ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>✅</div><div>Nothing on your to do list</div></div>
+              : todo.map(t => <TaskCard key={t.id} task={t} />)
+            }
           </div>
         )}
 
         {activeTab === "followup" && (
           <div>
-            <div style={s.sectionTitle}>🏌️ Follow Up</div>
-            {followUp.length === 0 ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>🏌️</div><div>No follow ups pending</div></div> : followUp.map(t => <TaskCard key={t.id} task={t} />)}
+            <div style={s.sectionTitle}>Follow Up</div>
+            {followUp.length === 0
+              ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>🏌️</div><div>No follow ups pending</div></div>
+              : followUp.map(t => <TaskCard key={t.id} task={t} />)
+            }
           </div>
         )}
 
         {activeTab === "fyi" && (
           <div>
-            <div style={s.sectionTitle}>🟣 For Your Information</div>
-            {fyi.length === 0 ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>📭</div><div>No FYI items</div></div> : fyi.map(t => <FYICard key={t.id} task={t} />)}
+            <div style={s.sectionTitle}>For Your Information</div>
+            {fyi.length === 0
+              ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>📭</div><div>No FYI items</div></div>
+              : fyi.map(t => <FYICard key={t.id} task={t} />)
+            }
           </div>
         )}
 
         {activeTab === "team" && (
           <div>
-            <div style={s.sectionTitle}>👥 Team Update</div>
+            <div style={s.sectionTitle}>Team Update</div>
             <TeamMini name="Jason" teamTasks={jasonTasks} />
             <TeamMini name="Andrea" teamTasks={andreaTasks} />
           </div>
@@ -266,10 +287,10 @@ export default function Sean() {
         {activeTab === "flags" && (
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={s.sectionTitle}>🚨 Flags from Team</div>
+              <div style={s.sectionTitle}>Flags from Team</div>
               {unseenFlags.length > 0 && (
                 <button onClick={markAllFlagsSeen} style={{ padding:"6px 12px", background:"#10b98122", border:"1px solid #10b981", borderRadius:6, color:"#10b981", cursor:"pointer", fontSize:12, fontWeight:600 }}>
-                  ✓ Mark all seen
+                  Mark all seen
                 </button>
               )}
             </div>
@@ -280,12 +301,12 @@ export default function Sean() {
 
             {unseenFlags.length > 0 && (
               <div style={{ marginBottom:20 }}>
-                <div style={{ fontSize:11, color:"#ef4444", fontWeight:700, marginBottom:8, letterSpacing:"0.06em", textTransform:"uppercase" }}>⚠️ Needs Your Attention</div>
+                <div style={{ fontSize:11, color:"#ef4444", fontWeight:700, marginBottom:8, letterSpacing:"0.06em", textTransform:"uppercase" }}>Needs Your Attention</div>
                 {unseenFlags.map(f => (
-                  <div key={f.id} style={{ background:"#1a1a2e", border:"1px solid " + URGENCY_COLOR[f.urgency] + "44", borderLeft:"3px solid " + URGENCY_COLOR[f.urgency], borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                  <div key={f.id} style={{ background:"#1a1a2e", border:"1px solid " + (URGENCY_COLOR[f.urgency] + "44"), borderLeft:"3px solid " + URGENCY_COLOR[f.urgency], borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
+                        <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency] + "33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
                         <span style={{ fontSize:12, color:"#9ca3af", fontWeight:600 }}>from {f.from_name}</span>
                       </div>
                       <div style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(f.created_at)}</div>
@@ -295,7 +316,7 @@ export default function Sean() {
                     )}
                     <div style={{ fontSize:14, color:"#e2e8f0", lineHeight:1.5, marginBottom:12 }}>{f.note}</div>
                     <button onClick={() => markFlagSeen(f.id)} style={{ width:"100%", padding:"10px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                      ✓ Got it — Mark as Seen
+                      Got it - Mark as Seen
                     </button>
                   </div>
                 ))}
@@ -311,7 +332,7 @@ export default function Sean() {
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                         <span style={{ fontSize:11, color:"#4b5563", fontWeight:600 }}>{f.urgency}</span>
                         <span style={{ fontSize:11, color:"#4b5563" }}>from {f.from_name}</span>
-                        <span style={{ fontSize:11, color:"#10b981" }}>✅ Seen</span>
+                        <span style={{ fontSize:11, color:"#10b981" }}>Seen</span>
                       </div>
                       <div style={{ fontSize:10, color:"#374151" }}>{fmtDateTime(f.created_at)}</div>
                     </div>
@@ -326,7 +347,7 @@ export default function Sean() {
         {activeTab === "weeklyreport" && (
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={s.sectionTitle}>📊 Weekly Reports</div>
+              <div style={s.sectionTitle}>Weekly Reports</div>
               {unreadReports.length > 0 && (
                 <span style={{ background:"#3b82f6", color:"#fff", borderRadius:99, padding:"3px 10px", fontSize:12, fontWeight:700 }}>{unreadReports.length} new</span>
               )}
@@ -344,17 +365,17 @@ export default function Sean() {
               <div style={{ marginBottom:20 }}>
                 <div style={{ fontSize:11, color:"#3b82f6", fontWeight:700, marginBottom:8, letterSpacing:"0.06em", textTransform:"uppercase" }}>New Reports</div>
                 {unreadReports.map(r => (
-                  <div key={r.id} style={{ background:"#1a1a2e", border:"1px solid #3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                  <div key={r.id} style={{ background:"#1a1a2e", border:"1px solid " + "#3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                       <div>
-                        <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>📊 Weekly Report</div>
+                        <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>Weekly Report</div>
                         <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>from {r.from_name} · {fmtDateTime(r.created_at)}</div>
                       </div>
                       <span style={{ fontSize:11, background:"#f97316", color:"#fff", borderRadius:99, padding:"2px 8px", fontWeight:700 }}>New</span>
                     </div>
                     <pre style={{ background:"#0a0a16", border:"1px solid #2a2a45", borderRadius:8, padding:12, color:"#e2e8f0", fontSize:12, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.6, margin:"0 0 12px 0", overflowX:"auto" }}>{r.note}</pre>
                     <button onClick={() => markFlagSeen(r.id)} style={{ width:"100%", padding:"10px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                      ✓ Mark as Read
+                      Mark as Read
                     </button>
                   </div>
                 ))}
@@ -369,7 +390,7 @@ export default function Sean() {
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                       <div style={{ fontSize:13, fontWeight:600, color:"#6b7280" }}>from {r.from_name}</div>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <span style={{ fontSize:11, color:"#10b981" }}>✅ Read</span>
+                        <span style={{ fontSize:11, color:"#10b981" }}>Read</span>
                         <div style={{ fontSize:10, color:"#374151" }}>{fmtDateTime(r.created_at)}</div>
                       </div>
                     </div>
@@ -383,13 +404,13 @@ export default function Sean() {
 
         {activeTab === "inbox" && (
           <div>
-            <div style={s.sectionTitle}>🗑️ Inbox Triage</div>
+            <div style={s.sectionTitle}>Inbox Triage</div>
             <div style={{ marginBottom:16 }}>
               <input value={newInbox} onChange={e => setNewInbox(e.target.value)} placeholder="Email subject + sender..." style={{ ...inp, marginBottom:10 }} />
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
                 {["Delete", "Follow Up"].map(a => (
-                  <button key={a} onClick={() => setNewInboxAction(a)} style={{ flex:1, padding:"10px", background:newInboxAction===a?(a==="Delete"?"#7f1d1d":"#1e3a8a"):"#1e1e30", border:"1px solid " + (newInboxAction===a?(a==="Delete"?"#ef4444":"#3b82f6"):"#2a2a45"), borderRadius:10, color:newInboxAction===a?"#fff":"#6b7280", cursor:"pointer", fontSize:14, fontWeight:600 }}>
-                    {a === "Delete" ? "🗑️ Delete" : "→ Follow Up"}
+                  <button key={a} onClick={() => setNewInboxAction(a)} style={{ flex:1, padding:"10px", background:newInboxAction===a ? (a==="Delete" ? "#7f1d1d" : "#1e3a8a") : "#1e1e30", border:"1px solid " + (newInboxAction===a ? (a==="Delete" ? "#ef4444" : "#3b82f6") : "#2a2a45"), borderRadius:10, color:newInboxAction===a ? "#fff" : "#6b7280", cursor:"pointer", fontSize:14, fontWeight:600 }}>
+                    {a === "Delete" ? "Delete" : "Follow Up"}
                   </button>
                 ))}
               </div>
@@ -398,12 +419,14 @@ export default function Sean() {
             {pendingInbox.length === 0
               ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>📭</div><div>Inbox is clear!</div></div>
               : pendingInbox.map(item => (
-                <div key={item.id} style={{ ...s.card(false), borderLeft:"3px solid " + (item.action==="Delete"?"#ef4444":"#3b82f6") }}>
+                <div key={item.id} style={{ ...s.card(false), borderLeft:"3px solid " + (item.action==="Delete" ? "#ef4444" : "#3b82f6") }}>
                   <div style={{ fontSize:14, fontWeight:600, color:"#e2e8f0", marginBottom:6 }}>{item.subject}</div>
                   <div style={{ marginBottom:10 }}>
-                    <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:item.action==="Delete"?"#7f1d1d":"#1e3a8a", color:item.action==="Delete"?"#fca5a5":"#93c5fd", fontWeight:700 }}>{item.action==="Delete"?"🗑️ Delete":"→ Follow Up"}</span>
+                    <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:item.action==="Delete" ? "#7f1d1d" : "#1e3a8a", color:item.action==="Delete" ? "#fca5a5" : "#93c5fd", fontWeight:700 }}>
+                      {item.action==="Delete" ? "Delete" : "Follow Up"}
+                    </span>
                   </div>
-                  <button onClick={() => clearInbox(item.id)} style={s.doneBtn}>✓ Cleared</button>
+                  <button onClick={() => clearInbox(item.id)} style={s.doneBtn}>Cleared</button>
                 </div>
               ))
             }
@@ -416,16 +439,16 @@ export default function Sean() {
           <div style={s.sheet} onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
               <div style={{ fontSize:16, fontWeight:700, color:"#e2e8f0" }}>Edit Task</div>
-              <button onClick={() => setEditingTask(null)} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+              <button onClick={() => setEditingTask(null)} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>x</button>
             </div>
             <div style={{ fontSize:14, color:"#9ca3af", marginBottom:20, lineHeight:1.4 }}>{editingTask.subject}</div>
 
             <div style={{ marginBottom:16 }}>
-              <label style={s.label}>Status</label>
+              <label style={s.lbl}>Status</label>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
                 {STATUSES.map(st => (
                   <button key={st} onClick={() => setEditForm(f => ({ ...f, status:st }))}
-                    style={{ padding:"8px 14px", borderRadius:99, border:"1px solid " + (editForm.status===st?STATUS_COLOR[st]:"#2a2a45"), background:editForm.status===st?STATUS_COLOR[st]+"33":"none", color:editForm.status===st?STATUS_COLOR[st]:"#6b7280", cursor:"pointer", fontSize:13, fontWeight:editForm.status===st?700:400 }}>
+                    style={{ padding:"8px 14px", borderRadius:99, border:"1px solid " + (editForm.status===st ? STATUS_COLOR[st] : "#2a2a45"), background:editForm.status===st ? STATUS_COLOR[st] + "33" : "none", color:editForm.status===st ? STATUS_COLOR[st] : "#6b7280", cursor:"pointer", fontSize:13, fontWeight:editForm.status===st ? 700 : 400 }}>
                     {STATUS_EMOJI[st]} {st}
                   </button>
                 ))}
@@ -433,17 +456,17 @@ export default function Sean() {
             </div>
 
             <div style={{ marginBottom:16 }}>
-              <label style={s.label}>Follow Up Date</label>
+              <label style={s.lbl}>Follow Up Date</label>
               <input type="date" value={editForm.expected_date} onChange={e => setEditForm(f => ({ ...f, expected_date:e.target.value }))} style={inp} />
             </div>
 
             <div style={{ marginBottom:16 }}>
-              <label style={s.label}>Next Action</label>
+              <label style={s.lbl}>Next Action</label>
               <input value={editForm.next_action} onChange={e => setEditForm(f => ({ ...f, next_action:e.target.value }))} placeholder="What needs to happen next?" style={inp} />
             </div>
 
             <div style={{ marginBottom:20 }}>
-              <label style={s.label}>Notes</label>
+              <label style={s.lbl}>Notes</label>
               <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes:e.target.value }))} placeholder="Add a note..." style={{ ...inp, minHeight:100, resize:"vertical" }} />
             </div>
 
