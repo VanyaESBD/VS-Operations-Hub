@@ -9,15 +9,25 @@ const fmtDateTime = (ts) => {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 };
 const isOverdue = (t) => t.status !== "Done" && t.expected_date && t.expected_date < TODAY();
+const thisWeekStart = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().split("T")[0];
+};
 
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
+const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
 const URGENCY_LEVELS = ["Low", "Medium", "High", "Urgent"];
 const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+const INTERACTION_TYPES = ["📞 Call", "📧 Email", "🤝 Meeting", "🏢 Site Visit", "💬 WhatsApp", "📋 Other"];
+const ALL_OWNERS = ["You", "Sean", "Jason", "Andrea"];
 
 const inp = { background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
+const label = { fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 };
 
 function TaskActivityFeed({ taskId, taskNotes, myName }) {
   const [history, setHistory] = useState([]);
@@ -96,17 +106,99 @@ function TaskActivityFeed({ taskId, taskNotes, myName }) {
   );
 }
 
+function NewTaskModal({ myName, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    subject:"", client:"", company:"", email:"",
+    date_received: TODAY(), owner: myName, status:"To Do", priority:"Medium",
+    expected_date:"", next_action:"", notes:"", task_type:"Information Request"
+  });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const valid = form.subject && form.owner && form.status && form.expected_date && form.next_action;
+
+  const save = async () => {
+    if (!valid) return;
+    await supabase.from("tasks").insert([form]);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:"#e2e8f0" }}>New Task</h2>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          <div style={{ gridColumn:"1/-1" }}>
+            <label style={label}>Subject *</label>
+            <input style={inp} value={form.subject} onChange={e=>set("subject",e.target.value)} placeholder="What needs to be done?" />
+          </div>
+          <div>
+            <label style={label}>Client</label>
+            <input style={inp} value={form.client} onChange={e=>set("client",e.target.value)} />
+          </div>
+          <div>
+            <label style={label}>Company</label>
+            <input style={inp} value={form.company} onChange={e=>set("company",e.target.value)} />
+          </div>
+          <div>
+            <label style={label}>Owner *</label>
+            <select style={inp} value={form.owner} onChange={e=>set("owner",e.target.value)}>
+              {ALL_OWNERS.map(o=><option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={label}>Status *</label>
+            <select style={inp} value={form.status} onChange={e=>set("status",e.target.value)}>
+              {STATUSES.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={label}>Priority</label>
+            <select style={inp} value={form.priority} onChange={e=>set("priority",e.target.value)}>
+              {PRIORITIES.map(p=><option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={label}>Task Type</label>
+            <select style={inp} value={form.task_type} onChange={e=>set("task_type",e.target.value)}>
+              {TASK_TYPES.map(t=><option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={label}>Expected Date *</label>
+            <input type="date" style={inp} value={form.expected_date} onChange={e=>set("expected_date",e.target.value)} />
+          </div>
+          <div style={{ gridColumn:"1/-1" }}>
+            <label style={label}>Next Action *</label>
+            <input style={inp} value={form.next_action} onChange={e=>set("next_action",e.target.value)} placeholder="What needs to happen next?" />
+          </div>
+          <div style={{ gridColumn:"1/-1" }}>
+            <label style={label}>Notes</label>
+            <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{ ...inp, minHeight:72, resize:"vertical" }} placeholder="Add context or background..." />
+          </div>
+        </div>
+        <div style={{ marginTop:20, display:"flex", gap:10, justifyContent:"flex-end" }}>
+          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+          <button onClick={save} disabled={!valid} style={{ padding:"10px 24px", background:valid?"#0891b2":"#2a2a45", border:"none", borderRadius:8, color:valid?"#fff":"#4b5563", cursor:valid?"pointer":"not-allowed", fontWeight:600 }}>
+            Create Task
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskModal({ task, myName, onClose, onUpdate }) {
-  const [form, setForm] = useState({ status: task.status, expected_date: task.expected_date || "", next_action: task.next_action || "", notes: task.notes || "" });
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const isOwn = task.owner === myName;
+  const [form, setForm] = useState({ status:task.status, expected_date:task.expected_date||"", next_action:task.next_action||"", notes:task.notes||"" });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const canEdit = task.owner === myName || task.owner === (myName === "Jason" ? "Andrea" : "Jason");
 
   const save = async () => {
     await supabase.from("tasks").update({
-      status: form.status,
-      expected_date: form.expected_date,
-      next_action: form.next_action,
-      notes: form.notes,
+      status: form.status, expected_date: form.expected_date,
+      next_action: form.next_action, notes: form.notes,
       actual_date: form.status === "Done" ? TODAY() : null,
     }).eq("id", task.id);
     if (task.status !== form.status) {
@@ -115,18 +207,16 @@ function TaskModal({ task, myName, onClose, onUpdate }) {
         old_status: task.status, new_status: form.status, note: null
       }]);
     }
-    onUpdate();
-    onClose();
+    onUpdate(); onClose();
   };
 
   const markDone = async () => {
-    await supabase.from("tasks").update({ status: "Done", actual_date: TODAY() }).eq("id", task.id);
+    await supabase.from("tasks").update({ status:"Done", actual_date:TODAY() }).eq("id", task.id);
     await supabase.from("task_history").insert([{
       task_id: task.id, changed_by: myName, entry_type: "status_change",
       old_status: task.status, new_status: "Done", note: null
     }]);
-    onUpdate();
-    onClose();
+    onUpdate(); onClose();
   };
 
   return (
@@ -140,33 +230,34 @@ function TaskModal({ task, myName, onClose, onUpdate }) {
               {isOverdue(task) && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#7f1d1d", color:"#fca5a5", fontWeight:600 }}>OVERDUE</span>}
             </div>
             <div style={{ fontSize:17, fontWeight:700, color:"#e2e8f0", lineHeight:1.3 }}>{task.subject}</div>
-            {(task.client || task.company) && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>{[task.client, task.company].filter(Boolean).join(" · ")}</div>}
+            {(task.client||task.company) && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>{[task.client,task.company].filter(Boolean).join(" · ")}</div>}
+            <div style={{ fontSize:11, color:"#4b5563", marginTop:4 }}>Assigned to {task.owner}</div>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
 
-        {isOwn ? (
+        {canEdit ? (
           <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div>
-              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Status</label>
+              <label style={label}>Status</label>
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                 {STATUSES.map(s => (
-                  <button key={s} onClick={() => set("status", s)} style={{ padding:"7px 12px", borderRadius:99, border:`1px solid ${form.status===s?STATUS_COLOR[s]:"#2a2a45"}`, background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>
+                  <button key={s} onClick={()=>set("status",s)} style={{ padding:"7px 12px", borderRadius:99, border:`1px solid ${form.status===s?STATUS_COLOR[s]:"#2a2a45"}`, background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>
                     {STATUS_EMOJI[s]} {s}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Follow Up Date</label>
+              <label style={label}>Follow Up Date</label>
               <input type="date" value={form.expected_date} onChange={e=>set("expected_date",e.target.value)} style={inp} />
             </div>
             <div>
-              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Next Action</label>
+              <label style={label}>Next Action</label>
               <input value={form.next_action} onChange={e=>set("next_action",e.target.value)} style={inp} />
             </div>
             <div>
-              <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:4 }}>Notes</label>
+              <label style={label}>Notes</label>
               <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{ ...inp, minHeight:72, resize:"vertical" }} />
             </div>
             <div style={{ display:"flex", gap:10 }}>
@@ -176,7 +267,7 @@ function TaskModal({ task, myName, onClose, onUpdate }) {
           </div>
         ) : (
           <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:10, padding:14, marginBottom:12 }}>
-            <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Assigned to <span style={{ color:"#0891b2", fontWeight:600 }}>{task.owner}</span></div>
+            <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Assigned to <span style={{ color:"#0891b2", fontWeight:600 }}>{task.owner}</span> — view only</div>
             {task.next_action && <div style={{ fontSize:13, color:"#0891b2" }}>→ {task.next_action}</div>}
             {task.expected_date && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>Due {fmtDate(task.expected_date)}</div>}
             {task.notes && <div style={{ fontSize:13, color:"#9ca3af", marginTop:8, fontStyle:"italic" }}>📝 {task.notes}</div>}
@@ -198,20 +289,16 @@ function FlagSeanModal({ task, myName, onClose, onSent }) {
     if (!note.trim()) return;
     setSending(true);
     await supabase.from("flags").insert([{
-      from_name: myName,
-      task_id: task?.id || null,
-      task_subject: task?.subject || "General flag",
-      urgency,
-      note: note.trim(),
-      seen: false,
+      from_name: myName, task_id: task?.id||null,
+      task_subject: task?.subject||"General flag",
+      urgency, note: note.trim(), seen: false,
     }]);
     setSending(false);
-    onSent();
-    onClose();
+    onSent(); onClose();
   };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(10,10,20,0.8)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #ef4444", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <div>
@@ -220,23 +307,20 @@ function FlagSeanModal({ task, myName, onClose, onSent }) {
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
-
         <div style={{ marginBottom:16 }}>
-          <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:8 }}>Urgency</label>
+          <label style={label}>Urgency</label>
           <div style={{ display:"flex", gap:8 }}>
             {URGENCY_LEVELS.map(u => (
-              <button key={u} onClick={() => setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:`1px solid ${urgency===u?URGENCY_COLOR[u]:"#2a2a45"}`, background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>
+              <button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:`1px solid ${urgency===u?URGENCY_COLOR[u]:"#2a2a45"}`, background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>
                 {u}
               </button>
             ))}
           </div>
         </div>
-
         <div style={{ marginBottom:20 }}>
-          <label style={{ fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:8 }}>Message to Sean</label>
+          <label style={label}>Message to Sean</label>
           <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="What does Sean need to know or do?" style={{ ...inp, minHeight:90, resize:"vertical" }} />
         </div>
-
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
           <button onClick={send} disabled={!note.trim()||sending} style={{ flex:2, padding:"11px", background:note.trim()?"#ef4444":"#2a2a45", border:"none", borderRadius:8, color:note.trim()?"#fff":"#4b5563", cursor:note.trim()?"pointer":"not-allowed", fontSize:14, fontWeight:700 }}>
@@ -248,22 +332,172 @@ function FlagSeanModal({ task, myName, onClose, onSent }) {
   );
 }
 
+function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    interaction_date: TODAY(), client:"", company:"",
+    type:"📞 Call", notes:"", outcome:"", logged_by: myName
+  });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [selectedTask, setSelectedTask] = useState("");
+  const valid = form.client && form.notes;
+
+  const save = async () => {
+    if (!valid) return;
+    const payload = { ...form };
+    if (selectedTask) {
+      const t = tasks.find(t=>t.id===parseInt(selectedTask));
+      if (t) { payload.client = payload.client || t.client; payload.company = payload.company || t.company; }
+    }
+    await supabase.from("interactions").insert([payload]);
+    onSaved(); onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:520, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:"#e2e8f0" }}>📋 Log Interaction</h2>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div>
+            <label style={label}>Link to Task (optional)</label>
+            <select style={inp} value={selectedTask} onChange={e=>{ setSelectedTask(e.target.value); const t=tasks.find(t=>t.id===parseInt(e.target.value)); if(t){ set("client",t.client||""); set("company",t.company||""); }}}>
+              <option value="">— No linked task —</option>
+              {tasks.filter(t=>t.status!=="Done").map(t=><option key={t.id} value={t.id}>{t.subject}</option>)}
+            </select>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div>
+              <label style={label}>Client / Contact *</label>
+              <input style={inp} value={form.client} onChange={e=>set("client",e.target.value)} placeholder="Name" />
+            </div>
+            <div>
+              <label style={label}>Company</label>
+              <input style={inp} value={form.company} onChange={e=>set("company",e.target.value)} />
+            </div>
+            <div>
+              <label style={label}>Type</label>
+              <select style={inp} value={form.type} onChange={e=>set("type",e.target.value)}>
+                {INTERACTION_TYPES.map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={label}>Date</label>
+              <input type="date" style={inp} value={form.interaction_date} onChange={e=>set("interaction_date",e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label style={label}>What was discussed? *</label>
+            <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Summary of the interaction..." style={{ ...inp, minHeight:80, resize:"vertical" }} />
+          </div>
+          <div>
+            <label style={label}>Outcome</label>
+            <input style={inp} value={form.outcome} onChange={e=>set("outcome",e.target.value)} placeholder="What was agreed or what happens next?" />
+          </div>
+        </div>
+        <div style={{ marginTop:20, display:"flex", gap:10, justifyContent:"flex-end" }}>
+          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+          <button onClick={save} disabled={!valid} style={{ padding:"10px 24px", background:valid?"#0891b2":"#2a2a45", border:"none", borderRadius:8, color:valid?"#fff":"#4b5563", cursor:valid?"pointer":"not-allowed", fontWeight:600 }}>
+            Log It
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyReportModal({ interactions, myName, onClose }) {
+  const weekStart = thisWeekStart();
+  const thisWeek = interactions.filter(i => i.interaction_date >= weekStart);
+  const [edited, setEdited] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const grouped = thisWeek.reduce((acc, i) => {
+    const key = i.company || i.client;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(i);
+    return acc;
+  }, {});
+
+  const generateReport = () => {
+    let report = `📊 *Weekly Customer Interaction Report*\n`;
+    report += `Week of ${new Date(weekStart+"T00:00:00").toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}\n`;
+    report += `Logged by: ${myName}\n\n`;
+    Object.entries(grouped).forEach(([company, items]) => {
+      report += `*${company}*\n`;
+      items.forEach(i => {
+        report += `• ${i.type} — ${i.notes}`;
+        if (i.outcome) report += ` → ${i.outcome}`;
+        report += `\n`;
+      });
+      report += "\n";
+    });
+    if (thisWeek.length === 0) report += "No interactions logged this week.";
+    return report;
+  };
+
+  useEffect(() => { setEdited(generateReport()); }, []);
+
+  const sendToSean = async () => {
+    setSending(true);
+    await supabase.from("flags").insert([{
+      from_name: myName,
+      task_id: null,
+      task_subject: "Weekly Customer Report",
+      urgency: "Low",
+      note: edited,
+      seen: false,
+    }]);
+    await supabase.from("interactions").update({ week_sent: true }).in("id", thisWeek.map(i=>i.id));
+    setSending(false);
+    setSent(true);
+    setTimeout(onClose, 2000);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:"#e2e8f0" }}>📊 Weekly Report</h2>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+        </div>
+        <div style={{ fontSize:12, color:"#6b7280", marginBottom:12 }}>{thisWeek.length} interactions this week — edit before sending</div>
+        <textarea value={edited} onChange={e=>setEdited(e.target.value)} style={{ ...inp, minHeight:300, resize:"vertical", fontFamily:"monospace", fontSize:13, lineHeight:1.6, marginBottom:16 }} />
+        <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Close</button>
+          <button onClick={sendToSean} disabled={sending||sent} style={{ padding:"10px 24px", background:sent?"#10b981":"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontWeight:700 }}>
+            {sent ? "✅ Sent to Sean!" : sending ? "Sending..." : "📤 Send to Sean"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Team() {
   const [myName, setMyName] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [flags, setFlags] = useState([]);
+  const [interactions, setInteractions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("mine");
   const [selectedTask, setSelectedTask] = useState(null);
   const [flagTask, setFlagTask] = useState(undefined);
   const [showFlagModal, setShowFlagModal] = useState(false);
+  const [showNewTask, setShowNewTask] = useState(false);
+  const [showLogInteraction, setShowLogInteraction] = useState(false);
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
   const [flagSent, setFlagSent] = useState(false);
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
     const { data: f } = await supabase.from("flags").select("*").order("created_at", { ascending: false });
+    const { data: i } = await supabase.from("interactions").select("*").order("interaction_date", { ascending: false });
     if (t) setTasks(t);
     if (f) setFlags(f);
+    if (i) setInteractions(i);
     setLoading(false);
   };
 
@@ -271,9 +505,12 @@ export default function Team() {
     if (!myName) return;
     load();
     const interval = setInterval(load, 30000);
-    const ch = supabase.channel("team-tasks").on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, load).subscribe();
-    const fch = supabase.channel("team-flags").on("postgres_changes", { event:"*", schema:"public", table:"flags" }, load).subscribe();
-    return () => { clearInterval(interval); supabase.removeChannel(ch); supabase.removeChannel(fch); };
+    const ch = supabase.channel("team-ch")
+      .on("postgres_changes",{event:"*",schema:"public",table:"tasks"},load)
+      .on("postgres_changes",{event:"*",schema:"public",table:"flags"},load)
+      .on("postgres_changes",{event:"*",schema:"public",table:"interactions"},load)
+      .subscribe();
+    return () => { clearInterval(interval); supabase.removeChannel(ch); };
   }, [myName]);
 
   const otherName = myName === "Jason" ? "Andrea" : "Jason";
@@ -282,6 +519,8 @@ export default function Team() {
   const myDoneToday = tasks.filter(t => t.owner === myName && t.status === "Done" && t.actual_date === TODAY());
   const myOverdue = myTasks.filter(isOverdue);
   const myFlags = flags.filter(f => f.from_name === myName);
+  const weekStart = thisWeekStart();
+  const thisWeekInteractions = interactions.filter(i => i.interaction_date >= weekStart);
 
   const s = {
     page: { minHeight:"100vh", background:"#0d0d1a", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", width:"100%", paddingBottom:40 },
@@ -300,12 +539,12 @@ export default function Team() {
         <div style={{ fontSize:20, fontWeight:700, color:"#e2e8f0", marginBottom:8 }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}!</div>
         <div style={{ fontSize:14, color:"#6b7280", marginBottom:28 }}>Who are you?</div>
         <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-          {["Jason", "Andrea"].map(name => (
-            <button key={name} onClick={() => setMyName(name)} style={{ padding:"16px 32px", background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, color:"#e2e8f0", cursor:"pointer", fontSize:18, fontWeight:700, transition:"all 0.2s" }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor="#0891b2"; e.currentTarget.style.color="#0891b2"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor="#2a2a45"; e.currentTarget.style.color="#e2e8f0"; }}>
-              {name[0]}
-              <div style={{ fontSize:14, marginTop:4 }}>{name}</div>
+          {["Jason","Andrea"].map(name => (
+            <button key={name} onClick={()=>setMyName(name)} style={{ padding:"16px 32px", background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, color:"#e2e8f0", cursor:"pointer", fontSize:18, fontWeight:700 }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#0891b2";e.currentTarget.style.color="#0891b2";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a2a45";e.currentTarget.style.color="#e2e8f0";}}>
+              <div style={{ width:40, height:40, borderRadius:"50%", background:"#0891b2", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:700, color:"#fff", margin:"0 auto 8px" }}>{name[0]}</div>
+              {name}
             </button>
           ))}
         </div>
@@ -320,7 +559,7 @@ export default function Team() {
   );
 
   const TaskCard = ({ task, showOwner }) => (
-    <div onClick={() => setSelectedTask(task)} style={{ ...s.card(isOverdue(task)), borderLeft:`3px solid ${STATUS_COLOR[task.status]}` }}
+    <div onClick={()=>setSelectedTask(task)} style={{ ...s.card(isOverdue(task)), borderLeft:`3px solid ${STATUS_COLOR[task.status]}` }}
       onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
       onMouseLeave={e=>e.currentTarget.style.transform=""}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
@@ -333,11 +572,11 @@ export default function Team() {
           </div>
           <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{task.subject}</div>
           {task.next_action && <div style={{ fontSize:12, color:"#0891b2" }}>→ {task.next_action}</div>}
-          {task.notes && <div style={{ fontSize:12, color:"#6b7280", fontStyle:"italic", marginTop:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>💬 {task.notes.length > 60 ? task.notes.substring(0,60)+"..." : task.notes}</div>}
+          {task.notes && <div style={{ fontSize:12, color:"#6b7280", fontStyle:"italic", marginTop:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>💬 {task.notes.length>60?task.notes.substring(0,60)+"...":task.notes}</div>}
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>
           <div style={{ fontSize:11, color:isOverdue(task)?"#fca5a5":"#6b7280" }}>{fmtDate(task.expected_date)}</div>
-          <button onClick={e=>{ e.stopPropagation(); setFlagTask(task); setShowFlagModal(true); }} style={{ marginTop:8, padding:"4px 10px", background:"#7f1d1d22", border:"1px solid #ef444444", borderRadius:6, color:"#ef4444", cursor:"pointer", fontSize:11, fontWeight:600 }}>
+          <button onClick={e=>{e.stopPropagation();setFlagTask(task);setShowFlagModal(true);}} style={{ marginTop:8, padding:"4px 10px", background:"#7f1d1d22", border:"1px solid #ef444444", borderRadius:6, color:"#ef4444", cursor:"pointer", fontSize:11, fontWeight:600 }}>
             🚨 Flag
           </button>
         </div>
@@ -348,6 +587,7 @@ export default function Team() {
   const TABS = [
     { id:"mine", label:"My Tasks", emoji:"◉", count:myTasks.length },
     { id:"team", label:otherName+"'s Tasks", emoji:"◈", count:theirTasks.length },
+    { id:"interactions", label:"Interactions", emoji:"📋", count:thisWeekInteractions.length },
     { id:"flags", label:"Flagged Sean", emoji:"🚨", count:myFlags.filter(f=>!f.seen).length },
   ];
 
@@ -357,15 +597,21 @@ export default function Team() {
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:70 }} />
           <div>
-            <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {myName}!</div>
-            <div style={{ fontSize:11, color:"#4b5563" }}>{myTasks.length} active · {myOverdue.length > 0 ? `⚠️ ${myOverdue.length} overdue` : "✅ no overdue"} · {myDoneToday.length} done today</div>
+            <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>Good {new Date().getHours()<12?"morning":new Date().getHours()<17?"afternoon":"evening"}, {myName}!</div>
+            <div style={{ fontSize:11, color:"#4b5563" }}>{myTasks.length} active · {myOverdue.length>0?`⚠️ ${myOverdue.length} overdue`:"✅ no overdue"} · {myDoneToday.length} done today</div>
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={() => { setFlagTask(null); setShowFlagModal(true); }} style={{ padding:"8px 14px", background:"#7f1d1d33", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>
-            🚨 Flag Sean
+          <button onClick={()=>setShowNewTask(true)} style={{ padding:"8px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+            + Task
           </button>
-          <button onClick={() => setMyName(null)} style={{ padding:"8px 12px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer", fontSize:12 }}>
+          <button onClick={()=>setShowLogInteraction(true)} style={{ padding:"8px 14px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+            📋 Log
+          </button>
+          <button onClick={()=>{setFlagTask(null);setShowFlagModal(true);}} style={{ padding:"8px 14px", background:"#7f1d1d33", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+            🚨 Flag
+          </button>
+          <button onClick={()=>setMyName(null)} style={{ padding:"8px 12px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer", fontSize:12 }}>
             Switch
           </button>
         </div>
@@ -374,61 +620,94 @@ export default function Team() {
       {flagSent && (
         <div style={{ background:"#10b98122", border:"1px solid #10b981", borderRadius:8, padding:"10px 16px", margin:"12px 16px", fontSize:13, color:"#10b981", fontWeight:600 }}>
           ✅ Flag sent to Sean!
-          <button onClick={() => setFlagSent(false)} style={{ float:"right", background:"none", border:"none", color:"#10b981", cursor:"pointer", fontSize:16 }}>✕</button>
+          <button onClick={()=>setFlagSent(false)} style={{ float:"right", background:"none", border:"none", color:"#10b981", cursor:"pointer", fontSize:16 }}>✕</button>
         </div>
       )}
 
       <div style={s.tabs}>
         {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={s.tab(activeTab === tab.id)}>
+          <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={s.tab(activeTab===tab.id)}>
             <span>{tab.emoji}</span>
             <span>{tab.label}</span>
-            {tab.count > 0 && <span style={{ background: tab.id==="flags"?"#ef4444":"#ef4444", color:"#fff", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{tab.count}</span>}
+            {tab.count>0 && <span style={{ background:"#ef4444", color:"#fff", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{tab.count}</span>}
           </button>
         ))}
       </div>
 
       <div style={s.content}>
-        {activeTab === "mine" && (
+        {activeTab==="mine" && (
           <div>
-            <div style={s.sectionTitle}>My Tasks — {myName}</div>
-            {myTasks.length === 0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div>No active tasks!</div></div>
-              : myTasks.map(t => <TaskCard key={t.id} task={t} showOwner={false} />)
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={s.sectionTitle}>My Tasks — {myName}</div>
+            </div>
+            {myTasks.length===0
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div>No active tasks! Click + Task to add one.</div></div>
+              : myTasks.map(t=><TaskCard key={t.id} task={t} showOwner={false} />)
             }
           </div>
         )}
 
-        {activeTab === "team" && (
+        {activeTab==="team" && (
           <div>
             <div style={s.sectionTitle}>{otherName}'s Tasks</div>
-            {theirTasks.length === 0
+            {theirTasks.length===0
               ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>✅</div><div>{otherName} has no active tasks</div></div>
-              : theirTasks.map(t => <TaskCard key={t.id} task={t} showOwner={false} />)
+              : theirTasks.map(t=><TaskCard key={t.id} task={t} showOwner={false} />)
             }
           </div>
         )}
 
-        {activeTab === "flags" && (
+        {activeTab==="interactions" && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={s.sectionTitle}>Customer Interactions</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={()=>setShowLogInteraction(true)} style={{ padding:"7px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Log</button>
+                <button onClick={()=>setShowWeeklyReport(true)} style={{ padding:"7px 14px", background:"#1e3a8a22", border:"1px solid #3b82f6", borderRadius:8, color:"#60a5fa", cursor:"pointer", fontSize:13, fontWeight:600 }}>📊 Weekly Report</button>
+              </div>
+            </div>
+
+            {interactions.length===0
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No interactions logged yet</div></div>
+              : interactions.map(i=>(
+                <div key={i.id} style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{i.type}</span>
+                      <span style={{ fontSize:11, background:"#2a2a45", borderRadius:99, padding:"2px 8px", color:"#9ca3af" }}>{i.logged_by}</span>
+                      {i.week_sent && <span style={{ fontSize:11, color:"#10b981" }}>✅ Reported</span>}
+                    </div>
+                    <div style={{ fontSize:11, color:"#4b5563" }}>{fmtDate(i.interaction_date)}</div>
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#0891b2", marginBottom:4 }}>{i.client}{i.company?" · "+i.company:""}</div>
+                  <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5, marginBottom:i.outcome?8:0 }}>{i.notes}</div>
+                  {i.outcome && <div style={{ fontSize:12, color:"#10b981" }}>→ {i.outcome}</div>}
+                </div>
+              ))
+            }
+          </div>
+        )}
+
+        {activeTab==="flags" && (
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
               <div style={s.sectionTitle}>Flags Sent to Sean</div>
-              <button onClick={() => { setFlagTask(null); setShowFlagModal(true); }} style={{ padding:"8px 16px", background:"#ef444422", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+              <button onClick={()=>{setFlagTask(null);setShowFlagModal(true);}} style={{ padding:"7px 14px", background:"#ef444422", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>
                 + New Flag
               </button>
             </div>
-            {myFlags.length === 0
+            {myFlags.length===0
               ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🚨</div><div>No flags sent yet</div></div>
-              : myFlags.map(f => (
-                <div key={f.id} style={{ background:"#1a1a2e", border:`1px solid ${f.seen?"#2a2a45":"#ef444444"}`, borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`, borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+              : myFlags.map(f=>(
+                <div key={f.id} style={{ background:"#1a1a2e", border:`1px solid ${f.seen?"#2a2a45":URGENCY_COLOR[f.urgency]+"44"}`, borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`, borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                    <div>
-                      <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700, marginRight:8 }}>{f.urgency}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
                       {f.seen && <span style={{ fontSize:11, color:"#10b981" }}>✅ Seen by Sean</span>}
                     </div>
                     <div style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(f.created_at)}</div>
                   </div>
-                  {f.task_subject && <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Re: {f.task_subject}</div>}
+                  {f.task_subject && f.task_subject!=="General flag" && <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Re: {f.task_subject}</div>}
                   <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{f.note}</div>
                 </div>
               ))
@@ -437,13 +716,11 @@ export default function Team() {
         )}
       </div>
 
-      {selectedTask && (
-        <TaskModal task={selectedTask} myName={myName} onClose={() => setSelectedTask(null)} onUpdate={load} />
-      )}
-
-      {showFlagModal && (
-        <FlagSeanModal task={flagTask} myName={myName} onClose={() => { setShowFlagModal(false); setFlagTask(undefined); }} onSent={() => { setFlagSent(true); load(); setTimeout(() => setFlagSent(false), 4000); }} />
-      )}
+      {selectedTask && <TaskModal task={selectedTask} myName={myName} onClose={()=>setSelectedTask(null)} onUpdate={load} />}
+      {showNewTask && <NewTaskModal myName={myName} onClose={()=>setShowNewTask(false)} onSaved={load} />}
+      {showFlagModal && <FlagSeanModal task={flagTask} myName={myName} onClose={()=>{setShowFlagModal(false);setFlagTask(undefined);}} onSent={()=>{setFlagSent(true);load();setTimeout(()=>setFlagSent(false),4000);}} />}
+      {showLogInteraction && <LogInteractionModal myName={myName} tasks={tasks} onClose={()=>setShowLogInteraction(false)} onSaved={load} />}
+      {showWeeklyReport && <WeeklyReportModal interactions={interactions} myName={myName} onClose={()=>setShowWeeklyReport(false)} />}
     </div>
   );
 }
