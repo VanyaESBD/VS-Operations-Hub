@@ -82,7 +82,7 @@ function TaskActivityFeed({ taskId, taskNotes, myName }) {
         : history.map((h, i) => (
           <div key={h.id} style={{ display:"flex", gap:12, marginBottom:0 }}>
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0 }}>
-              <div style={{ width:28, height:28, borderRadius:"50%", background:h.entry_type==="note"?"#1e3a8a":STATUS_COLOR[h.new_status]+"33", border:`2px solid ${h.entry_type==="note"?"#3b82f6":STATUS_COLOR[h.new_status]||"#2a2a45"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:h.entry_type==="note"?"#1e3a8a":STATUS_COLOR[h.new_status]+"33", border:"2px solid " + (h.entry_type==="note"?"#3b82f6":STATUS_COLOR[h.new_status]||"#2a2a45"), display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>
                 {h.entry_type==="note" ? "💬" : STATUS_EMOJI[h.new_status]||"📌"}
               </div>
               {i < history.length-1 && <div style={{ width:2, flex:1, background:"#1e1e30", minHeight:16, margin:"2px 0" }} />}
@@ -242,7 +242,7 @@ function TaskModal({ task, myName, onClose, onUpdate }) {
               <label style={label}>Status</label>
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                 {STATUSES.map(s => (
-                  <button key={s} onClick={()=>set("status",s)} style={{ padding:"7px 12px", borderRadius:99, border:`1px solid ${form.status===s?STATUS_COLOR[s]:"#2a2a45"}`, background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>
+                  <button key={s} onClick={()=>set("status",s)} style={{ padding:"7px 12px", borderRadius:99, border:"1px solid " + (form.status===s?STATUS_COLOR[s]:"#2a2a45"), background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>
                     {STATUS_EMOJI[s]} {s}
                   </button>
                 ))}
@@ -311,7 +311,7 @@ function FlagSeanModal({ task, myName, onClose, onSent }) {
           <label style={label}>Urgency</label>
           <div style={{ display:"flex", gap:8 }}>
             {URGENCY_LEVELS.map(u => (
-              <button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:`1px solid ${urgency===u?URGENCY_COLOR[u]:"#2a2a45"}`, background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>
+              <button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:"1px solid " + (urgency===u?URGENCY_COLOR[u]:"#2a2a45"), background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>
                 {u}
               </button>
             ))}
@@ -338,17 +338,37 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
     type:"📞 Call", notes:"", outcome:"", logged_by: myName
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  const [selectedTask, setSelectedTask] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskList, setShowTaskList] = useState(false);
   const valid = form.client && form.notes;
+
+  const myTasks = tasks.filter(t => t.owner === myName && t.status !== "Done");
+  const filteredTasks = myTasks.filter(t =>
+    !taskSearch.trim() ||
+    (t.subject||"").toLowerCase().includes(taskSearch.toLowerCase()) ||
+    (t.client||"").toLowerCase().includes(taskSearch.toLowerCase()) ||
+    (t.company||"").toLowerCase().includes(taskSearch.toLowerCase())
+  );
+
+  const selectTask = (t) => {
+    setSelectedTask(t);
+    setTaskSearch(t.subject);
+    setShowTaskList(false);
+    if (t.client) set("client", t.client);
+    if (t.company) set("company", t.company);
+  };
+
+  const clearTask = () => {
+    setSelectedTask(null);
+    setTaskSearch("");
+    set("client","");
+    set("company","");
+  };
 
   const save = async () => {
     if (!valid) return;
-    const payload = { ...form };
-    if (selectedTask) {
-      const t = tasks.find(t=>t.id===parseInt(selectedTask));
-      if (t) { payload.client = payload.client || t.client; payload.company = payload.company || t.company; }
-    }
-    await supabase.from("interactions").insert([payload]);
+    await supabase.from("interactions").insert([{ ...form }]);
     onSaved(); onClose();
   };
 
@@ -360,13 +380,44 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div>
-            <label style={label}>Link to Task (optional)</label>
-            <select style={inp} value={selectedTask} onChange={e=>{ setSelectedTask(e.target.value); const t=tasks.find(t=>t.id===parseInt(e.target.value)); if(t){ set("client",t.client||""); set("company",t.company||""); }}}>
-              <option value="">— No linked task —</option>
-              {tasks.filter(t=>t.status!=="Done").map(t=><option key={t.id} value={t.id}>{t.subject}</option>)}
-            </select>
+
+          <div style={{ position:"relative" }}>
+            <label style={label}>Link to My Task (optional)</label>
+            <div style={{ position:"relative" }}>
+              <input
+                value={taskSearch}
+                onChange={e=>{ setTaskSearch(e.target.value); setShowTaskList(true); setSelectedTask(null); }}
+                onFocus={()=>setShowTaskList(true)}
+                placeholder="Search your tasks..."
+                style={{ ...inp, paddingRight: selectedTask ? 36 : 12 }}
+              />
+              {selectedTask && (
+                <button onClick={clearTask} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:16 }}>✕</button>
+              )}
+            </div>
+            {showTaskList && !selectedTask && (
+              <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, zIndex:200, maxHeight:200, overflowY:"auto", marginTop:4 }}>
+                {filteredTasks.length === 0
+                  ? <div style={{ padding:"10px 14px", fontSize:13, color:"#4b5563" }}>No matching tasks</div>
+                  : filteredTasks.map(t => (
+                    <div key={t.id} onClick={()=>selectTask(t)}
+                      style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #2a2a45", fontSize:13 }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#2a2a45"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <div style={{ fontWeight:600, color:"#e2e8f0", marginBottom:2 }}>{t.subject}</div>
+                      {(t.client||t.company) && <div style={{ fontSize:11, color:"#6b7280" }}>{[t.client,t.company].filter(Boolean).join(" · ")}</div>}
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+            {selectedTask && (
+              <div style={{ marginTop:6, padding:"6px 10px", background:"#0891b222", border:"1px solid #0891b244", borderRadius:6, fontSize:12, color:"#0891b2" }}>
+                Linked to: {selectedTask.subject}
+              </div>
+            )}
           </div>
+
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
             <div>
               <label style={label}>Client / Contact *</label>
@@ -422,15 +473,15 @@ function WeeklyReportModal({ interactions, myName, onClose }) {
   }, {});
 
   const generateReport = () => {
-    let report = `📊 *Weekly Customer Interaction Report*\n`;
-    report += `Week of ${new Date(weekStart+"T00:00:00").toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}\n`;
-    report += `Logged by: ${myName}\n\n`;
+    let report = "📊 *Weekly Customer Interaction Report*\n";
+    report += "Week of " + new Date(weekStart+"T00:00:00").toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) + "\n";
+    report += "Logged by: " + myName + "\n\n";
     Object.entries(grouped).forEach(([company, items]) => {
-      report += `*${company}*\n`;
+      report += "*" + company + "*\n";
       items.forEach(i => {
-        report += `• ${i.type} — ${i.notes}`;
-        if (i.outcome) report += ` → ${i.outcome}`;
-        report += `\n`;
+        report += "• " + i.type + " — " + i.notes;
+        if (i.outcome) report += " → " + i.outcome;
+        report += "\n";
       });
       report += "\n";
     });
@@ -443,14 +494,13 @@ function WeeklyReportModal({ interactions, myName, onClose }) {
   const sendToSean = async () => {
     setSending(true);
     await supabase.from("flags").insert([{
-      from_name: myName,
-      task_id: null,
+      from_name: myName, task_id: null,
       task_subject: "Weekly Customer Report",
-      urgency: "Low",
-      note: edited,
-      seen: false,
+      urgency: "Low", note: edited, seen: false,
     }]);
-    await supabase.from("interactions").update({ week_sent: true }).in("id", thisWeek.map(i=>i.id));
+    if (thisWeek.length > 0) {
+      await supabase.from("interactions").update({ week_sent: true }).in("id", thisWeek.map(i=>i.id));
+    }
     setSending(false);
     setSent(true);
     setTimeout(onClose, 2000);
@@ -526,9 +576,9 @@ export default function Team() {
     page: { minHeight:"100vh", background:"#0d0d1a", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", width:"100%", paddingBottom:40 },
     header: { background:"#0a0a16", padding:"16px 20px", borderBottom:"1px solid #1e1e30", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
     tabs: { display:"flex", overflowX:"auto", gap:6, padding:"12px 16px", borderBottom:"1px solid #1e1e30", background:"#0a0a16", position:"sticky", top:57, zIndex:99 },
-    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:`1px solid ${active?"#0891b2":"#2a2a45"}`, background:active?"#0891b233":"none", color:active?"#0891b2":"#6b7280", fontSize:13, fontWeight:active?700:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
+    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:"1px solid " + (active?"#0891b2":"#2a2a45"), background:active?"#0891b233":"none", color:active?"#0891b2":"#6b7280", fontSize:13, fontWeight:active?700:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
     content: { padding:"16px" },
-    card: (over) => ({ background:"#1a1a2e", border:`1px solid ${over?"#7f1d1d":"#2a2a45"}`, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s" }),
+    card: (over) => ({ background:"#1a1a2e", border:"1px solid " + (over?"#7f1d1d":"#2a2a45"), borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s" }),
     sectionTitle: { fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 },
   };
 
@@ -536,7 +586,9 @@ export default function Team() {
     <div style={{ minHeight:"100vh", background:"#0d0d1a", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"system-ui,sans-serif" }}>
       <div style={{ textAlign:"center", padding:32 }}>
         <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:120, marginBottom:24 }} />
-        <div style={{ fontSize:20, fontWeight:700, color:"#e2e8f0", marginBottom:8 }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}!</div>
+        <div style={{ fontSize:20, fontWeight:700, color:"#e2e8f0", marginBottom:8 }}>
+          {"Good " + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + "!"}
+        </div>
         <div style={{ fontSize:14, color:"#6b7280", marginBottom:28 }}>Who are you?</div>
         <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
           {["Jason","Andrea"].map(name => (
@@ -559,7 +611,7 @@ export default function Team() {
   );
 
   const TaskCard = ({ task, showOwner }) => (
-    <div onClick={()=>setSelectedTask(task)} style={{ ...s.card(isOverdue(task)), borderLeft:`3px solid ${STATUS_COLOR[task.status]}` }}
+    <div onClick={()=>setSelectedTask(task)} style={{ ...s.card(isOverdue(task)), borderLeft:"3px solid " + STATUS_COLOR[task.status] }}
       onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}
       onMouseLeave={e=>e.currentTarget.style.transform=""}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
@@ -586,7 +638,7 @@ export default function Team() {
 
   const TABS = [
     { id:"mine", label:"My Tasks", emoji:"◉", count:myTasks.length },
-    { id:"team", label:otherName+"'s Tasks", emoji:"◈", count:theirTasks.length },
+    { id:"team", label:otherName + "'s Tasks", emoji:"◈", count:theirTasks.length },
     { id:"interactions", label:"Interactions", emoji:"📋", count:thisWeekInteractions.length },
     { id:"flags", label:"Flagged Sean", emoji:"🚨", count:myFlags.filter(f=>!f.seen).length },
   ];
@@ -597,8 +649,10 @@ export default function Team() {
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:70 }} />
           <div>
-            <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>Good {new Date().getHours()<12?"morning":new Date().getHours()<17?"afternoon":"evening"}, {myName}!</div>
-            <div style={{ fontSize:11, color:"#4b5563" }}>{myTasks.length} active · {myOverdue.length>0?`⚠️ ${myOverdue.length} overdue`:"✅ no overdue"} · {myDoneToday.length} done today</div>
+            <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>
+              {"Good " + (new Date().getHours()<12?"morning":new Date().getHours()<17?"afternoon":"evening") + ", " + myName + "!"}
+            </div>
+            <div style={{ fontSize:11, color:"#4b5563" }}>{myTasks.length} active · {myOverdue.length>0?"⚠️ " + myOverdue.length + " overdue":"✅ no overdue"} · {myDoneToday.length} done today</div>
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -666,7 +720,6 @@ export default function Team() {
                 <button onClick={()=>setShowWeeklyReport(true)} style={{ padding:"7px 14px", background:"#1e3a8a22", border:"1px solid #3b82f6", borderRadius:8, color:"#60a5fa", cursor:"pointer", fontSize:13, fontWeight:600 }}>📊 Weekly Report</button>
               </div>
             </div>
-
             {interactions.length===0
               ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No interactions logged yet</div></div>
               : interactions.map(i=>(
@@ -699,7 +752,7 @@ export default function Team() {
             {myFlags.length===0
               ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🚨</div><div>No flags sent yet</div></div>
               : myFlags.map(f=>(
-                <div key={f.id} style={{ background:"#1a1a2e", border:`1px solid ${f.seen?"#2a2a45":URGENCY_COLOR[f.urgency]+"44"}`, borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`, borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                <div key={f.id} style={{ background:"#1a1a2e", border:"1px solid " + (f.seen?"#2a2a45":URGENCY_COLOR[f.urgency]+"44"), borderLeft:"3px solid " + URGENCY_COLOR[f.urgency], borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
