@@ -16,6 +16,32 @@ const thisWeekStart = () => {
   return d.toISOString().split("T")[0];
 };
 
+const PRIORITY_ORDER = { "Urgent": 0, "High": 1, "Medium": 2, "Low": 3 };
+
+const sortTasks = (tasks, sortBy) => {
+  const arr = [...tasks];
+  if (sortBy === "urgency") {
+    return arr.sort((a, b) => {
+      const aOver = isOverdue(a) ? 0 : 1;
+      const bOver = isOverdue(b) ? 0 : 1;
+      if (aOver !== bOver) return aOver - bOver;
+      const aPri = PRIORITY_ORDER[a.priority] ?? 2;
+      const bPri = PRIORITY_ORDER[b.priority] ?? 2;
+      if (aPri !== bPri) return aPri - bPri;
+      return (a.expected_date || "9999") > (b.expected_date || "9999") ? 1 : -1;
+    });
+  }
+  if (sortBy === "duedate") {
+    return arr.sort((a, b) => {
+      if (!a.expected_date) return 1;
+      if (!b.expected_date) return -1;
+      return a.expected_date > b.expected_date ? 1 : -1;
+    });
+  }
+  // recent (default)
+  return arr.sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+};
+
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
@@ -342,7 +368,6 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
   return (
     <div style={{ marginTop:20,borderTop:"1px solid #2a2a45",paddingTop:20 }}>
       <div style={{ fontSize:11,fontWeight:700,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:14 }}>📋 Activity & Notes</div>
-
       <div style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:10,padding:12,marginBottom:16 }}>
         <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add an update or note..." style={{ ...inp,minHeight:60,resize:"vertical",marginBottom:8,background:"#13131f" }} />
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
@@ -354,7 +379,6 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
           </button>
         </div>
       </div>
-
       {taskNotes && taskNotes.trim() && (
         <div style={{ display:"flex",gap:12,marginBottom:0 }}>
           <div style={{ display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0 }}>
@@ -367,7 +391,6 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
           </div>
         </div>
       )}
-
       {history.length === 0 && (!taskNotes || !taskNotes.trim())
         ? <div style={{ fontSize:12,color:"#374151",textAlign:"center",padding:"12px 0" }}>No activity yet</div>
         : history.map((h,i) => (
@@ -624,6 +647,7 @@ export default function App() {
   const [showNotes, setShowNotes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("urgency");
   const [status, setStatus] = useState("Connecting…");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [leadStageFilter, setLeadStageFilter] = useState("All");
@@ -669,24 +693,10 @@ export default function App() {
       const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
       if(error) console.error(error);
       if (original && original.status !== form.status) {
-        await supabase.from("task_history").insert([{
-          task_id: form.id,
-          changed_by: "You",
-          entry_type: "status_change",
-          old_status: original.status,
-          new_status: form.status,
-          note: null
-        }]);
+        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"You", entry_type:"status_change", old_status:original.status, new_status:form.status, note:null }]);
       }
       if (original && original.notes !== form.notes && form.notes && form.notes.trim()) {
-        await supabase.from("task_history").insert([{
-          task_id: form.id,
-          changed_by: "You",
-          entry_type: "note",
-          old_status: null,
-          new_status: null,
-          note: form.notes.trim()
-        }]);
+        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"You", entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
       }
     } else {
       const {error} = await supabase.from("tasks").insert([payload]);
@@ -711,14 +721,7 @@ export default function App() {
     const extra = newStatus==="Done"?{actual_date:TODAY()}:{};
     await supabase.from("tasks").update({status:newStatus,...extra}).eq("id",id);
     if (original && original.status !== newStatus) {
-      await supabase.from("task_history").insert([{
-        task_id: parseInt(id),
-        changed_by: "You",
-        entry_type: "status_change",
-        old_status: original.status,
-        new_status: newStatus,
-        note: null
-      }]);
+      await supabase.from("task_history").insert([{ task_id:parseInt(id), changed_by:"You", entry_type:"status_change", old_status:original.status, new_status:newStatus, note:null }]);
     }
   };
 
@@ -731,10 +734,10 @@ export default function App() {
 
   const q = search.toLowerCase();
   const filtered = tasks.filter(t=>!q||[t.subject,t.client,t.company,t.owner,t.status,t.next_action].some(f=>(f||"").toLowerCase().includes(q)));
-  const byStatus = (s) => filtered.filter(t=>t.status===s);
-  const overdue = filtered.filter(isOverdue);
-  const myTasks = filtered.filter(t=>t.owner==="You");
-  const seanTasks = filtered.filter(t=>t.owner==="Sean");
+  const byStatus = (s) => sortTasks(filtered.filter(t=>t.status===s), sortBy);
+  const overdue = sortTasks(filtered.filter(isOverdue), sortBy);
+  const myTasks = sortTasks(filtered.filter(t=>t.owner==="You"), sortBy);
+  const seanTasks = sortTasks(filtered.filter(t=>t.owner==="Sean"), sortBy);
   const noNextAction = filtered.filter(t=>!t.next_action&&t.status!=="Done");
   const completedThisWeek = tasks.filter(t=>t.status==="Done"&&t.actual_date>=thisWeekStart());
   const jasonTasks = tasks.filter(t=>t.owner==="Jason");
@@ -743,7 +746,7 @@ export default function App() {
   const hotLeads = leads.filter(l=>l.stage==="Hot"||l.stage==="Negotiating");
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
-  const fyiTasks = filtered.filter(t=>t.status==="FYI");
+  const fyiTasks = sortTasks(filtered.filter(t=>t.status==="FYI"), sortBy);
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
@@ -763,7 +766,7 @@ export default function App() {
     { id:"all", label:"All Tasks", icon:"≡" },
   ];
 
-  const viewTasks = { todo:byStatus("To Do"), fya:byStatus("FYA"), followup:byStatus("Follow Up"), fyi:fyiTasks, done:byStatus("Done"), overdue, mine:myTasks, sean:seanTasks, all:filtered };
+  const viewTasks = { todo:byStatus("To Do"), fya:byStatus("FYA"), followup:byStatus("Follow Up"), fyi:fyiTasks, done:byStatus("Done"), overdue, mine:myTasks, sean:seanTasks, all:sortTasks(filtered, sortBy) };
 
   const Sidebar = (
     <div style={{ width:220,background:"#0a0a16",borderRight:"1px solid #1e1e30",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
@@ -844,13 +847,20 @@ export default function App() {
         )}
         <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden" }}>
           <div style={{ padding:"14px 20px",borderBottom:"1px solid #1e1e30",background:"#0a0a16",display:"flex",alignItems:"center",gap:12 }}>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp,maxWidth:340,padding:"8px 14px" }} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp,maxWidth:280,padding:"8px 14px" }} />
+            <div style={{ display:"flex",gap:6,marginLeft:"auto" }}>
+              {[{id:"urgency",label:"🔥 Urgency"},{id:"duedate",label:"📅 Due Date"},{id:"recent",label:"🕐 Recent"}].map(s=>(
+                <button key={s.id} onClick={()=>setSortBy(s.id)} style={{ padding:"7px 12px",background:sortBy===s.id?"#0891b222":"none",border:`1px solid ${sortBy===s.id?"#0891b2":"#2a2a45"}`,borderRadius:7,color:sortBy===s.id?"#0891b2":"#6b7280",cursor:"pointer",fontSize:12,fontWeight:sortBy===s.id?700:400,whiteSpace:"nowrap" }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ flex:1,overflowY:"auto",padding:28 }}>
 
             {view==="dashboard" && (
               <div>
-                {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||seanTasks.filter(t=>t.status==="FYA").length>0) && (
+                {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length>0) && (
                   <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
                     <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
                       <div style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase" }}>Daily Briefing</div>
@@ -860,11 +870,11 @@ export default function App() {
                         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
                           <div style={{ width:8,height:8,borderRadius:"50%",background:"#f97316" }} />
                           <span style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>FYA — Sean</span>
-                          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{seanTasks.filter(t=>t.status==="FYA").length}</span>
+                          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length}</span>
                         </div>
-                        {seanTasks.filter(t=>t.status==="FYA").length===0
+                        {tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length===0
                           ? <div style={{ fontSize:12,color:"#374151",padding:"8px 0" }}>No FYA for Sean</div>
-                          : seanTasks.filter(t=>t.status==="FYA").map(t=>(
+                          : tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").map(t=>(
                             <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #f97316",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
                               <div style={{ fontSize:13,fontWeight:500,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
                               <div style={{ fontSize:11,color:"#6b7280" }}>{t.client||t.company||"—"} · {fmtDate(t.date_received)}</div>
@@ -892,16 +902,16 @@ export default function App() {
                   </div>
                 )}
                 <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:28 }}>
-                  <Stat label="FYA" value={byStatus("FYA").length} color="#f97316" onClick={()=>setView("fya")} />
-                  <Stat label="To Do" value={byStatus("To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
-                  <Stat label="Follow Up" value={byStatus("Follow Up").length} color="#10b981" onClick={()=>setView("followup")} />
-                  <Stat label="FYI" value={byStatus("FYI").length} color="#8b5cf6" onClick={()=>setView("fyi")} />
-                  <Stat label="Overdue" value={overdue.length} color="#ef4444" onClick={()=>setView("overdue")} />
+                  <Stat label="FYA" value={tasks.filter(t=>t.status==="FYA").length} color="#f97316" onClick={()=>setView("fya")} />
+                  <Stat label="To Do" value={tasks.filter(t=>t.status==="To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
+                  <Stat label="Follow Up" value={tasks.filter(t=>t.status==="Follow Up").length} color="#10b981" onClick={()=>setView("followup")} />
+                  <Stat label="FYI" value={tasks.filter(t=>t.status==="FYI").length} color="#8b5cf6" onClick={()=>setView("fyi")} />
+                  <Stat label="Overdue" value={tasks.filter(isOverdue).length} color="#ef4444" onClick={()=>setView("overdue")} />
                   <Stat label="Done This Week" value={completedThisWeek.length} color="#0891b2" />
                 </div>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
                   {[
-                    { title:"⚠️ Overdue", items:overdue.slice(0,5), empty:"No overdue tasks 🎉" },
+                    { title:"⚠️ Overdue", items:sortTasks(tasks.filter(isOverdue),sortBy).slice(0,5), empty:"No overdue tasks 🎉" },
                     { title:"⚡ No Next Action", items:noNextAction.slice(0,5), empty:"All tasks have next actions ✓" },
                     { title:"✅ Done This Week", items:completedThisWeek.slice(0,5), empty:"None yet this week" },
                   ].map(({title,items,empty})=>(
@@ -916,7 +926,7 @@ export default function App() {
 
             {view==="kanban" && (
               <div style={{ display:"flex",gap:12,overflowX:"auto",paddingBottom:8,minHeight:400 }}>
-                {STATUSES.map(s=><KanbanCol key={s} status={s} tasks={tasks.filter(t=>t.status===s)} onClick={t=>setModalTask(t)} onDrop={moveTask} onComplete={(id)=>moveTask(id,"Done")} />)}
+                {STATUSES.map(s=><KanbanCol key={s} status={s} tasks={sortTasks(tasks.filter(t=>t.status===s),sortBy)} onClick={t=>setModalTask(t)} onDrop={moveTask} onComplete={(id)=>moveTask(id,"Done")} />)}
               </div>
             )}
 
