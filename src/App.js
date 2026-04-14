@@ -17,7 +17,6 @@ const thisWeekStart = () => {
 };
 
 const PRIORITY_ORDER = { "Urgent": 0, "High": 1, "Medium": 2, "Low": 3 };
-
 const sortTasks = (tasks, sortBy) => {
   const arr = [...tasks];
   if (sortBy === "urgency") {
@@ -38,7 +37,6 @@ const sortTasks = (tasks, sortBy) => {
       return a.expected_date > b.expected_date ? 1 : -1;
     });
   }
-  // recent (default)
   return arr.sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
 };
 
@@ -52,6 +50,7 @@ const LEAD_STAGE_EMOJI = { Cold: "🧊", Warm: "🌡️", Hot: "🔥", Negotiati
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
+const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
 const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to Sign", "📊 Slides", "🎫 Ticket", "🔗 Link", "📅 Meeting Prep", "📦 Other"];
 const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#0891b2","🎫 Ticket":"#10b981","🔗 Link":"#6b7280","📅 Meeting Prep":"#f97316","📦 Other":"#4b5563" };
 
@@ -350,12 +349,8 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
     if (!newNote.trim()) return;
     setSaving(true);
     await supabase.from("task_history").insert([{
-      task_id: taskId,
-      changed_by: author,
-      entry_type: "note",
-      note: newNote.trim(),
-      old_status: null,
-      new_status: null,
+      task_id: taskId, changed_by: author, entry_type: "note",
+      note: newNote.trim(), old_status: null, new_status: null,
     }]);
     setNewNote("");
     setSaving(false);
@@ -416,6 +411,79 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
           </div>
         ))
       }
+    </div>
+  );
+}
+
+function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
+  const unseen = flags.filter(f => !f.seen);
+  const seen = flags.filter(f => f.seen);
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>🚨 Flags from Team</div>
+          <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Jason & Andrea flagging Sean for attention</div>
+        </div>
+        {unseen.length > 0 && (
+          <button onClick={onMarkAllSeen} style={{ padding:"8px 16px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
+            ✓ Mark all seen
+          </button>
+        )}
+      </div>
+
+      {unseen.length === 0 && seen.length === 0 && (
+        <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}>
+          <div style={{ fontSize:40,marginBottom:12 }}>✅</div>
+          <div>No flags from the team</div>
+        </div>
+      )}
+
+      {unseen.length > 0 && (
+        <div style={{ marginBottom:28 }}>
+          <div style={{ fontSize:11,color:"#ef4444",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>⚠️ Needs Sean's Attention</div>
+          {unseen.map(f => (
+            <div key={f.id} style={{ background:"#1a1a2e",border:`1px solid ${URGENCY_COLOR[f.urgency]}44`,borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`,borderRadius:12,padding:"16px 20px",marginBottom:12 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                  <span style={{ fontSize:11,padding:"3px 10px",borderRadius:99,background:URGENCY_COLOR[f.urgency]+"33",color:URGENCY_COLOR[f.urgency],fontWeight:700 }}>{f.urgency}</span>
+                  <span style={{ fontSize:13,color:"#9ca3af",fontWeight:600 }}>from {f.from_name}</span>
+                </div>
+                <div style={{ fontSize:11,color:"#4b5563" }}>{fmtDateTime(f.created_at)}</div>
+              </div>
+              {f.task_subject && f.task_subject !== "General flag" && (
+                <div style={{ fontSize:12,color:"#6b7280",marginBottom:8 }}>Re: {f.task_subject}</div>
+              )}
+              <div style={{ fontSize:14,color:"#e2e8f0",lineHeight:1.6,marginBottom:14 }}>{f.note}</div>
+              <button onClick={() => onMarkSeen(f.id)} style={{ padding:"8px 20px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
+                ✓ Got it — Mark as Seen
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {seen.length > 0 && (
+        <div>
+          <div style={{ fontSize:11,color:"#374151",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>Previously Seen</div>
+          {seen.slice(0,10).map(f => (
+            <div key={f.id} style={{ background:"#13131f",border:"1px solid #1e1e30",borderLeft:`3px solid #374151`,borderRadius:12,padding:"12px 16px",marginBottom:8,opacity:0.6 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                  <span style={{ fontSize:11,color:"#4b5563",fontWeight:600 }}>{f.urgency}</span>
+                  <span style={{ fontSize:11,color:"#4b5563" }}>from {f.from_name}</span>
+                  <span style={{ fontSize:11,color:"#10b981" }}>✅ Seen</span>
+                </div>
+                <div style={{ fontSize:10,color:"#374151" }}>{fmtDateTime(f.created_at)}</div>
+              </div>
+              {f.task_subject && f.task_subject !== "General flag" && (
+                <div style={{ fontSize:11,color:"#4b5563",marginBottom:4 }}>Re: {f.task_subject}</div>
+              )}
+              <div style={{ fontSize:13,color:"#6b7280",lineHeight:1.4 }}>{f.note}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -640,6 +708,7 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [seanWeek, setSeanWeek] = useState([]);
   const [inboxTriage, setInboxTriage] = useState([]);
+  const [flags, setFlags] = useState([]);
   const [view, setView] = useState("dashboard");
   const [modalTask, setModalTask] = useState(null);
   const [modalLead, setModalLead] = useState(null);
@@ -676,15 +745,21 @@ export default function App() {
     if (data) setInboxTriage(data);
   }, []);
 
+  const loadFlags = useCallback(async () => {
+    const { data } = await supabase.from("flags").select("*").order("created_at", { ascending: false });
+    if (data) setFlags(data);
+  }, []);
+
   useEffect(() => {
-    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage();
+    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags();
     const taskCh = supabase.channel("tasks-ch").on("postgres_changes",{event:"*",schema:"public",table:"tasks"},loadTasks).subscribe();
     const leadCh = supabase.channel("leads-ch").on("postgres_changes",{event:"*",schema:"public",table:"leads"},loadLeads).subscribe();
     const weekCh = supabase.channel("week-ch").on("postgres_changes",{event:"*",schema:"public",table:"sean_week"},loadSeanWeek).subscribe();
     const inboxCh = supabase.channel("inbox-ch").on("postgres_changes",{event:"*",schema:"public",table:"inbox_triage"},loadInboxTriage).subscribe();
-    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); }, 30000);
-    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); clearInterval(interval); };
-  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage]);
+    const flagsCh = supabase.channel("flags-ch").on("postgres_changes",{event:"*",schema:"public",table:"flags"},loadFlags).subscribe();
+    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); }, 30000);
+    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(flagsCh); clearInterval(interval); };
+  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags]);
 
   const upsertTask = async (form) => {
     const payload = { subject:form.subject, client:form.client, company:form.company, email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type };
@@ -716,6 +791,13 @@ export default function App() {
   const clearInboxItem = async (id) => { await supabase.from("inbox_triage").update({cleared:true}).eq("id",id); };
   const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id",id); };
   const deleteLead = async (id) => { await supabase.from("leads").delete().eq("id",id); };
+  const markFlagSeen = async (id) => { await supabase.from("flags").update({seen:true}).eq("id",id); loadFlags(); };
+  const markAllFlagsSeen = async () => {
+    const unseen = flags.filter(f=>!f.seen);
+    for (const f of unseen) { await supabase.from("flags").update({seen:true}).eq("id",f.id); }
+    loadFlags();
+  };
+
   const moveTask = async (id, newStatus) => {
     const original = tasks.find(t => t.id === parseInt(id));
     const extra = newStatus==="Done"?{actual_date:TODAY()}:{};
@@ -747,6 +829,7 @@ export default function App() {
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
   const fyiTasks = sortTasks(filtered.filter(t=>t.status==="FYI"), sortBy);
+  const unseenFlags = flags.filter(f=>!f.seen);
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
@@ -759,6 +842,7 @@ export default function App() {
     { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length },
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
     { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length },
+    { id:"flags", label:"Flags", icon:"🚨", count:unseenFlags.length },
     { id:"leads", label:"Leads & Pipeline", icon:"🎯", count:hotLeads.length },
     { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
     { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
@@ -780,7 +864,7 @@ export default function App() {
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
           </button>
         ))}
       </div>
@@ -834,6 +918,11 @@ export default function App() {
             </div>
           )}
         </div>
+        {unseenFlags.length > 0 && (
+          <button onClick={()=>setView("flags")} style={{ position:"relative",padding:"7px 12px",background:"#7f1d1d33",border:"1px solid #ef4444",borderRadius:7,color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700 }}>
+            🚨 {unseenFlags.length}
+          </button>
+        )}
         <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#0891b2",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
       </div>
 
@@ -860,6 +949,16 @@ export default function App() {
 
             {view==="dashboard" && (
               <div>
+                {unseenFlags.length > 0 && (
+                  <div onClick={()=>setView("flags")} style={{ marginBottom:20,background:"#7f1d1d22",border:"1px solid #ef444466",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                    <span style={{ fontSize:24 }}>🚨</span>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#ef4444" }}>{unseenFlags.length} new flag{unseenFlags.length>1?"s":""} from your team</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{unseenFlags.map(f=>f.from_name).join(" & ")} flagged Sean — click to view</div>
+                    </div>
+                    <span style={{ marginLeft:"auto",color:"#ef4444",fontSize:18 }}>→</span>
+                  </div>
+                )}
                 {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length>0) && (
                   <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
                     <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
@@ -930,6 +1029,8 @@ export default function App() {
               </div>
             )}
 
+            {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} />}
+
             {view==="leads" && (
               <div>
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12 }}>
@@ -968,7 +1069,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","kanban","leads","seanweek","inbox","team"].includes(view) && (
+            {!["dashboard","kanban","leads","seanweek","inbox","team","flags"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
