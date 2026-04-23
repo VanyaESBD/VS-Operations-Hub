@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
 const TODAY = () => new Date().toISOString().split("T")[0];
@@ -425,7 +425,19 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
   const [taskSearch, setTaskSearch] = useState("");
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskList, setShowTaskList] = useState(false);
+  const taskSearchRef = useRef(null);
   const valid = form.client && form.notes;
+
+  // ✅ Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (taskSearchRef.current && !taskSearchRef.current.contains(e.target)) {
+        setShowTaskList(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const myTasks = tasks.filter(t => t.owner === myName && t.status !== "Done");
   const filteredTasks = myTasks.filter(t =>
@@ -464,18 +476,34 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div style={{ position:"relative" }}>
+
+          {/* ✅ Task search with click-outside ref */}
+          <div ref={taskSearchRef} style={{ position:"relative" }}>
             <label style={label}>Link to My Task (optional)</label>
             <div style={{ position:"relative" }}>
-              <input value={taskSearch} onChange={e=>{ setTaskSearch(e.target.value); setShowTaskList(true); setSelectedTask(null); }} onFocus={()=>setShowTaskList(true)} placeholder="Search your tasks..." style={{ ...inp, paddingRight: selectedTask ? 36 : 12 }} />
-              {selectedTask && <button onClick={clearTask} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:16 }}>✕</button>}
+              <input
+                value={taskSearch}
+                onChange={e=>{ setTaskSearch(e.target.value); setShowTaskList(true); setSelectedTask(null); }}
+                onFocus={()=>setShowTaskList(true)}
+                placeholder="Search your tasks..."
+                style={{ ...inp, paddingRight: selectedTask ? 36 : 12 }}
+              />
+              {selectedTask && (
+                <button onClick={clearTask} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:16 }}>✕</button>
+              )}
             </div>
             {showTaskList && !selectedTask && (
               <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, zIndex:200, maxHeight:200, overflowY:"auto", marginTop:4 }}>
                 {filteredTasks.length === 0
                   ? <div style={{ padding:"10px 14px", fontSize:13, color:"#4b5563" }}>No matching tasks</div>
                   : filteredTasks.map(t => (
-                    <div key={t.id} onClick={()=>selectTask(t)} style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #2a2a45", fontSize:13 }} onMouseEnter={e=>e.currentTarget.style.background="#2a2a45"} onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                    <div
+                      key={t.id}
+                      onMouseDown={e=>{ e.preventDefault(); selectTask(t); }}
+                      style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #2a2a45", fontSize:13 }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#2a2a45"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}
+                    >
                       <div style={{ fontWeight:600, color:"#e2e8f0", marginBottom:2 }}>{t.subject}</div>
                       {(t.client||t.company) && <div style={{ fontSize:11, color:"#6b7280" }}>{[t.client,t.company].filter(Boolean).join(" · ")}</div>}
                     </div>
@@ -483,8 +511,13 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
                 }
               </div>
             )}
-            {selectedTask && <div style={{ marginTop:6, padding:"6px 10px", background:"#0891b222", border:"1px solid #0891b244", borderRadius:6, fontSize:12, color:"#0891b2" }}>Linked to: {selectedTask.subject}</div>}
+            {selectedTask && (
+              <div style={{ marginTop:6, padding:"6px 10px", background:"#0891b222", border:"1px solid #0891b244", borderRadius:6, fontSize:12, color:"#0891b2" }}>
+                Linked to: {selectedTask.subject}
+              </div>
+            )}
           </div>
+
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
             <div>
               <label style={label}>Client / Contact *</label>
@@ -645,7 +678,6 @@ export default function Team() {
   const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0]; })();
   const thisWeekInteractions = interactions.filter(i => i.interaction_date >= weekStart);
 
-  // Group tasks by status
   const groupByStatus = (taskList) => {
     return STATUSES.filter(s => s !== "Done").reduce((acc, s) => {
       acc[s] = taskList.filter(t => t.status === s);
@@ -758,7 +790,6 @@ export default function Team() {
         </div>
       </div>
 
-      {/* Search Bar */}
       <div style={{ padding:"12px 16px", background:"#0a0a16", borderBottom:"1px solid #1e1e30" }}>
         <div style={{ position:"relative" }}>
           <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#4b5563", fontSize:14 }}>🔍</span>
@@ -790,7 +821,6 @@ export default function Team() {
       </div>
 
       <div style={s.content}>
-
         {activeTab==="mine" && (
           <div>
             {myTasks.length === 0
