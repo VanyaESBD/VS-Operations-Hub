@@ -56,14 +56,14 @@ const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b",
 
 const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
-  date_received: TODAY(), owner: "You", status: "To Do", priority: "Medium",
+  date_received: TODAY(), owner: "Vanya", status: "To Do", priority: "Medium",
   expected_date: "", actual_date: "", next_action: "", notes: "", outcome: "", task_type: "Information Request",
   ...overrides,
 });
 
 const newLead = (overrides = {}) => ({
   company: "", contact: "", email: "", phone: "", product_interest: "",
-  value: "", stage: "Cold", owner: "You", next_action: "", notes: "", last_contact: TODAY(),
+  value: "", stage: "Cold", owner: "Vanya", next_action: "", notes: "", last_contact: TODAY(),
   ...overrides,
 });
 
@@ -335,7 +335,7 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
   const [loading, setLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [author, setAuthor] = useState("You");
+  const [author, setAuthor] = useState("Vanya");
 
   const load = async () => {
     const { data } = await supabase.from("task_history").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
@@ -547,7 +547,7 @@ function SummaryModal({ tasks, onClose }) {
 function StickyNote({ onClose }) {
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState("");
-  const [author, setAuthor] = useState("You");
+  const [author, setAuthor] = useState("Vanya");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     loadNotes();
@@ -805,10 +805,10 @@ export default function App() {
       const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
       if(error) console.error(error);
       if (original && original.status !== form.status) {
-        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"You", entry_type:"status_change", old_status:original.status, new_status:form.status, note:null }]);
+        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"status_change", old_status:original.status, new_status:form.status, note:null }]);
       }
       if (original && original.notes !== form.notes && form.notes && form.notes.trim()) {
-        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"You", entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
+        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
       }
     } else {
       const {error} = await supabase.from("tasks").insert([payload]);
@@ -840,7 +840,7 @@ export default function App() {
     const extra = newStatus==="Done"?{actual_date:TODAY()}:{};
     await supabase.from("tasks").update({status:newStatus,...extra}).eq("id",id);
     if (original && original.status !== newStatus) {
-      await supabase.from("task_history").insert([{ task_id:parseInt(id), changed_by:"You", entry_type:"status_change", old_status:original.status, new_status:newStatus, note:null }]);
+      await supabase.from("task_history").insert([{ task_id:parseInt(id), changed_by:"Vanya", entry_type:"status_change", old_status:original.status, new_status:newStatus, note:null }]);
     }
   };
 
@@ -855,7 +855,7 @@ export default function App() {
   const filtered = tasks.filter(t=>!q||[t.subject,t.client,t.company,t.owner,t.status,t.next_action].some(f=>(f||"").toLowerCase().includes(q)));
   const byStatus = (s) => sortTasks(filtered.filter(t=>t.status===s), sortBy);
   const overdue = sortTasks(filtered.filter(isOverdue), sortBy);
-  const myTasks = sortTasks(filtered.filter(t=>t.owner==="You"), sortBy);
+  const myTasks = sortTasks(filtered.filter(t=>t.owner==="Vanya"), sortBy);
   const seanTasks = sortTasks(filtered.filter(t=>t.owner==="Sean"), sortBy);
   const noNextAction = filtered.filter(t=>!t.next_action&&t.status!=="Done");
   const completedThisWeek = tasks.filter(t=>t.status==="Done"&&t.actual_date>=thisWeekStart());
