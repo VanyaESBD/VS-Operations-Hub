@@ -43,7 +43,7 @@ const sortTasks = (tasks, sortBy) => {
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
-const OWNERS = ["You", "Sean", "Jason", "Andrea"];
+const OWNERS = ["Vanya", "Sean", "Jason", "Andrea"];
 const LEAD_STAGES = ["Cold", "Warm", "Hot", "Negotiating", "Won", "Lost"];
 const LEAD_STAGE_COLOR = { Cold: "#3b82f6", Warm: "#f59e0b", Hot: "#ef4444", Negotiating: "#8b5cf6", Won: "#10b981", Lost: "#6b7280" };
 const LEAD_STAGE_EMOJI = { Cold: "🧊", Warm: "🌡️", Hot: "🔥", Negotiating: "🤝", Won: "✅", Lost: "❌" };
