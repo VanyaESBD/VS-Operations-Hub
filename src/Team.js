@@ -19,7 +19,7 @@ const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint"
 const URGENCY_LEVELS = ["Low", "Medium", "High", "Urgent"];
 const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
 const INTERACTION_TYPES = ["📞 Call", "📧 Email", "🤝 Meeting", "🏢 Site Visit", "💬 WhatsApp", "📋 Other"];
-const ALL_OWNERS = ["You", "Sean", "Jason", "Andrea"];
+const ALL_OWNERS = ["Vanya", "Sean", "Jason", "Andrea"];
 
 const inp = { background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
 const label = { fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 };
