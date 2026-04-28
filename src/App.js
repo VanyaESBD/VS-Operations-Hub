@@ -16,6 +16,12 @@ const thisWeekStart = () => {
   return d.toISOString().split("T")[0];
 };
 
+// Normalise company/client: trim + title case to prevent duplicates
+const normaliseName = (s) => {
+  if (!s || !s.trim()) return "";
+  return s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+};
+
 const PRIORITY_ORDER = { "Urgent": 0, "High": 1, "Medium": 2, "Low": 3 };
 const sortTasks = (tasks, sortBy) => {
   const arr = [...tasks];
@@ -54,10 +60,10 @@ const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urge
 const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to Sign", "📊 Slides", "🎫 Ticket", "🔗 Link", "📅 Meeting Prep", "📦 Other"];
 const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#0891b2","🎫 Ticket":"#10b981","🔗 Link":"#6b7280","📅 Meeting Prep":"#f97316","📦 Other":"#4b5563" };
 
-// Special pinned accounts
+// Special pinned accounts — keys are lowercase for normalised matching
 const SPECIAL_ACCOUNTS = [
-  { key: "Finance", label: "💰 Finance", color: "#10b981" },
-  { key: "Personal", label: "👤 Personal", color: "#8b5cf6" },
+  { key: "finance", label: "💰 Finance", color: "#10b981" },
+  { key: "personal", label: "👤 Personal", color: "#8b5cf6" },
 ];
 
 const newTask = (overrides = {}) => ({
@@ -746,28 +752,36 @@ function InboxTriageView({ items, onAdd, onClear }) {
 }
 
 // ============================================================
-// ACCOUNTS VIEW — group all tasks by company/category
+// ACCOUNTS VIEW — normalised to eliminate duplicates
 // ============================================================
 function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy }) {
   const [search, setSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [activeStatus, setActiveStatus] = useState("All");
 
-  // Build account list from tasks
-  const companyNames = [...new Set(
-    tasks.map(t => t.company?.trim()).filter(c => c && c !== "Finance" && c !== "Personal")
+  // Normalise key for comparison
+  const normKey = (s) => (s || "").trim().toLowerCase();
+  const specialKeys = ["finance", "personal"];
+
+  // Get canonical display name from first task with this normalised key
+  const getDisplayName = (key) => {
+    const found = tasks.find(t => normKey(t.company) === key && t.company?.trim());
+    return found?.company?.trim() || key;
+  };
+
+  // Build unique normalised company keys
+  const companyKeys = [...new Set(
+    tasks.map(t => normKey(t.company)).filter(k => k && !specialKeys.includes(k))
   )].sort();
 
-  const getTasksForAccount = (accountKey) => {
-    if (accountKey === "Finance") return tasks.filter(t => t.company?.trim() === "Finance");
-    if (accountKey === "Personal") return tasks.filter(t => t.company?.trim() === "Personal");
-    if (accountKey === "__uncategorised__") return tasks.filter(t => !t.company?.trim());
-    return tasks.filter(t => t.company?.trim() === accountKey);
+  const getTasksForAccount = (normalisedKey) => {
+    if (normalisedKey === "__uncategorised__") return tasks.filter(t => !t.company?.trim());
+    return tasks.filter(t => normKey(t.company) === normalisedKey);
   };
 
   const allAccounts = [
     ...SPECIAL_ACCOUNTS,
-    ...companyNames.map(c => ({ key: c, label: c, color: "#0891b2" })),
+    ...companyKeys.map(k => ({ key: k, label: getDisplayName(k), color: "#0891b2" })),
     { key: "__uncategorised__", label: "Uncategorised", color: "#4b5563" },
   ];
 
@@ -775,15 +789,8 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy }) {
     !search.trim() || a.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  const activeCounts = (key) => {
-    const t = getTasksForAccount(key);
-    return t.filter(x => x.status !== "Done").length;
-  };
-
-  const urgentCounts = (key) => {
-    const t = getTasksForAccount(key);
-    return t.filter(x => x.priority === "Urgent" && x.status !== "Done").length;
-  };
+  const activeCounts = (key) => getTasksForAccount(key).filter(x => x.status !== "Done").length;
+  const urgentCounts = (key) => getTasksForAccount(key).filter(x => x.priority === "Urgent" && x.status !== "Done").length;
 
   // Account detail view
   if (selectedAccount) {
@@ -860,7 +867,7 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy }) {
         const active = activeCounts(account.key);
         const urgent = urgentCounts(account.key);
         const total = getTasksForAccount(account.key).length;
-        if (total === 0 && account.key !== "Finance" && account.key !== "Personal") return null;
+        if (total === 0 && !specialKeys.includes(account.key)) return null;
 
         return (
           <div key={account.key} onClick={()=>setSelectedAccount(account)}
@@ -955,7 +962,7 @@ export default function App() {
   }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags]);
 
   const upsertTask = async (form) => {
-    const payload = { subject:form.subject, client:form.client, company:form.company, email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type };
+    const payload = { subject:form.subject, client:normaliseName(form.client), company:normaliseName(form.company), email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type };
     if (form.id) {
       const original = tasks.find(t => t.id === form.id);
       const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
@@ -973,7 +980,7 @@ export default function App() {
   };
 
   const upsertLead = async (form) => {
-    const payload = { company:form.company, contact:form.contact, email:form.email, phone:form.phone, product_interest:form.product_interest, value:form.value, stage:form.stage, owner:form.owner, next_action:form.next_action, notes:form.notes, last_contact:form.last_contact };
+    const payload = { company:normaliseName(form.company), contact:normaliseName(form.contact), email:form.email, phone:form.phone, product_interest:form.product_interest, value:form.value, stage:form.stage, owner:form.owner, next_action:form.next_action, notes:form.notes, last_contact:form.last_contact };
     if (form.id) { await supabase.from("leads").update(payload).eq("id",form.id); }
     else { await supabase.from("leads").insert([payload]); }
   };
@@ -1025,7 +1032,7 @@ export default function App() {
   const unseenFlags = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
   const weeklyReports = flags.filter(f=>f.task_subject === "Weekly Customer Report");
   const unreadReports = weeklyReports.filter(f=>!f.seen);
-  const totalAccounts = [...new Set(tasks.map(t=>t.company?.trim()).filter(Boolean))].length;
+  const totalAccounts = [...new Set(tasks.map(t=>t.company?.trim().toLowerCase()).filter(Boolean))].length;
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
