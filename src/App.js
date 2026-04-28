@@ -754,7 +754,7 @@ function InboxTriageView({ items, onAdd, onClear }) {
 // ============================================================
 // ACCOUNTS VIEW — normalised to eliminate duplicates
 // ============================================================
-function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy }) {
+function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy, onNewTask }) {
   const [search, setSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [activeStatus, setActiveStatus] = useState("All");
@@ -814,7 +814,7 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy }) {
             <div style={{ fontSize:20, fontWeight:800, color:"#e2e8f0" }}>{selectedAccount.label}</div>
             <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>{accountTasks.filter(t=>t.status!=="Done").length} active · {accountTasks.filter(isOverdue).length} overdue · {accountTasks.filter(t=>t.status==="Done").length} done</div>
           </div>
-          <button onClick={()=>{ const t = newTask({ company: selectedAccount.key === "__uncategorised__" ? "" : selectedAccount.key }); window._newTaskPrefill = t; }} style={{ padding:"8px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+          <button onClick={()=>onNewTask(selectedAccount.key === "__uncategorised__" ? "" : selectedAccount.label)} style={{ padding:"8px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
             + Task
           </button>
         </div>
@@ -1255,6 +1255,7 @@ export default function App() {
                 onTaskClick={t=>setModalTask(t)}
                 onTaskComplete={(id)=>moveTask(id,"Done")}
                 sortBy={sortBy}
+                onNewTask={(company)=>setModalTask(newTask({ company }))}
               />
             )}
 
