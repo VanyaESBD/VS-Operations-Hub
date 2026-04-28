@@ -54,6 +54,12 @@ const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urge
 const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to Sign", "📊 Slides", "🎫 Ticket", "🔗 Link", "📅 Meeting Prep", "📦 Other"];
 const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#0891b2","🎫 Ticket":"#10b981","🔗 Link":"#6b7280","📅 Meeting Prep":"#f97316","📦 Other":"#4b5563" };
 
+// Special pinned accounts
+const SPECIAL_ACCOUNTS = [
+  { key: "Finance", label: "💰 Finance", color: "#10b981" },
+  { key: "Personal", label: "👤 Personal", color: "#8b5cf6" },
+];
+
 const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
   date_received: TODAY(), owner: "Vanya", status: "To Do", priority: "Medium",
@@ -439,7 +445,7 @@ function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
       )}
       {unseen.length > 0 && (
         <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:11,color:"#ef4444",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>⚠️ Needs Sean's Attention</div>
+          <div style={{ fontSize:11,color:"#ef4444",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>⚠️ Needs Attention</div>
           {unseen.map(f => (
             <div key={f.id} style={{ background:"#1a1a2e",border:`1px solid ${URGENCY_COLOR[f.urgency]}44`,borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`,borderRadius:12,padding:"16px 20px",marginBottom:12 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
@@ -501,7 +507,6 @@ function WeeklyReportView({ flags, onMarkSeen }) {
         ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}>
             <div style={{ fontSize:40,marginBottom:12 }}>📊</div>
             <div>No weekly reports yet</div>
-            <div style={{ fontSize:12,color:"#374151",marginTop:8 }}>Andrea and Jason send these from the team view</div>
           </div>
         : reports.map(r => (
           <div key={r.id} style={{ background:"#1a1a2e",border:`1px solid ${r.seen?"#2a2a45":"#3b82f6"}`,borderLeft:`3px solid ${r.seen?"#374151":"#3b82f6"}`,borderRadius:12,padding:"20px 24px",marginBottom:16 }}>
@@ -638,7 +643,7 @@ function SeanWeekView({ items, onAdd, onDelete }) {
         </div>
       )}
       {items.length===0 && !showForm
-        ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📅</div><div>Nothing added yet — click + Add Item to get started</div></div>
+        ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📅</div><div>Nothing added yet</div></div>
         : WEEK_CATEGORIES.map(cat=>{
           const catItems = grouped[cat];
           if (!catItems||catItems.length===0) return null;
@@ -687,7 +692,7 @@ function InboxTriageView({ items, onAdd, onClear }) {
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
         <div>
           <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>Inbox Triage</div>
-          <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Sean flags → You action → Inbox stays clean</div>
+          <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Sean flags → Vanya actions → Inbox stays clean</div>
         </div>
         <button onClick={()=>setShowForm(!showForm)} style={{ padding:"8px 16px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ Flag Email</button>
       </div>
@@ -711,7 +716,7 @@ function InboxTriageView({ items, onAdd, onClear }) {
         </div>
       )}
       {pending.length===0 && !showForm
-        ? <div style={{ textAlign:"center",padding:"40px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📭</div><div>Inbox is clear! Nothing flagged.</div></div>
+        ? <div style={{ textAlign:"center",padding:"40px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📭</div><div>Inbox is clear!</div></div>
         : pending.map(item=>(
           <div key={item.id} style={{ background:"#1a1a2e",border:`1px solid ${item.action==="Delete"?"#7f1d1d22":"#1e3a8a44"}`,borderLeft:`3px solid ${item.action==="Delete"?"#ef4444":"#3b82f6"}`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
             <div style={{ flex:1,minWidth:0 }}>
@@ -736,6 +741,157 @@ function InboxTriageView({ items, onAdd, onClear }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// ACCOUNTS VIEW — group all tasks by company/category
+// ============================================================
+function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy }) {
+  const [search, setSearch] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [activeStatus, setActiveStatus] = useState("All");
+
+  // Build account list from tasks
+  const companyNames = [...new Set(
+    tasks.map(t => t.company?.trim()).filter(c => c && c !== "Finance" && c !== "Personal")
+  )].sort();
+
+  const getTasksForAccount = (accountKey) => {
+    if (accountKey === "Finance") return tasks.filter(t => t.company?.trim() === "Finance");
+    if (accountKey === "Personal") return tasks.filter(t => t.company?.trim() === "Personal");
+    if (accountKey === "__uncategorised__") return tasks.filter(t => !t.company?.trim());
+    return tasks.filter(t => t.company?.trim() === accountKey);
+  };
+
+  const allAccounts = [
+    ...SPECIAL_ACCOUNTS,
+    ...companyNames.map(c => ({ key: c, label: c, color: "#0891b2" })),
+    { key: "__uncategorised__", label: "Uncategorised", color: "#4b5563" },
+  ];
+
+  const filteredAccounts = allAccounts.filter(a =>
+    !search.trim() || a.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const activeCounts = (key) => {
+    const t = getTasksForAccount(key);
+    return t.filter(x => x.status !== "Done").length;
+  };
+
+  const urgentCounts = (key) => {
+    const t = getTasksForAccount(key);
+    return t.filter(x => x.priority === "Urgent" && x.status !== "Done").length;
+  };
+
+  // Account detail view
+  if (selectedAccount) {
+    const accountTasks = getTasksForAccount(selectedAccount.key);
+    const statusFilter = activeStatus === "All" ? accountTasks : accountTasks.filter(t => t.status === activeStatus);
+    const sorted = sortTasks(statusFilter, sortBy);
+
+    const statusCounts = STATUSES.reduce((acc, s) => {
+      acc[s] = accountTasks.filter(t => t.status === s).length;
+      return acc;
+    }, {});
+
+    return (
+      <div>
+        {/* Back button + account header */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+          <button onClick={()=>setSelectedAccount(null)} style={{ padding:"8px 14px", background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, color:"#9ca3af", cursor:"pointer", fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
+            ← Back
+          </button>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:20, fontWeight:800, color:"#e2e8f0" }}>{selectedAccount.label}</div>
+            <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>{accountTasks.filter(t=>t.status!=="Done").length} active · {accountTasks.filter(isOverdue).length} overdue · {accountTasks.filter(t=>t.status==="Done").length} done</div>
+          </div>
+          <button onClick={()=>{ const t = newTask({ company: selectedAccount.key === "__uncategorised__" ? "" : selectedAccount.key }); window._newTaskPrefill = t; }} style={{ padding:"8px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
+            + Task
+          </button>
+        </div>
+
+        {/* Status filter pills */}
+        <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+          {["All", ...STATUSES].map(s => {
+            const count = s === "All" ? accountTasks.length : statusCounts[s];
+            return (
+              <button key={s} onClick={()=>setActiveStatus(s)} style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${activeStatus===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#2a2a45"}`, background:activeStatus===s?(s==="All"?"#0891b233":STATUS_COLOR[s]+"33"):"none", color:activeStatus===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#6b7280", cursor:"pointer", fontSize:12, fontWeight:activeStatus===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
+                {s !== "All" && STATUS_EMOJI[s]} {s}
+                {count > 0 && <span style={{ background:activeStatus===s?"rgba(255,255,255,0.2)":"#2a2a45", borderRadius:99, padding:"0px 6px", fontSize:10, color:activeStatus===s?"#fff":"#9ca3af" }}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {sorted.length === 0
+          ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}>
+              <div style={{ fontSize:32, marginBottom:8 }}>📂</div>
+              <div>No tasks {activeStatus !== "All" ? `with status "${activeStatus}"` : ""} for this account</div>
+            </div>
+          : sorted.map(t => <TaskCard key={t.id} task={t} onClick={onTaskClick} onComplete={onTaskComplete} />)
+        }
+      </div>
+    );
+  }
+
+  // Account list view
+  return (
+    <div>
+      <div style={{ marginBottom:16 }}>
+        <div style={{ position:"relative" }}>
+          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#4b5563", fontSize:14 }}>🔍</span>
+          <input
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Search accounts..."
+            style={{ ...inp, paddingLeft:36, background:"#1a1a2e" }}
+          />
+          {search && <button onClick={()=>setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:16 }}>✕</button>}
+        </div>
+      </div>
+
+      <div style={{ fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>
+        {filteredAccounts.length} Accounts
+      </div>
+
+      {filteredAccounts.map(account => {
+        const active = activeCounts(account.key);
+        const urgent = urgentCounts(account.key);
+        const total = getTasksForAccount(account.key).length;
+        if (total === 0 && account.key !== "Finance" && account.key !== "Personal") return null;
+
+        return (
+          <div key={account.key} onClick={()=>setSelectedAccount(account)}
+            style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderLeft:`3px solid ${account.color}`, borderRadius:12, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
+            onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
+            onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{account.label}</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {active > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{active} active</span>}
+                  {urgent > 0 && <span style={{ fontSize:11, background:"#7f1d1d", color:"#fca5a5", borderRadius:99, padding:"1px 7px", fontWeight:700 }}>🔴 {urgent} urgent</span>}
+                  {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ All done</span>}
+                  {total === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+                {/* Mini status dots */}
+                <div style={{ display:"flex", gap:4 }}>
+                  {STATUSES.filter(s=>s!=="Done").map(s => {
+                    const count = getTasksForAccount(account.key).filter(t=>t.status===s).length;
+                    if (count === 0) return null;
+                    return <div key={s} style={{ width:8, height:8, borderRadius:"50%", background:STATUS_COLOR[s], title:s }} title={`${count} ${s}`} />;
+                  })}
+                </div>
+                <span style={{ color:"#4b5563", fontSize:18 }}>→</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -869,10 +1025,12 @@ export default function App() {
   const unseenFlags = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
   const weeklyReports = flags.filter(f=>f.task_subject === "Weekly Customer Report");
   const unreadReports = weeklyReports.filter(f=>!f.seen);
+  const totalAccounts = [...new Set(tasks.map(t=>t.company?.trim()).filter(Boolean))].length;
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
     { id:"kanban", label:"Kanban Board", icon:"⊞" },
+    { id:"accounts", label:"Accounts", icon:"🏢", count: totalAccounts },
     { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length },
     { id:"fya", label:"FYA", icon:"🟠", count:byStatus("FYA").length },
     { id:"followup", label:"Follow Up", icon:"🏌️", count:byStatus("Follow Up").length },
@@ -904,7 +1062,7 @@ export default function App() {
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="weeklyreport"?"#1e3a8a":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="weeklyreport"?"#93c5fd":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="weeklyreport"?"#1e3a8a":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="weeklyreport"?"#93c5fd":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
           </button>
         ))}
       </div>
@@ -1084,6 +1242,15 @@ export default function App() {
               </div>
             )}
 
+            {view==="accounts" && (
+              <AccountsView
+                tasks={tasks}
+                onTaskClick={t=>setModalTask(t)}
+                onTaskComplete={(id)=>moveTask(id,"Done")}
+                sortBy={sortBy}
+              />
+            )}
+
             {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} />}
             {view==="weeklyreport" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} />}
 
@@ -1108,7 +1275,7 @@ export default function App() {
                   </div>
                 )}
                 {filteredLeads.length===0
-                  ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>🎯</div><div>No leads yet — click + Add Lead to get started</div></div>
+                  ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>🎯</div><div>No leads yet</div></div>
                   : filteredLeads.map(l=><LeadCard key={l.id} lead={l} onClick={l=>setModalLead(l)} />)
                 }
               </div>
@@ -1125,7 +1292,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","kanban","leads","seanweek","inbox","team","flags","weeklyreport"].includes(view) && (
+            {!["dashboard","kanban","accounts","leads","seanweek","inbox","team","flags","weeklyreport"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
