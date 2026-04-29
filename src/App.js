@@ -127,6 +127,129 @@ function Field({ label, required, children }) {
 
 const inp = { background:"#1e1e30",border:"1px solid #2a2a45",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box" };
 
+// ============================================================
+// COMPANY DROPDOWN — pulls from Supabase, searchable, editable
+// ============================================================
+function CompanyDropdown({ value, onChange }) {
+  const [companies, setCompanies] = useState([]);
+  const [search, setSearch] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editList, setEditList] = useState([]);
+  const [editVal, setEditVal] = useState("");
+  const ref = useState(() => ({ current: null }))[0];
+
+  useEffect(() => {
+    supabase.from("tasks").select("company").then(({ data }) => {
+      if (data) {
+        const unique = [...new Set(
+          data.map(t => t.company?.trim()).filter(Boolean)
+        )].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        setCompanies(unique);
+      }
+    });
+  }, []);
+
+  useEffect(() => { setSearch(value || ""); }, [value]);
+
+  const filtered = companies.filter(c =>
+    !search.trim() || c.toLowerCase().includes(search.toLowerCase())
+  );
+  const showAddNew = search.trim() && !companies.some(c => c.toLowerCase() === search.trim().toLowerCase());
+
+  const select = (name) => {
+    onChange(name);
+    setSearch(name);
+    setOpen(false);
+  };
+
+  const openEdit = () => {
+    setEditList([...companies]);
+    setEditMode(true);
+    setOpen(false);
+  };
+
+  const saveEdit = async () => {
+    // For each edited name, update all tasks with the old name
+    for (let i = 0; i < companies.length; i++) {
+      if (companies[i] !== editList[i] && editList[i]?.trim()) {
+        await supabase.from("tasks").update({ company: editList[i].trim() }).eq("company", companies[i]);
+      }
+    }
+    setCompanies(editList.filter(Boolean));
+    setEditMode(false);
+  };
+
+  if (editMode) return (
+    <div style={{ background:"#1a1a2e", border:"1px solid #0891b2", borderRadius:8, padding:12 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#0891b2", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>✏️ Edit Company Names</div>
+      <div style={{ maxHeight:200, overflowY:"auto", marginBottom:10 }}>
+        {editList.map((c, i) => (
+          <div key={i} style={{ display:"flex", gap:6, marginBottom:6, alignItems:"center" }}>
+            <input value={c} onChange={e => { const l = [...editList]; l[i] = e.target.value; setEditList(l); }}
+              style={{ ...inp, fontSize:13, padding:"6px 10px", flex:1 }} />
+            <button onClick={() => setEditList(editList.filter((_, j) => j !== i))}
+              style={{ background:"none", border:"1px solid #7f1d1d", borderRadius:6, color:"#ef4444", cursor:"pointer", padding:"4px 8px", fontSize:12 }}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+        <input value={editVal} onChange={e => setEditVal(e.target.value)} placeholder="Add new company..."
+          style={{ ...inp, fontSize:13, padding:"6px 10px", flex:1 }} />
+        <button onClick={() => { if (editVal.trim()) { setEditList([...editList, editVal.trim()]); setEditVal(""); }}}
+          style={{ background:"#0891b2", border:"none", borderRadius:6, color:"#fff", cursor:"pointer", padding:"6px 12px", fontSize:13, fontWeight:700 }}>+</button>
+      </div>
+      <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+        <button onClick={() => setEditMode(false)} style={{ padding:"6px 14px", background:"none", border:"1px solid #2a2a45", borderRadius:6, color:"#6b7280", cursor:"pointer", fontSize:12 }}>Cancel</button>
+        <button onClick={saveEdit} style={{ padding:"6px 14px", background:"#0891b2", border:"none", borderRadius:6, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>Save Changes</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ position:"relative" }} ref={r => ref.current = r}>
+      <div style={{ display:"flex", gap:6 }}>
+        <div style={{ flex:1, position:"relative" }}>
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); onChange(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 200)}
+            placeholder="Type or select company..."
+            style={{ ...inp }}
+          />
+          {search && (
+            <button onMouseDown={e => { e.preventDefault(); onChange(""); setSearch(""); }}
+              style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:14 }}>✕</button>
+          )}
+        </div>
+        <button onClick={openEdit} title="Edit company list"
+          style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer", padding:"0 10px", fontSize:13, flexShrink:0 }}>✏️</button>
+      </div>
+      {open && (filtered.length > 0 || showAddNew) && (
+        <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, zIndex:200, maxHeight:200, overflowY:"auto", marginTop:4, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+          {filtered.map(c => (
+            <div key={c} onMouseDown={() => select(c)}
+              style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#e2e8f0", borderBottom:"1px solid #2a2a4522" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#2a2a45"}
+              onMouseLeave={e => e.currentTarget.style.background = "none"}>
+              {c}
+            </div>
+          ))}
+          {showAddNew && (
+            <div onMouseDown={() => select(search.trim())}
+              style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#0891b2", fontWeight:600, borderTop:"1px solid #2a2a45" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#0891b222"}
+              onMouseLeave={e => e.currentTarget.style.background = "none"}>
+              + Add "{search.trim()}"
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({ ...newTask(), ...initial });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -140,7 +263,7 @@ function TaskForm({ initial, onSave, onClose }) {
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
         <div style={{ gridColumn:"1/-1" }}><Field label="Subject" required><input style={inp} value={form.subject} onChange={(e)=>set("subject",e.target.value)} placeholder="What needs to be done?" /></Field></div>
         <Field label="Client"><input style={inp} value={form.client} onChange={(e)=>set("client",e.target.value)} /></Field>
-        <Field label="Company"><input style={inp} value={form.company} onChange={(e)=>set("company",e.target.value)} /></Field>
+        <Field label="Company"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>
         <Field label="Email"><input style={inp} value={form.email} onChange={(e)=>set("email",e.target.value)} /></Field>
         <Field label="Date Received"><input type="date" style={inp} value={form.date_received} onChange={(e)=>set("date_received",e.target.value)} /></Field>
         <Field label="Owner" required><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{OWNERS.map(o=><option key={o}>{o}</option>)}</select></Field>
@@ -497,7 +620,7 @@ function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
   );
 }
 
-function WeeklyReportView({ flags, onMarkSeen }) {
+function WeeklyReportView({ flags, onMarkSeen, onDeleteReport }) {
   const reports = flags.filter(f => f.task_subject === "Weekly Customer Report");
   const unread = reports.filter(f => !f.seen);
   return (
@@ -521,7 +644,13 @@ function WeeklyReportView({ flags, onMarkSeen }) {
                 <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0" }}>📊 Weekly Report</div>
                 <div style={{ fontSize:11,color:"#6b7280",marginTop:2 }}>from {r.from_name} · {fmtDateTime(r.created_at)}</div>
               </div>
-              {!r.seen && <span style={{ fontSize:11,background:"#f97316",color:"#fff",borderRadius:99,padding:"2px 10px",fontWeight:700 }}>New</span>}
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                {!r.seen && <span style={{ fontSize:11,background:"#f97316",color:"#fff",borderRadius:99,padding:"2px 10px",fontWeight:700 }}>New</span>}
+                <button onClick={()=>{ if(window.confirm("Delete this report?")) onDeleteReport(r.id); }}
+                  style={{ padding:"4px 10px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:11 }}>
+                  🗑️
+                </button>
+              </div>
             </div>
             <pre style={{ background:"#0a0a16",border:"1px solid #2a2a45",borderRadius:8,padding:16,color:"#e2e8f0",fontSize:13,whiteSpace:"pre-wrap",fontFamily:"system-ui",lineHeight:1.6,margin:0 }}>{r.note}</pre>
             {!r.seen && (
@@ -970,8 +1099,16 @@ export default function App() {
       if (original && original.status !== form.status) {
         await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"status_change", old_status:original.status, new_status:form.status, note:null }]);
       }
-      if (original && original.notes !== form.notes && form.notes && form.notes.trim()) {
-        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
+      // Notes preservation — if notes changed, save OLD note to activity feed first, then new note replaces field
+      if (original && original.notes !== form.notes) {
+        if (original.notes && original.notes.trim()) {
+          // Archive the original note into activity feed before overwriting
+          await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"note", old_status:null, new_status:null, note:"[Previous note] " + original.notes.trim() }]);
+        }
+        if (form.notes && form.notes.trim()) {
+          // Log the new note too
+          await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
+        }
       }
     } else {
       const {error} = await supabase.from("tasks").insert([payload]);
@@ -997,6 +1134,8 @@ export default function App() {
     for (const f of unseen) { await supabase.from("flags").update({seen:true}).eq("id",f.id); }
     loadFlags();
   };
+
+  const deleteFlag = async (id) => { await supabase.from("flags").delete().eq("id",id); loadFlags(); };
 
   const moveTask = async (id, newStatus) => {
     const original = tasks.find(t => t.id === parseInt(id));
@@ -1260,7 +1399,7 @@ export default function App() {
             )}
 
             {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} />}
-            {view==="weeklyreport" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} />}
+            {view==="weeklyreport" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} onDeleteReport={deleteFlag} />}
 
             {view==="leads" && (
               <div>
