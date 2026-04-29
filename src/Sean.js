@@ -340,7 +340,7 @@ export default function Sean() {
             <span style={{ fontSize:16 }}>{tab.emoji}</span>
             <span style={{ fontSize:10 }}>{tab.label}</span>
             {tab.count > 0 && (
-              <span style={{ position:"absolute", marginTop:-18, marginLeft:14, background: tab.id === "reports" ? "#3b82f6" : "#ef4444", color:"#fff", borderRadius:99, padding:"0 5px", fontSize:9, fontWeight:700, minWidth:14, textAlign:"center" }}>
+              <span style={{ background: tab.id === "reports" ? "#3b82f6" : tab.id === "accounts" ? "#0891b2" : "#ef4444", color:"#fff", borderRadius:99, padding:"1px 5px", fontSize:9, fontWeight:700, minWidth:14, textAlign:"center" }}>
                 {tab.count}
               </span>
             )}
