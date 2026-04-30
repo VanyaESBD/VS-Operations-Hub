@@ -489,6 +489,57 @@ function AgendaItemModal({ task, onClose, onSaved }) {
   );
 }
 
+// ── Scratch Note Card (expandable + editable) ─────────────
+function ScratchNote({ note, onDelete, onSave }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(note.content);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!editText.trim()) return;
+    setSaving(true);
+    await supabase.from("notes").update({ content: editText.trim() }).eq("id", note.id);
+    setSaving(false);
+    setEditing(false);
+    onSave();
+  };
+
+  const preview = note.content.length > 80 ? note.content.substring(0, 80) + "..." : note.content;
+
+  return (
+    <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+      {editing ? (
+        <div>
+          <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{ ...inp, minHeight:100, resize:"vertical", marginBottom:10, background:"#13131f" }} autoFocus />
+          <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+            <button onClick={()=>{ setEditing(false); setEditText(note.content); }} style={{ padding:"6px 14px", background:"none", border:"1px solid #2a2a45", borderRadius:6, color:"#6b7280", cursor:"pointer", fontSize:12 }}>Cancel</button>
+            <button onClick={save} disabled={saving||!editText.trim()} style={{ padding:"6px 16px", background:editText.trim()?"#0891b2":"#2a2a45", border:"none", borderRadius:6, color:editText.trim()?"#fff":"#4b5563", cursor:"pointer", fontSize:12, fontWeight:700 }}>{saving?"Saving...":"Save"}</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div onClick={()=>setExpanded(!expanded)} style={{ cursor:"pointer" }}>
+            <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5, whiteSpace:"pre-wrap" }}>
+              {expanded ? note.content : preview}
+            </div>
+            {note.content.length > 80 && (
+              <div style={{ fontSize:11, color:"#0891b2", marginTop:4 }}>{expanded ? "▲ Show less" : "▼ Show more"}</div>
+            )}
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8 }}>
+            <div style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(note.created_at)}</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>{ setEditing(true); setExpanded(false); }} style={{ background:"none", border:"1px solid #2a2a45", borderRadius:6, color:"#9ca3af", cursor:"pointer", fontSize:11, padding:"2px 8px" }}>✎ Edit</button>
+              <button onClick={()=>onDelete(note.id)} style={{ background:"none", border:"none", color:"#4b5563", cursor:"pointer", fontSize:14, padding:"2px 6px" }}>✕</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────
 export default function Team() {
   const [myName, setMyName] = useState(null);
@@ -802,17 +853,7 @@ export default function Team() {
             </div>
             {scratchpadNotes.length === 0
               ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📝</div><div style={{ fontSize:13 }}>No notes yet — start writing!</div></div>
-              : scratchpadNotes.map(n => (
-                <div key={n.id} style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5, whiteSpace:"pre-wrap" }}>{n.content}</div>
-                      <div style={{ fontSize:10, color:"#4b5563", marginTop:6 }}>{fmtDateTime(n.created_at)}</div>
-                    </div>
-                    <button onClick={()=>deleteScratchNote(n.id)} style={{ background:"none", border:"none", color:"#4b5563", cursor:"pointer", fontSize:14, padding:"2px 6px", flexShrink:0 }}>✕</button>
-                  </div>
-                </div>
-              ))
+              : scratchpadNotes.map(n => <ScratchNote key={n.id} note={n} onDelete={deleteScratchNote} onSave={loadJasonData} />)
             }
           </div>
         )}
