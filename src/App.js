@@ -1580,6 +1580,16 @@ export default function App() {
               </div>
             )}
 
+            {view==="projects" && (
+              <ProjectsView
+                tasks={tasks}
+                onTaskClick={t=>setModalTask(t)}
+                onTaskComplete={(id)=>moveTask(id,"Done")}
+                onNewTask={(project)=>setModalTask(newTask({ project }))}
+                sortBy={sortBy}
+              />
+            )}
+
             {view==="accounts" && (
               <AccountsView
                 tasks={tasks}
