@@ -406,7 +406,9 @@ function TaskCard({ task, onClick, compact, onComplete }) {
             <span style={{ fontSize:11,padding:"2px 8px",borderRadius:99,background:STATUS_COLOR[task.status]+"33",color:STATUS_COLOR[task.status],fontWeight:700 }}>{STATUS_EMOJI[task.status]} {task.status}</span>
             <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:PRIORITY_COLOR[task.priority]+"22",color:PRIORITY_COLOR[task.priority],fontWeight:600 }}>{task.priority}</span>
             {over && <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:"#7f1d1d",color:"#fca5a5",fontWeight:600 }}>OVERDUE</span>}
-            {task.project && !compact && (() => { const p = STRATEGIC_PROJECTS.find(x=>x.name===task.project); return p ? <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:p.color+"22",color:p.color,fontWeight:600 }}>📋 {p.name}</span> : null; })()}
+            {task.project && !compact && STRATEGIC_PROJECTS.find(x=>x.name===task.project) && (
+              <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:(STRATEGIC_PROJECTS.find(x=>x.name===task.project).color)+"22",color:STRATEGIC_PROJECTS.find(x=>x.name===task.project).color,fontWeight:600 }}>📋 {task.project}</span>
+            )}
           </div>
           <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{task.subject||"Untitled"}</div>
           {!compact && <div style={{ fontSize:12,color:"#6b7280" }}>{[task.client,task.company].filter(Boolean).join(" · ")||"No client"}</div>}
