@@ -61,6 +61,22 @@ const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to 
 const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#0891b2","🎫 Ticket":"#10b981","🔗 Link":"#6b7280","📅 Meeting Prep":"#f97316","📦 Other":"#4b5563" };
 
 // Special pinned accounts — keys are lowercase for normalised matching
+// ── Strategic Project Workstreams ──────────────────────────
+const STRATEGIC_PROJECTS = [
+  { name: "UPD", color: "#0891b2" },
+  { name: "CJ Distribution", color: "#f97316" },
+  { name: "Adcock Ingram", color: "#8b5cf6" },
+  { name: "Strategnos", color: "#10b981" },
+  { name: "Financial & Management Structure", color: "#f59e0b" },
+  { name: "EuroPOS", color: "#3b82f6" },
+  { name: "James / Systems Development", color: "#ec4899" },
+  { name: "Tower Cold Chain / TBB", color: "#14b8a6" },
+  { name: "Andrea & Jason – Operational Leadership Transition", color: "#a78bfa" },
+  { name: "Opportunity Mapping / Sales Pipeline", color: "#ef4444" },
+  { name: "Second Level Solutions", color: "#6366f1" },
+  { name: "Leadership Transition", color: "#d97706" },
+];
+
 const SPECIAL_ACCOUNTS = [
   { key: "finance", label: "💰 Finance", color: "#10b981" },
   { key: "personal", label: "👤 Personal", color: "#8b5cf6" },
@@ -70,6 +86,7 @@ const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
   date_received: TODAY(), owner: "Vanya", status: "To Do", priority: "Medium",
   expected_date: "", actual_date: "", next_action: "", notes: "", outcome: "", task_type: "Information Request",
+  project: "",
   ...overrides,
 });
 
@@ -250,6 +267,41 @@ function CompanyDropdown({ value, onChange }) {
   );
 }
 
+// ── Project Dropdown ───────────────────────────────────────
+function ProjectDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const selected = STRATEGIC_PROJECTS.find(p => p.name === value);
+  return (
+    <div style={{ position:"relative" }}>
+      <div onClick={() => setOpen(!open)} style={{ ...inp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <span style={{ color: selected ? selected.color : "#6b7280" }}>
+          {selected ? "📋 " + selected.name : "No project"}
+        </span>
+        <span style={{ color:"#6b7280", fontSize:12 }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, zIndex:200, maxHeight:220, overflowY:"auto", marginTop:4, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+          <div onMouseDown={() => { onChange(""); setOpen(false); }}
+            style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#6b7280", borderBottom:"1px solid #2a2a45" }}
+            onMouseEnter={e => e.currentTarget.style.background="#2a2a45"}
+            onMouseLeave={e => e.currentTarget.style.background="none"}>
+            — No project
+          </div>
+          {STRATEGIC_PROJECTS.map(p => (
+            <div key={p.name} onMouseDown={() => { onChange(p.name); setOpen(false); }}
+              style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:p.color, borderBottom:"1px solid #2a2a4522", display:"flex", alignItems:"center", gap:8 }}
+              onMouseEnter={e => e.currentTarget.style.background="#2a2a45"}
+              onMouseLeave={e => e.currentTarget.style.background="none"}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:p.color, flexShrink:0 }} />
+              {p.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({ ...newTask(), ...initial });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -264,6 +316,7 @@ function TaskForm({ initial, onSave, onClose }) {
         <div style={{ gridColumn:"1/-1" }}><Field label="Subject" required><input style={inp} value={form.subject} onChange={(e)=>set("subject",e.target.value)} placeholder="What needs to be done?" /></Field></div>
         <Field label="Client"><input style={inp} value={form.client} onChange={(e)=>set("client",e.target.value)} /></Field>
         <Field label="Company"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>
+        <Field label="Project"><ProjectDropdown value={form.project||""} onChange={v=>set("project",v)} /></Field>
         <Field label="Email"><input style={inp} value={form.email} onChange={(e)=>set("email",e.target.value)} /></Field>
         <Field label="Date Received"><input type="date" style={inp} value={form.date_received} onChange={(e)=>set("date_received",e.target.value)} /></Field>
         <Field label="Owner" required><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{OWNERS.map(o=><option key={o}>{o}</option>)}</select></Field>
@@ -353,6 +406,7 @@ function TaskCard({ task, onClick, compact, onComplete }) {
             <span style={{ fontSize:11,padding:"2px 8px",borderRadius:99,background:STATUS_COLOR[task.status]+"33",color:STATUS_COLOR[task.status],fontWeight:700 }}>{STATUS_EMOJI[task.status]} {task.status}</span>
             <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:PRIORITY_COLOR[task.priority]+"22",color:PRIORITY_COLOR[task.priority],fontWeight:600 }}>{task.priority}</span>
             {over && <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:"#7f1d1d",color:"#fca5a5",fontWeight:600 }}>OVERDUE</span>}
+            {task.project && !compact && (() => { const p = STRATEGIC_PROJECTS.find(x=>x.name===task.project); return p ? <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:p.color+"22",color:p.color,fontWeight:600 }}>📋 {p.name}</span> : null; })()}
           </div>
           <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{task.subject||"Untitled"}</div>
           {!compact && <div style={{ fontSize:12,color:"#6b7280" }}>{[task.client,task.company].filter(Boolean).join(" · ")||"No client"}</div>}
@@ -880,6 +934,116 @@ function InboxTriageView({ items, onAdd, onClear }) {
   );
 }
 
+
+// ── Projects View ──────────────────────────────────────────
+function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy }) {
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const getProjectTasks = (name) => tasks.filter(t => t.project === name);
+
+  if (selectedProject) {
+    const proj = STRATEGIC_PROJECTS.find(p => p.name === selectedProject);
+    const allTasks = getProjectTasks(selectedProject);
+    const filtered = statusFilter === "All" ? allTasks : allTasks.filter(t => t.status === statusFilter);
+    const sorted = sortTasks(filtered, sortBy);
+    const done = allTasks.filter(t => t.status === "Done").length;
+    const total = allTasks.length;
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+    const statusCounts = STATUSES.reduce((acc, s) => { acc[s] = allTasks.filter(t => t.status === s).length; return acc; }, {});
+
+    return (
+      <div>
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+          <button onClick={()=>{ setSelectedProject(null); setStatusFilter("All"); }} style={{ padding:"8px 14px", background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, color:"#9ca3af", cursor:"pointer", fontSize:13 }}>← Back</button>
+          <div style={{ flex:1 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+              <div style={{ width:12, height:12, borderRadius:"50%", background:proj.color, flexShrink:0 }} />
+              <div style={{ fontSize:20, fontWeight:800, color:"#e2e8f0" }}>{proj.name}</div>
+            </div>
+            <div style={{ fontSize:12, color:"#6b7280" }}>{allTasks.filter(t=>t.status!=="Done").length} active · {done}/{total} done · {allTasks.filter(isOverdue).length} overdue</div>
+          </div>
+          <button onClick={()=>onNewTask(selectedProject)} style={{ padding:"8px 14px", background:proj.color, border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Task</button>
+        </div>
+        <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:10, padding:"14px 16px", marginBottom:20 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <span style={{ fontSize:12, color:"#9ca3af" }}>Progress</span>
+            <span style={{ fontSize:13, fontWeight:700, color:proj.color }}>{progress}%</span>
+          </div>
+          <div style={{ height:8, background:"#2a2a45", borderRadius:99, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99, transition:"width 0.3s" }} />
+          </div>
+          <div style={{ display:"flex", gap:12, marginTop:12, flexWrap:"wrap" }}>
+            {STATUSES.map(s => statusCounts[s] > 0 && <span key={s} style={{ fontSize:11, color:STATUS_COLOR[s] }}>{STATUS_EMOJI[s]} {statusCounts[s]} {s}</span>)}
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+          {["All", ...STATUSES].map(s => {
+            const count = s === "All" ? allTasks.length : statusCounts[s];
+            return (
+              <button key={s} onClick={()=>setStatusFilter(s)} style={{ padding:"6px 12px", borderRadius:99, border:"1px solid "+(statusFilter===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#2a2a45"), background:statusFilter===s?(s==="All"?"#0891b233":STATUS_COLOR[s]+"33"):"none", color:statusFilter===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#6b7280", cursor:"pointer", fontSize:12, fontWeight:statusFilter===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
+                {s !== "All" && STATUS_EMOJI[s]} {s}
+                {count > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 5px", fontSize:10 }}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+        {sorted.length === 0
+          ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No tasks yet — add one to get started</div></div>
+          : sorted.map(t => <TaskCard key={t.id} task={t} onClick={onTaskClick} onComplete={onTaskComplete} />)
+        }
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:12, fontWeight:700, color:"#6b7280", letterSpacing:"0.06em", textTransform:"uppercase" }}>📋 Strategic Projects</div>
+          <div style={{ fontSize:11, color:"#4b5563", marginTop:2 }}>12 workstreams from the ESBD strategic plan</div>
+        </div>
+        <div style={{ fontSize:12, color:"#6b7280" }}>{tasks.filter(t=>t.project&&t.status!=="Done").length} active project tasks</div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
+        {STRATEGIC_PROJECTS.map(proj => {
+          const projTasks = getProjectTasks(proj.name);
+          const done = projTasks.filter(t => t.status === "Done").length;
+          const total = projTasks.length;
+          const active = projTasks.filter(t => t.status !== "Done").length;
+          const overdue = projTasks.filter(isOverdue).length;
+          const urgent = projTasks.filter(t => t.priority === "Urgent" && t.status !== "Done").length;
+          const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+          return (
+            <div key={proj.name} onClick={()=>setSelectedProject(proj.name)}
+              style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderTop:"3px solid "+proj.color, borderRadius:12, padding:"16px 18px", cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
+              onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{proj.name}</div>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {active > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{active} active</span>}
+                    {overdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {overdue} overdue</span>}
+                    {urgent > 0 && <span style={{ fontSize:11, color:"#f59e0b" }}>🔴 {urgent} urgent</span>}
+                    {total === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                    {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Complete</span>}
+                  </div>
+                </div>
+                <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{progress}%</span>
+              </div>
+              <div style={{ height:4, background:"#2a2a45", borderRadius:99, overflow:"hidden", marginBottom:8 }}>
+                <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99 }} />
+              </div>
+              <div style={{ fontSize:10, color:"#4b5563" }}>{done}/{total} tasks done</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // ACCOUNTS VIEW — normalised to eliminate duplicates
 // ============================================================
@@ -1091,7 +1255,7 @@ export default function App() {
   }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags]);
 
   const upsertTask = async (form) => {
-    const payload = { subject:form.subject, client:normaliseName(form.client), company:normaliseName(form.company), email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type };
+    const payload = { subject:form.subject, client:normaliseName(form.client), company:normaliseName(form.company), email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type, project:form.project||null };
     if (form.id) {
       const original = tasks.find(t => t.id === form.id);
       const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
@@ -1172,9 +1336,11 @@ export default function App() {
   const weeklyReports = flags.filter(f=>f.task_subject === "Weekly Customer Report");
   const unreadReports = weeklyReports.filter(f=>!f.seen);
   const totalAccounts = [...new Set(tasks.map(t=>t.company?.trim().toLowerCase()).filter(Boolean))].length;
+  const activeProjectTasks = tasks.filter(t=>t.project&&t.status!=="Done").length;
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
+    { id:"projects", label:"Projects", icon:"📋", count: activeProjectTasks },
     { id:"kanban", label:"Kanban Board", icon:"⊞" },
     { id:"accounts", label:"Accounts", icon:"🏢", count: totalAccounts },
     { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length },
@@ -1208,7 +1374,7 @@ export default function App() {
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="weeklyreport"?"#1e3a8a":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="weeklyreport"?"#93c5fd":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="weeklyreport"?"#1e3a8a":v.id==="projects"?"#d97706":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="weeklyreport"?"#93c5fd":v.id==="projects"?"#fff":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
           </button>
         ))}
       </div>
@@ -1318,6 +1484,17 @@ export default function App() {
                     <span style={{ marginLeft:"auto",color:"#60a5fa",fontSize:18 }}>→</span>
                   </div>
                 )}
+                {activeProjectTasks > 0 && (
+                  <div onClick={()=>setView("projects")} style={{ marginBottom:20,background:"#d9780622",border:"1px solid #d9780666",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                    <span style={{ fontSize:24 }}>📋</span>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#d97806" }}>{activeProjectTasks} active strategic project tasks</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{STRATEGIC_PROJECTS.filter(p=>tasks.some(t=>t.project===p.name&&t.status!=="Done")).length} of 12 workstreams in progress — click to view</div>
+                    </div>
+                    <span style={{ marginLeft:"auto",color:"#d97806",fontSize:18 }}>→</span>
+                  </div>
+                )}
+
                 {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length>0) && (
                   <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
                     <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
@@ -1388,6 +1565,16 @@ export default function App() {
               </div>
             )}
 
+            {view==="projects" && (
+              <ProjectsView
+                tasks={tasks}
+                onTaskClick={t=>setModalTask(t)}
+                onTaskComplete={(id)=>moveTask(id,"Done")}
+                onNewTask={(project)=>setModalTask(newTask({ project }))}
+                sortBy={sortBy}
+              />
+            )}
+
             {view==="accounts" && (
               <AccountsView
                 tasks={tasks}
@@ -1439,7 +1626,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","kanban","accounts","leads","seanweek","inbox","team","flags","weeklyreport"].includes(view) && (
+            {!["dashboard","projects","kanban","accounts","leads","seanweek","inbox","team","flags","weeklyreport"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
