@@ -604,9 +604,11 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
   );
 }
 
-function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
+function FlagsView({ flags, onMarkSeen, onMarkAllSeen, onViewReports }) {
   const unseen = flags.filter(f => !f.seen && f.task_subject !== "Weekly Customer Report");
   const seen = flags.filter(f => f.seen && f.task_subject !== "Weekly Customer Report");
+  const reports = flags.filter(f => f.task_subject === "Weekly Customer Report");
+  const unreadReports = reports.filter(f => !f.seen).length;
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
@@ -674,7 +676,7 @@ function FlagsView({ flags, onMarkSeen, onMarkAllSeen }) {
   );
 }
 
-function WeeklyReportView({ flags, onMarkSeen, onDeleteReport }) {
+function WeeklyReportView({ flags, onMarkSeen, onDeleteReport, onBack }) {
   const reports = flags.filter(f => f.task_subject === "Weekly Customer Report");
   const unread = reports.filter(f => !f.seen);
   return (
@@ -1341,26 +1343,26 @@ export default function App() {
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
     { id:"projects", label:"Projects", icon:"📋", count: activeProjectTasks },
-    { id:"kanban", label:"Kanban Board", icon:"⊞" },
     { id:"accounts", label:"Accounts", icon:"🏢", count: totalAccounts },
-    { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length },
-    { id:"fya", label:"FYA", icon:"🟠", count:byStatus("FYA").length },
-    { id:"followup", label:"Follow Up", icon:"🏌️", count:byStatus("Follow Up").length },
-    { id:"fyi", label:"FYI", icon:"🟣", count:byStatus("FYI").length },
-    { id:"done", label:"Done", icon:"✅", count:byStatus("Done").length },
-    { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length },
-    { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length },
-    { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length },
+    { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length, group:"tasks" },
+    { id:"fya", label:"FYA", icon:"🟠", count:byStatus("FYA").length, group:"tasks" },
+    { id:"followup", label:"Follow Up", icon:"🏌️", count:byStatus("Follow Up").length, group:"tasks" },
+    { id:"fyi", label:"FYI", icon:"🟣", count:byStatus("FYI").length, group:"tasks" },
+    { id:"done", label:"Done", icon:"✅", count:byStatus("Done").length, group:"tasks" },
+    { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length, group:"tasks" },
+    { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length, group:"tasks" },
+    { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length, group:"tasks" },
     { id:"flags", label:"Flags", icon:"🚨", count:unseenFlags.length },
-    { id:"weeklyreport", label:"Weekly Report", icon:"📊", count:unreadReports.length },
     { id:"leads", label:"Leads & Pipeline", icon:"🎯", count:hotLeads.length },
     { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
     { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
     { id:"team", label:"Team", icon:"👥" },
-    { id:"all", label:"All Tasks", icon:"≡" },
+    { id:"all", label:"All Tasks", icon:"≡", group:"tasks" },
   ];
 
   const viewTasks = { todo:byStatus("To Do"), fya:byStatus("FYA"), followup:byStatus("Follow Up"), fyi:fyiTasks, done:byStatus("Done"), overdue, mine:myTasks, sean:seanTasks, all:sortTasks(filtered, sortBy) };
+
+  const [tasksExpanded, setTasksExpanded] = useState(false);
 
   const Sidebar = (
     <div style={{ width:220,background:"#0a0a16",borderRight:"1px solid #1e1e30",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
@@ -1369,14 +1371,33 @@ export default function App() {
         <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>Operations Tracker</div>
       </div>
       <div style={{ marginTop:16,flex:1,overflowY:"auto" }}>
-        {VIEWS.map(v=>(
+        {VIEWS.filter(v => !v.group).map(v=>(
           <button key={v.id} onClick={()=>{ setView(v.id); setSidebarOpen(false); }}
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="weeklyreport"?"#1e3a8a":v.id==="projects"?"#d97706":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="weeklyreport"?"#93c5fd":v.id==="projects"?"#fff":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="projects"?"#d97706":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="projects"?"#fff":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
           </button>
         ))}
+        {/* Tasks collapsible group */}
+        <button onClick={()=>setTasksExpanded(e=>!e)}
+          style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:VIEWS.filter(v=>v.group==="tasks").some(v=>v.id===view)?"#1e1e35":"none",color:VIEWS.filter(v=>v.group==="tasks").some(v=>v.id===view)?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:400,marginBottom:2 }}>
+          <span style={{ fontSize:14,width:16,textAlign:"center" }}>☰</span>
+          <span style={{ flex:1 }}>Tasks</span>
+          <span style={{ fontSize:10,color:"#4b5563" }}>{tasksExpanded ? "▲" : "▼"}</span>
+        </button>
+        {tasksExpanded && (
+          <div style={{ marginLeft:12, borderLeft:"1px solid #2a2a45", paddingLeft:8, marginBottom:4 }}>
+            {VIEWS.filter(v=>v.group==="tasks").map(v=>(
+              <button key={v.id} onClick={()=>{ setView(v.id); setSidebarOpen(false); }}
+                style={{ width:"100%",textAlign:"left",padding:"7px 10px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:12,fontWeight:view===v.id?600:400,marginBottom:1 }}>
+                <span style={{ fontSize:13,width:14,textAlign:"center" }}>{v.icon}</span>
+                <span style={{ flex:1 }}>{v.label}</span>
+                {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":"#2a2a45",color:v.id==="overdue"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 6px",fontSize:10 }}>{v.count}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{ paddingTop:16,borderTop:"1px solid #1e1e30" }}>
         <div style={{ fontSize:10,color:"#374151",textAlign:"center",marginBottom:8 }}>
@@ -1434,7 +1455,7 @@ export default function App() {
           </button>
         )}
         {unreadReports.length > 0 && (
-          <button onClick={()=>setView("weeklyreport")} style={{ padding:"7px 12px",background:"#1e3a8a33",border:"1px solid #3b82f6",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:700 }}>
+          <button onClick={()=>setView("flags")} style={{ padding:"7px 12px",background:"#1e3a8a33",border:"1px solid #3b82f6",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:700 }}>
             📊 {unreadReports.length}
           </button>
         )}
@@ -1475,7 +1496,7 @@ export default function App() {
                   </div>
                 )}
                 {unreadReports.length > 0 && (
-                  <div onClick={()=>setView("weeklyreport")} style={{ marginBottom:20,background:"#1e3a8a22",border:"1px solid #3b82f666",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                  <div onClick={()=>setView("flags")} style={{ marginBottom:20,background:"#1e3a8a22",border:"1px solid #3b82f666",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
                     <span style={{ fontSize:24 }}>📊</span>
                     <div>
                       <div style={{ fontSize:14,fontWeight:700,color:"#60a5fa" }}>{unreadReports.length} new weekly report{unreadReports.length>1?"s":""}</div>
@@ -1559,22 +1580,6 @@ export default function App() {
               </div>
             )}
 
-            {view==="kanban" && (
-              <div style={{ display:"flex",gap:12,overflowX:"auto",paddingBottom:8,minHeight:400 }}>
-                {STATUSES.map(s=><KanbanCol key={s} status={s} tasks={sortTasks(tasks.filter(t=>t.status===s),sortBy)} onClick={t=>setModalTask(t)} onDrop={moveTask} onComplete={(id)=>moveTask(id,"Done")} />)}
-              </div>
-            )}
-
-            {view==="projects" && (
-              <ProjectsView
-                tasks={tasks}
-                onTaskClick={t=>setModalTask(t)}
-                onTaskComplete={(id)=>moveTask(id,"Done")}
-                onNewTask={(project)=>setModalTask(newTask({ project }))}
-                sortBy={sortBy}
-              />
-            )}
-
             {view==="accounts" && (
               <AccountsView
                 tasks={tasks}
@@ -1585,8 +1590,8 @@ export default function App() {
               />
             )}
 
-            {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} />}
-            {view==="weeklyreport" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} onDeleteReport={deleteFlag} />}
+            {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} onViewReports={()=>setView("weeklyreport_inline")} />}
+            {view==="weeklyreport_inline" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} onDeleteReport={deleteFlag} onBack={()=>setView("flags")} />}
 
             {view==="leads" && (
               <div>
@@ -1626,7 +1631,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","projects","kanban","accounts","leads","seanweek","inbox","team","flags","weeklyreport"].includes(view) && (
+            {!["dashboard","projects","accounts","leads","seanweek","inbox","team","flags","weeklyreport_inline"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
