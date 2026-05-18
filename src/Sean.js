@@ -548,46 +548,46 @@ export default function Sean() {
                   );
                 })}
               </div>
-            ) : (() => {
-              const proj = STRATEGIC_PROJECTS.find(p => p.name === selectedProject);
+            ) : selectedProject && (() => {
+              const proj = STRATEGIC_PROJECTS.find(p => p.name === selectedProject) || {};
               const projTasks = tasks.filter(t => t.project === selectedProject);
-              const FILTERS = ["All", "To Do", "FYA", "Follow Up", "FYI", "Overdue"];
-              const filtered = sortByUrgency(projTasks.filter(t => {
+              const PROJ_FILTERS = ["All", "To Do", "FYA", "Follow Up", "FYI", "Overdue"];
+              const projFiltered = sortByUrgency(projTasks.filter(t => {
                 if (projectStatusFilter === "All") return t.status !== "Done";
                 if (projectStatusFilter === "Overdue") return isOverdue(t);
                 return t.status === projectStatusFilter;
               }));
-              const done = projTasks.filter(t => t.status === "Done").length;
-              const total = projTasks.length;
-              const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+              const projDone = projTasks.filter(t => t.status === "Done").length;
+              const projTotal = projTasks.length;
+              const projProgress = projTotal > 0 ? Math.round((projDone / projTotal) * 100) : 0;
               return (
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
                     <button onClick={() => setSelectedProject(null)} style={{ background:"none", border:"none", color:"#9ca3af", cursor:"pointer", fontSize:20, padding:"4px 8px 4px 0" }}>←</button>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:15, fontWeight:800, color:"#e2e8f0", lineHeight:1.2 }}>{proj.name}</div>
-                      <div style={{ fontSize:11, color:"#6b7280" }}>{done}/{total} done · {progress}%</div>
+                      <div style={{ fontSize:11, color:"#6b7280" }}>{projDone}/{projTotal} done · {projProgress}%</div>
                     </div>
                   </div>
                   <div style={{ height:4, background:"#2a2a45", borderRadius:99, overflow:"hidden", marginBottom:12 }}>
-                    <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99 }} />
+                    <div style={{ height:"100%", width:projProgress+"%", background:proj.color||"#0891b2", borderRadius:99 }} />
                   </div>
                   <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:2 }}>
-                    {FILTERS.map(f => {
-                      const count = f === "All" ? projTasks.filter(t=>t.status!=="Done").length : f === "Overdue" ? projTasks.filter(isOverdue).length : projTasks.filter(t=>t.status===f).length;
-                      const active = projectStatusFilter === f;
-                      const color = f === "Overdue" ? "#ef4444" : f === "All" ? proj.color : STATUS_COLOR[f] || proj.color;
+                    {PROJ_FILTERS.map(f => {
+                      const cnt = f === "All" ? projTasks.filter(t=>t.status!=="Done").length : f === "Overdue" ? projTasks.filter(isOverdue).length : projTasks.filter(t=>t.status===f).length;
+                      const isActive = projectStatusFilter === f;
+                      const col = f === "Overdue" ? "#ef4444" : f === "All" ? (proj.color||"#0891b2") : STATUS_COLOR[f] || (proj.color||"#0891b2");
                       return (
                         <button key={f} onClick={() => setProjectStatusFilter(f)}
-                          style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid "+(active?color:"#2a2a45"), background:active?color+"33":"none", color:active?color:"#6b7280", cursor:"pointer", fontSize:11, fontWeight:active?700:400 }}>
-                          {f} {count > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 4px", fontSize:10 }}>{count}</span>}
+                          style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid "+(isActive?col:"#2a2a45"), background:isActive?col+"33":"none", color:isActive?col:"#6b7280", cursor:"pointer", fontSize:11, fontWeight:isActive?700:400 }}>
+                          {f}{cnt > 0 && <span style={{ marginLeft:4, background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 4px", fontSize:10 }}>{cnt}</span>}
                         </button>
                       );
                     })}
                   </div>
-                  {filtered.length === 0
+                  {projFiltered.length === 0
                     ? <div style={s.empty}><div style={{ fontSize:28, marginBottom:8 }}>📋</div><div style={{ fontSize:13 }}>No tasks here</div></div>
-                    : filtered.map(t => <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />)
+                    : projFiltered.map(t => <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />)
                   }
                 </div>
               );
