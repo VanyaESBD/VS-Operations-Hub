@@ -106,6 +106,22 @@ function EditSheet({ task, onSave, onClose }) {
 }
 
 // ── Special pinned accounts ────────────────────────────────
+// ── Strategic Project Workstreams ──────────────────────────
+const STRATEGIC_PROJECTS = [
+  { name: "UPD", color: "#0891b2" },
+  { name: "CJ Distribution", color: "#f97316" },
+  { name: "Adcock Ingram", color: "#8b5cf6" },
+  { name: "Strategnos", color: "#10b981" },
+  { name: "Financial & Management Structure", color: "#f59e0b" },
+  { name: "EuroPOS", color: "#3b82f6" },
+  { name: "James / Systems Development", color: "#ec4899" },
+  { name: "Tower Cold Chain / TBB", color: "#14b8a6" },
+  { name: "Andrea & Jason – Operational Leadership Transition", color: "#a78bfa" },
+  { name: "Opportunity Mapping / Sales Pipeline", color: "#ef4444" },
+  { name: "Second Level Solutions", color: "#6366f1" },
+  { name: "Leadership Transition", color: "#d97706" },
+];
+
 const SPECIAL_ACCOUNTS = [
   { key: "finance", label: "💰 Finance", color: "#10b981" },
   { key: "personal", label: "👤 Personal", color: "#8b5cf6" },
@@ -123,6 +139,9 @@ export default function Sean() {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accountFilter, setAccountFilter] = useState("All");
   const [accountSearch, setAccountSearch] = useState("");
+  // Projects state
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [projectStatusFilter, setProjectStatusFilter] = useState("All");
 
   const load = async () => {
     const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
@@ -206,10 +225,13 @@ export default function Sean() {
   ];
   const getAccountTasks = (key) => tasks.filter(t => normKey(t.company) === key);
 
+  const activeProjectTasks = tasks.filter(t => t.project && t.status !== "Done").length;
+
   const TABS = [
     { id:"todo", emoji:"🔴", label:"To Do", count: todoTab.length },
     { id:"follow", emoji:"🏌️", label:"Follow", count: followTab.length },
     { id:"accounts", emoji:"🏢", label:"Accounts", count: 0 },
+    { id:"projects", emoji:"📋", label:"Projects", count: activeProjectTasks },
     { id:"flags", emoji:"🚨", label:"Flags", count: unseenFlags.length },
     { id:"reports", emoji:"📊", label:"Reports", count: unreadReports.length },
   ];
@@ -340,7 +362,7 @@ export default function Sean() {
             <span style={{ fontSize:16 }}>{tab.emoji}</span>
             <span style={{ fontSize:10 }}>{tab.label}</span>
             {tab.count > 0 && (
-              <span style={{ background: tab.id === "reports" ? "#3b82f6" : tab.id === "accounts" ? "#0891b2" : "#ef4444", color:"#fff", borderRadius:99, padding:"1px 5px", fontSize:9, fontWeight:700, minWidth:14, textAlign:"center" }}>
+              <span style={{ background: tab.id === "reports" ? "#3b82f6" : tab.id === "accounts" ? "#0891b2" : tab.id === "projects" ? "#d97806" : "#ef4444", color:"#fff", borderRadius:99, padding:"1px 5px", fontSize:9, fontWeight:700, minWidth:14, textAlign:"center" }}>
                 {tab.count}
               </span>
             )}
@@ -484,6 +506,92 @@ export default function Sean() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+      </div>
+
+        {/* PROJECTS TAB */}
+        {activeTab === "projects" && (
+          <div>
+            {!selectedProject ? (
+              <div>
+                <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>
+                  📋 Strategic Workstreams
+                </div>
+                {STRATEGIC_PROJECTS.map(proj => {
+                  const projTasks = tasks.filter(t => t.project === proj.name);
+                  const active = projTasks.filter(t => t.status !== "Done").length;
+                  const done = projTasks.filter(t => t.status === "Done").length;
+                  const total = projTasks.length;
+                  const overdue = projTasks.filter(isOverdue).length;
+                  const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <div key={proj.name} onClick={() => { setSelectedProject(proj.name); setProjectStatusFilter("All"); }}
+                      style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderTop:"2px solid "+proj.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                        <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0", lineHeight:1.3, marginBottom:3 }}>{proj.name}</div>
+                          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                            {active > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{active} active</span>}
+                            {overdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {overdue} overdue</span>}
+                            {total === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                            {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Done</span>}
+                          </div>
+                        </div>
+                        <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{progress}%</span>
+                      </div>
+                      <div style={{ height:3, background:"#2a2a45", borderRadius:99, overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (() => {
+              const proj = STRATEGIC_PROJECTS.find(p => p.name === selectedProject);
+              const projTasks = tasks.filter(t => t.project === selectedProject);
+              const FILTERS = ["All", "To Do", "FYA", "Follow Up", "FYI", "Overdue"];
+              const filtered = sortByUrgency(projTasks.filter(t => {
+                if (projectStatusFilter === "All") return t.status !== "Done";
+                if (projectStatusFilter === "Overdue") return isOverdue(t);
+                return t.status === projectStatusFilter;
+              }));
+              const done = projTasks.filter(t => t.status === "Done").length;
+              const total = projTasks.length;
+              const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+              return (
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                    <button onClick={() => setSelectedProject(null)} style={{ background:"none", border:"none", color:"#9ca3af", cursor:"pointer", fontSize:20, padding:"4px 8px 4px 0" }}>←</button>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:15, fontWeight:800, color:"#e2e8f0", lineHeight:1.2 }}>{proj.name}</div>
+                      <div style={{ fontSize:11, color:"#6b7280" }}>{done}/{total} done · {progress}%</div>
+                    </div>
+                  </div>
+                  <div style={{ height:4, background:"#2a2a45", borderRadius:99, overflow:"hidden", marginBottom:12 }}>
+                    <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99 }} />
+                  </div>
+                  <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:2 }}>
+                    {FILTERS.map(f => {
+                      const count = f === "All" ? projTasks.filter(t=>t.status!=="Done").length : f === "Overdue" ? projTasks.filter(isOverdue).length : projTasks.filter(t=>t.status===f).length;
+                      const active = projectStatusFilter === f;
+                      const color = f === "Overdue" ? "#ef4444" : f === "All" ? proj.color : STATUS_COLOR[f] || proj.color;
+                      return (
+                        <button key={f} onClick={() => setProjectStatusFilter(f)}
+                          style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid "+(active?color:"#2a2a45"), background:active?color+"33":"none", color:active?color:"#6b7280", cursor:"pointer", fontSize:11, fontWeight:active?700:400 }}>
+                          {f} {count > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 4px", fontSize:10 }}>{count}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {filtered.length === 0
+                    ? <div style={s.empty}><div style={{ fontSize:28, marginBottom:8 }}>📋</div><div style={{ fontSize:13 }}>No tasks here</div></div>
+                    : filtered.map(t => <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />)
+                  }
+                </div>
+              );
+            })()}
           </div>
         )}
 
