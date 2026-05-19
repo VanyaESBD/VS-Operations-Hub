@@ -837,14 +837,11 @@ function SeanWeekView({ items, onAdd, onDelete }) {
       )}
       {items.length===0 && !showForm
         ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>📅</div><div>Nothing added yet</div></div>
-        : WEEK_CATEGORIES.map(cat=>{
-          const catItems = grouped[cat];
-          if (!catItems||catItems.length===0) return null;
-          const color = WEEK_CAT_COLOR[cat]||"#6b7280";
+        : WEEK_CATEGORIES.filter(cat=>grouped[cat]&&grouped[cat].length>0).map(cat=>{
           return (
             <div key={cat} style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11,fontWeight:700,color,marginBottom:8,letterSpacing:"0.06em",textTransform:"uppercase" }}>{cat}</div>
-              {catItems.map(item=>(
+              <div style={{ fontSize:11,fontWeight:700,color:WEEK_CAT_COLOR[cat]||"#6b7280",marginBottom:8,letterSpacing:"0.06em",textTransform:"uppercase" }}>{cat}</div>
+              {grouped[cat].map(item=>(
                 <div key={item.id} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:4 }}>{item.title}</div>
@@ -982,15 +979,12 @@ function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy })
           </div>
         </div>
         <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-          {["All", ...STATUSES].map(s => {
-            const count = s === "All" ? allTasks.length : statusCounts[s];
-            return (
-              <button key={s} onClick={()=>setStatusFilter(s)} style={{ padding:"6px 12px", borderRadius:99, border:"1px solid "+(statusFilter===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#2a2a45"), background:statusFilter===s?(s==="All"?"#0891b233":STATUS_COLOR[s]+"33"):"none", color:statusFilter===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#6b7280", cursor:"pointer", fontSize:12, fontWeight:statusFilter===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
-                {s !== "All" && STATUS_EMOJI[s]} {s}
-                {count > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 5px", fontSize:10 }}>{count}</span>}
-              </button>
-            );
-          })}
+          {["All", ...STATUSES].map(s => (
+            <button key={s} onClick={()=>setStatusFilter(s)} style={{ padding:"6px 12px", borderRadius:99, border:"1px solid "+(statusFilter===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#2a2a45"), background:statusFilter===s?(s==="All"?"#0891b233":STATUS_COLOR[s]+"33"):"none", color:statusFilter===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#6b7280", cursor:"pointer", fontSize:12, fontWeight:statusFilter===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
+              {s !== "All" && STATUS_EMOJI[s]} {s}
+              {(s === "All" ? allTasks.length : statusCounts[s]) > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 5px", fontSize:10 }}>{s === "All" ? allTasks.length : statusCounts[s]}</span>}
+            </button>
+          ))}
         </div>
         {sorted.length === 0
           ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No tasks yet — add one to get started</div></div>
@@ -1010,15 +1004,7 @@ function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy })
         <div style={{ fontSize:12, color:"#6b7280" }}>{tasks.filter(t=>t.project&&t.status!=="Done").length} active project tasks</div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
-        {STRATEGIC_PROJECTS.map(proj => {
-          const projTasks = getProjectTasks(proj.name);
-          const done = projTasks.filter(t => t.status === "Done").length;
-          const total = projTasks.length;
-          const active = projTasks.filter(t => t.status !== "Done").length;
-          const overdue = projTasks.filter(isOverdue).length;
-          const urgent = projTasks.filter(t => t.priority === "Urgent" && t.status !== "Done").length;
-          const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-          return (
+        {STRATEGIC_PROJECTS.map(proj => (
             <div key={proj.name} onClick={()=>setSelectedProject(proj.name)}
               style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderTop:"3px solid "+proj.color, borderRadius:12, padding:"16px 18px", cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
               onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
@@ -1027,22 +1013,21 @@ function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy })
                 <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
                   <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{proj.name}</div>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                    {active > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{active} active</span>}
-                    {overdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {overdue} overdue</span>}
-                    {urgent > 0 && <span style={{ fontSize:11, color:"#f59e0b" }}>🔴 {urgent} urgent</span>}
-                    {total === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
-                    {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Complete</span>}
+                    {getProjectTasks(proj.name).filter(t=>t.status!=="Done").length > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{getProjectTasks(proj.name).filter(t=>t.status!=="Done").length} active</span>}
+                    {getProjectTasks(proj.name).filter(isOverdue).length > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {getProjectTasks(proj.name).filter(isOverdue).length} overdue</span>}
+                    {getProjectTasks(proj.name).filter(t=>t.priority==="Urgent"&&t.status!=="Done").length > 0 && <span style={{ fontSize:11, color:"#f59e0b" }}>🔴 {getProjectTasks(proj.name).filter(t=>t.priority==="Urgent"&&t.status!=="Done").length} urgent</span>}
+                    {getProjectTasks(proj.name).length === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                    {getProjectTasks(proj.name).filter(t=>t.status!=="Done").length === 0 && getProjectTasks(proj.name).length > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Complete</span>}
                   </div>
                 </div>
-                <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{progress}%</span>
+                <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{getProjectTasks(proj.name).length > 0 ? Math.round((getProjectTasks(proj.name).filter(t=>t.status==="Done").length/getProjectTasks(proj.name).length)*100) : 0}%</span>
               </div>
               <div style={{ height:4, background:"#2a2a45", borderRadius:99, overflow:"hidden", marginBottom:8 }}>
-                <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99 }} />
+                <div style={{ height:"100%", width:(getProjectTasks(proj.name).length > 0 ? Math.round((getProjectTasks(proj.name).filter(t=>t.status==="Done").length/getProjectTasks(proj.name).length)*100) : 0)+"%", background:proj.color, borderRadius:99 }} />
               </div>
-              <div style={{ fontSize:10, color:"#4b5563" }}>{done}/{total} tasks done</div>
+              <div style={{ fontSize:10, color:"#4b5563" }}>{getProjectTasks(proj.name).filter(t=>t.status==="Done").length}/{getProjectTasks(proj.name).length} tasks done</div>
             </div>
-          );
-        })}
+          ))}
       </div>
     </div>
   );
@@ -1118,15 +1103,12 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy, onNewTask })
 
         {/* Status filter pills */}
         <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-          {["All", ...STATUSES].map(s => {
-            const count = s === "All" ? accountTasks.length : statusCounts[s];
-            return (
-              <button key={s} onClick={()=>setActiveStatus(s)} style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${activeStatus===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#2a2a45"}`, background:activeStatus===s?(s==="All"?"#0891b233":STATUS_COLOR[s]+"33"):"none", color:activeStatus===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#6b7280", cursor:"pointer", fontSize:12, fontWeight:activeStatus===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
-                {s !== "All" && STATUS_EMOJI[s]} {s}
-                {count > 0 && <span style={{ background:activeStatus===s?"rgba(255,255,255,0.2)":"#2a2a45", borderRadius:99, padding:"0px 6px", fontSize:10, color:activeStatus===s?"#fff":"#9ca3af" }}>{count}</span>}
-              </button>
-            );
-          })}
+          {["All", ...STATUSES].map(s => (
+            <button key={s} onClick={()=>setActiveStatus(s)} style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${activeStatus===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#2a2a45"}`, background:activeStatus===s?(s==="All"?"#0891b233":STATUS_COLOR[s]+"33"):"none", color:activeStatus===s?(s==="All"?"#0891b2":STATUS_COLOR[s]):"#6b7280", cursor:"pointer", fontSize:12, fontWeight:activeStatus===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
+              {s !== "All" && STATUS_EMOJI[s]} {s}
+              {(s==="All"?accountTasks.length:statusCounts[s]) > 0 && <span style={{ background:activeStatus===s?"rgba(255,255,255,0.2)":"#2a2a45", borderRadius:99, padding:"0px 6px", fontSize:10, color:activeStatus===s?"#fff":"#9ca3af" }}>{s==="All"?accountTasks.length:statusCounts[s]}</span>}
+            </button>
+          ))}
         </div>
 
         {sorted.length === 0
@@ -1160,13 +1142,7 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy, onNewTask })
         {filteredAccounts.length} Accounts
       </div>
 
-      {filteredAccounts.map(account => {
-        const active = activeCounts(account.key);
-        const urgent = urgentCounts(account.key);
-        const total = getTasksForAccount(account.key).length;
-        if (total === 0 && !specialKeys.includes(account.key)) return null;
-
-        return (
+      {filteredAccounts.filter(account => getTasksForAccount(account.key).length > 0 || specialKeys.includes(account.key)).map(account => (
           <div key={account.key} onClick={()=>setSelectedAccount(account)}
             style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderLeft:`3px solid ${account.color}`, borderRadius:12, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
             onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
@@ -1175,27 +1151,24 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy, onNewTask })
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{account.label}</div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {active > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{active} active</span>}
-                  {urgent > 0 && <span style={{ fontSize:11, background:"#7f1d1d", color:"#fca5a5", borderRadius:99, padding:"1px 7px", fontWeight:700 }}>🔴 {urgent} urgent</span>}
-                  {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ All done</span>}
-                  {total === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                  {activeCounts(account.key) > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{activeCounts(account.key)} active</span>}
+                  {urgentCounts(account.key) > 0 && <span style={{ fontSize:11, background:"#7f1d1d", color:"#fca5a5", borderRadius:99, padding:"1px 7px", fontWeight:700 }}>🔴 {urgentCounts(account.key)} urgent</span>}
+                  {activeCounts(account.key) === 0 && getTasksForAccount(account.key).length > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ All done</span>}
+                  {getTasksForAccount(account.key).length === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
                 </div>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
                 {/* Mini status dots */}
                 <div style={{ display:"flex", gap:4 }}>
-                  {STATUSES.filter(s=>s!=="Done").map(s => {
-                    const count = getTasksForAccount(account.key).filter(t=>t.status===s).length;
-                    if (count === 0) return null;
-                    return <div key={s} style={{ width:8, height:8, borderRadius:"50%", background:STATUS_COLOR[s], title:s }} title={`${count} ${s}`} />;
-                  })}
+                  {STATUSES.filter(s=>s!=="Done").filter(s=>getTasksForAccount(account.key).filter(t=>t.status===s).length>0).map(s => (
+                    <div key={s} style={{ width:8, height:8, borderRadius:"50%", background:STATUS_COLOR[s] }} title={s} />
+                  ))}
                 </div>
                 <span style={{ color:"#4b5563", fontSize:18 }}>→</span>
               </div>
             </div>
           </div>
-        );
-      })}
+      ))}
     </div>
   );
 }
