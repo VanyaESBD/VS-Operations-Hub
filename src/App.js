@@ -428,7 +428,7 @@ function LeadCard({ lead, onClick }) {
   const color = LEAD_STAGE_COLOR[lead.stage];
   return (
     <div onClick={()=>onClick(lead)}
-      style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
+      style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${WEEK_CAT_COLOR[cat]||'#6b7280'}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
       onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
       onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
@@ -842,7 +842,7 @@ function SeanWeekView({ items, onAdd, onDelete }) {
             <div key={cat} style={{ marginBottom:20 }}>
               <div style={{ fontSize:11,fontWeight:700,color:WEEK_CAT_COLOR[cat]||"#6b7280",marginBottom:8,letterSpacing:"0.06em",textTransform:"uppercase" }}>{cat}</div>
               {grouped[cat].map(item=>(
-                <div key={item.id} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                <div key={item.id} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${WEEK_CAT_COLOR[cat]||'#6b7280'}`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:4 }}>{item.title}</div>
                     {item.reference && (
