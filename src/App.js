@@ -1316,7 +1316,8 @@ export default function App() {
 
   // ── Due Today & This Week ────────────────────────────────
   const todayStr = TODAY();
-  const weekEnd = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; })();
+  const weekEndDate = new Date(); weekEndDate.setDate(weekEndDate.getDate() + 7);
+  const weekEnd = weekEndDate.toISOString().split("T")[0];
   const dueToday = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date === todayStr), sortBy);
   const dueThisWeek = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date > todayStr && t.expected_date <= weekEnd), sortBy);
   const followUpDueToday = dueToday.filter(t => t.status === "Follow Up");
