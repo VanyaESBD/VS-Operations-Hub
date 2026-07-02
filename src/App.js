@@ -428,7 +428,7 @@ function LeadCard({ lead, onClick }) {
   const color = LEAD_STAGE_COLOR[lead.stage];
   return (
     <div onClick={()=>onClick(lead)}
-      style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${WEEK_CAT_COLOR[cat]||'#6b7280'}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
+      style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
       onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
       onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
@@ -500,12 +500,12 @@ function TeamCard({ name, tasks }) {
         {overdue.length>0 && <span style={{ marginLeft:"auto",background:"#7f1d1d",color:"#fca5a5",borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:700 }}>⚠️ {overdue.length} overdue</span>}
       </div>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16 }}>
-        {[{label:"Active",value:active.length,color:"#0891b2"},{label:"FYA",value:fya.length,color:"#f97316"},{label:"Follow Up",value:followUp.length,color:"#10b981"},{label:"Done Today",value:done.length,color:"#10b981"}].map(({label,value,color})=>(
-          <div key={label} style={{ background:"#13131f",borderRadius:8,padding:10,textAlign:"center",border:"1px solid #2a2a45" }}>
-            <div style={{ fontSize:22,fontWeight:800,color }}>{value}</div>
-            <div style={{ fontSize:10,color:"#6b7280",marginTop:2 }}>{label}</div>
+        {[{label:"Active",value:active.length,color:"#0891b2"},{label:"FYA",value:fya.length,color:"#f97316"},{label:"Follow Up",value:followUp.length,color:"#10b981"},{label:"Done Today",value:done.length,color:"#10b981"}].map(function(stat){return(
+          <div key={stat.label} style={{ background:"#13131f",borderRadius:8,padding:10,textAlign:"center",border:"1px solid #2a2a45" }}>
+            <div style={{ fontSize:22,fontWeight:800,color:stat.color }}>{stat.value}</div>
+            <div style={{ fontSize:10,color:"#6b7280",marginTop:2 }}>{stat.label}</div>
           </div>
-        ))}
+        );})}
       </div>
       {active.slice(0,3).map(t=>(
         <div key={t.id} style={{ fontSize:12,color:"#9ca3af",padding:"4px 0",borderBottom:"1px solid #1e1e30",display:"flex",justifyContent:"space-between" }}>
@@ -1313,6 +1313,13 @@ export default function App() {
   const weeklyReports = flags.filter(f=>f.task_subject === "Weekly Customer Report");
   const unreadReports = weeklyReports.filter(f=>!f.seen);
   const totalAccounts = [...new Set(tasks.map(t=>t.company?.trim().toLowerCase()).filter(Boolean))].length;
+
+  // ── Due Today & This Week ────────────────────────────────
+  const todayStr = TODAY();
+  const weekEnd = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; })();
+  const dueToday = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date === todayStr), sortBy);
+  const dueThisWeek = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date > todayStr && t.expected_date <= weekEnd), sortBy);
+  const followUpDueToday = dueToday.filter(t => t.status === "Follow Up");
   const activeProjectTasks = tasks.filter(t=>t.project&&t.status!=="Done").length;
 
   const VIEWS = [
@@ -1491,6 +1498,39 @@ export default function App() {
                   </div>
                 )}
 
+                {followUpDueToday.length > 0 && (
+                  <div onClick={()=>setView("followup")} style={{ marginBottom:16,background:"#10b98122",border:"1px solid #10b98166",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                    <span style={{ fontSize:24 }}>🏌️</span>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#10b981" }}>{followUpDueToday.length} Follow Up{followUpDueToday.length>1?"s":""} due today</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{followUpDueToday.map(t=>t.subject).slice(0,3).join(" · ")}{followUpDueToday.length>3?" · ...":""}</div>
+                    </div>
+                    <span style={{ marginLeft:"auto",color:"#10b981",fontSize:18 }}>→</span>
+                  </div>
+                )}
+
+                {dueToday.filter(t=>t.status!=="Follow Up").length > 0 && (
+                  <div onClick={()=>setView("overdue")} style={{ marginBottom:16,background:"#ef444422",border:"1px solid #ef444466",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                    <span style={{ fontSize:24 }}>📅</span>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#ef4444" }}>{dueToday.filter(t=>t.status!=="Follow Up").length} task{dueToday.filter(t=>t.status!=="Follow Up").length>1?"s":""} due today</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{dueToday.filter(t=>t.status!=="Follow Up").map(t=>t.subject).slice(0,3).join(" · ")}{dueToday.filter(t=>t.status!=="Follow Up").length>3?" · ...":""}</div>
+                    </div>
+                    <span style={{ marginLeft:"auto",color:"#ef4444",fontSize:18 }}>→</span>
+                  </div>
+                )}
+
+                {dueThisWeek.length > 0 && (
+                  <div onClick={()=>setView("followup")} style={{ marginBottom:20,background:"#0891b222",border:"1px solid #0891b266",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
+                    <span style={{ fontSize:24 }}>📆</span>
+                    <div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#0891b2" }}>{dueThisWeek.length} task{dueThisWeek.length>1?"s":""} due this week</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{dueThisWeek.map(t=>t.subject).slice(0,3).join(" · ")}{dueThisWeek.length>3?" · ...":""}</div>
+                    </div>
+                    <span style={{ marginLeft:"auto",color:"#0891b2",fontSize:18 }}>→</span>
+                  </div>
+                )}
+
                 {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length>0) && (
                   <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
                     <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
@@ -1545,12 +1585,12 @@ export default function App() {
                     { title:"⚠️ Overdue", items:sortTasks(tasks.filter(isOverdue),sortBy).slice(0,5), empty:"No overdue tasks 🎉" },
                     { title:"⚡ No Next Action", items:noNextAction.slice(0,5), empty:"All tasks have next actions ✓" },
                     { title:"✅ Done This Week", items:completedThisWeek.slice(0,5), empty:"None yet this week" },
-                  ].map(({title,items,empty})=>(
-                    <div key={title}>
-                      <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:"0.06em",textTransform:"uppercase" }}>{title}</div>
-                      {items.length===0 ? <div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{empty}</div> : items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />)}
+                  ].map(function(panel){return(
+                    <div key={panel.title}>
+                      <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:"0.06em",textTransform:"uppercase" }}>{panel.title}</div>
+                      {panel.items.length===0 ? <div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{panel.empty}</div> : panel.items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />)}
                     </div>
-                  ))}
+                  );})}
                 </div>
               </div>
             )}
