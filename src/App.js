@@ -62,31 +62,41 @@ const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b",
 
 // Special pinned accounts — keys are lowercase for normalised matching
 // ── Strategic Project Workstreams ──────────────────────────
-const STRATEGIC_PROJECTS = [
-  { name: "UPD", color: "#0891b2" },
-  { name: "CJ Distribution", color: "#f97316" },
+// STRATEGIC_PROJECTS now loaded dynamically from Supabase projects table
+// Fallback used until data loads
+const STRATEGIC_PROJECTS_FALLBACK = [
+  { name: "Discovery Medical", color: "#10b981" },
   { name: "Adcock Ingram", color: "#8b5cf6" },
-  { name: "Strategnos", color: "#10b981" },
-  { name: "Financial & Management Structure", color: "#f59e0b" },
-  { name: "EuroPOS", color: "#3b82f6" },
+  { name: "Aspen PLZ / Solaris Cargo", color: "#0891b2" },
+  { name: "CJ Distribution", color: "#f97316" },
+  { name: "UPD", color: "#14b8a6" },
+  { name: "Strategnos", color: "#ef4444" },
+  { name: "Medipost", color: "#f59e0b" },
+  { name: "Lumière Global", color: "#ec4899" },
+  { name: "CIMC", color: "#3b82f6" },
+  { name: "2nd Level Solutions / Solaris", color: "#6366f1" },
+  { name: "Bayworld PE", color: "#10b981" },
+  { name: "Paris / International Sales", color: "#d97706" },
+  { name: "Acino / DSV", color: "#0ea5e9" },
+  { name: "Pfizer / Adriaan Fourie", color: "#a78bfa" },
+  { name: "ESBD Africa", color: "#f97316" },
+  { name: "Canterbury Square", color: "#6366f1" },
+  { name: "Financial & Admin", color: "#10b981" },
   { name: "James / Systems Development", color: "#ec4899" },
-  { name: "Tower Cold Chain / TBB", color: "#14b8a6" },
-  { name: "Andrea & Jason – Operational Leadership Transition", color: "#a78bfa" },
-  { name: "Opportunity Mapping / Sales Pipeline", color: "#ef4444" },
-  { name: "Second Level Solutions", color: "#6366f1" },
-  { name: "Leadership Transition", color: "#d97706" },
 ];
 
 const SPECIAL_ACCOUNTS = [
   { key: "finance", label: "💰 Finance", color: "#10b981" },
   { key: "personal", label: "👤 Personal", color: "#8b5cf6" },
+  { key: "esbd_africa", label: "🏢 ESBD Africa", color: "#f97316" },
+  { key: "property", label: "🏠 Property", color: "#6366f1" },
 ];
 
 const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
   date_received: TODAY(), owner: "Vanya", status: "To Do", priority: "Medium",
   expected_date: "", actual_date: "", next_action: "", notes: "", outcome: "", task_type: "Information Request",
-  project: "",
+  project: "", follow_up_date: "", follow_up_note: "",
   ...overrides,
 });
 
@@ -267,10 +277,13 @@ function CompanyDropdown({ value, onChange }) {
   );
 }
 
+// Global projects ref — updated by App when Supabase data loads
+let _projectsCache = STRATEGIC_PROJECTS_FALLBACK;
+
 // ── Project Dropdown ───────────────────────────────────────
 function ProjectDropdown({ value, onChange }) {
   const [open, setOpen] = useState(false);
-  const selected = STRATEGIC_PROJECTS.find(p => p.name === value);
+  const selected = _projectsCache.find(p => p.name === value);
   return (
     <div style={{ position:"relative" }}>
       <div onClick={() => setOpen(!open)} style={{ ...inp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -287,7 +300,7 @@ function ProjectDropdown({ value, onChange }) {
             onMouseLeave={e => e.currentTarget.style.background="none"}>
             — No project
           </div>
-          {STRATEGIC_PROJECTS.map(p => (
+          {_projectsCache.map(p => (
             <div key={p.name} onMouseDown={() => { onChange(p.name); setOpen(false); }}
               style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:p.color, borderBottom:"1px solid #2a2a4522", display:"flex", alignItems:"center", gap:8 }}
               onMouseEnter={e => e.currentTarget.style.background="#2a2a45"}
@@ -298,6 +311,124 @@ function ProjectDropdown({ value, onChange }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── AI Email / WhatsApp → Task Parser ─────────────────────
+function SmartIntake({ onTaskExtracted, onClose }) {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [inputType, setInputType] = useState("email");
+
+  const SYSTEM_PROMPT = `You are an operations assistant for ES Business Development (ESBD), a South African cold chain packaging company.
+Your job is to read an email or WhatsApp message and extract a structured task.
+
+Context you must know:
+- Vanya is the PA/Operations support. She handles admin, document prep, sourcing, follow-ups.
+- Sean is the owner/director. He handles client relationships, financial decisions, strategic calls.
+- Jason is National Operations Manager. He handles logistics, PQs, box movements.
+- Andrea is Sales and Operations Support. She handles HR, SOPs, operational admin.
+- Key clients/projects: Discovery Medical, Adcock Ingram, Aspen PLZ, Strategnos, Medipost, Lumière Global, CIMC, CJ Distribution, UPD, 2nd Level Solutions, Bayworld PE, Pfizer, GPAK SA.
+
+Rules:
+- owner: if Sean needs to make a decision, sign, pay, call, approve → "Sean". If it's admin/docs/sourcing/follow-up → "Vanya". If ops/logistics → "Jason". If HR/SOP → "Andrea".
+- status: "FYA" if Sean must act. "To Do" if Vanya/team must act. "FYI" if informational only. "Follow Up" if waiting on external party.
+- priority: "Urgent" if deadline today/tomorrow or money at risk. "High" if this week. "Medium" if next week. "Low" otherwise.
+- follow_up_date: only set if the email implies a specific follow-up date (e.g. "please respond by Friday", "call me next week"). Format: YYYY-MM-DD.
+- expected_date: the deadline for the action. Format: YYYY-MM-DD. Leave empty if not clear.
+- project: match to one of these exactly if applicable: Discovery Medical, Adcock Ingram, Aspen PLZ / Solaris Cargo, CJ Distribution, UPD, Strategnos, Medipost, Lumière Global, CIMC, 2nd Level Solutions / Solaris, Bayworld PE, Paris / International Sales, Acino / DSV, Pfizer / Adriaan Fourie, ESBD Africa, Canterbury Square, Financial & Admin, James / Systems Development. Leave empty if none match.
+
+Respond ONLY with a JSON object, no markdown, no explanation:
+{
+  "subject": "short task title (max 10 words)",
+  "client": "person name who sent or is involved",
+  "company": "company name",
+  "owner": "Sean|Vanya|Jason|Andrea",
+  "status": "To Do|FYA|Follow Up|FYI",
+  "priority": "Urgent|High|Medium|Low",
+  "next_action": "one clear sentence: what needs to happen next",
+  "notes": "2-3 sentence summary of the email/message context",
+  "expected_date": "YYYY-MM-DD or empty string",
+  "follow_up_date": "YYYY-MM-DD or empty string",
+  "follow_up_note": "what to check when following up, or empty string",
+  "project": "project name from the list or empty string",
+  "task_type": "Quote|Order Request|Information Request|Complaint|Follow-up|Internal Admin|FYI"
+}`;
+
+  const parse = async () => {
+    if (!text.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: `Please extract a task from this ${inputType === "email" ? "email" : "WhatsApp message"}:\n\n${text}` }]
+        })
+      });
+      const data = await res.json();
+      const raw = data.content?.[0]?.text || "";
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      onTaskExtracted(parsed);
+    } catch (e) {
+      setError("Could not parse the message. Please check the format and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+        <div>
+          <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#e2e8f0" }}>✨ Smart Intake</h2>
+          <div style={{ fontSize:12,color:"#6b7280",marginTop:4 }}>Paste an email or WhatsApp message — Claude will extract the task automatically</div>
+        </div>
+        <button onClick={onClose} style={{ background:"none",border:"none",color:"#6b7280",cursor:"pointer",fontSize:20 }}>✕</button>
+      </div>
+
+      {/* Type toggle */}
+      <div style={{ display:"flex",gap:8,marginBottom:16 }}>
+        {["email","whatsapp"].map(t => (
+          <button key={t} onClick={() => setInputType(t)}
+            style={{ padding:"8px 18px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+              background:inputType===t?(t==="email"?"#0891b2":"#10b981"):"#1e1e35",
+              color:inputType===t?"#fff":"#6b7280" }}>
+            {t === "email" ? "📧 Email" : "💬 WhatsApp"}
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder={inputType === "email"
+          ? "Paste the full email here (including From, Subject, body)..."
+          : "Paste the WhatsApp message(s) here..."}
+        style={{ width:"100%",minHeight:220,background:"#0d0d1a",border:"1px solid #2a2a45",borderRadius:10,color:"#e2e8f0",fontSize:13,padding:14,resize:"vertical",fontFamily:"monospace",lineHeight:1.6,boxSizing:"border-box" }}
+      />
+
+      {error && (
+        <div style={{ marginTop:10,padding:"10px 14px",background:"#7f1d1d22",border:"1px solid #ef444466",borderRadius:8,color:"#fca5a5",fontSize:13 }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ marginTop:16,display:"flex",gap:10,justifyContent:"flex-end",alignItems:"center" }}>
+        {loading && <div style={{ fontSize:13,color:"#9ca3af" }}>⏳ Claude is reading the message...</div>}
+        <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer" }}>Cancel</button>
+        <button onClick={parse} disabled={loading || !text.trim()}
+          style={{ padding:"10px 24px",background:loading||!text.trim()?"#2a2a45":"linear-gradient(135deg,#0891b2,#6366f1)",border:"none",borderRadius:8,color:loading||!text.trim()?"#4b5563":"#fff",cursor:loading||!text.trim()?"not-allowed":"pointer",fontWeight:700,fontSize:14 }}>
+          {loading ? "Extracting..." : "✨ Extract Task"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -324,7 +455,9 @@ function TaskForm({ initial, onSave, onClose }) {
         <Field label="Priority"><select style={inp} value={form.priority} onChange={(e)=>set("priority",e.target.value)}>{PRIORITIES.map(p=><option key={p}>{p}</option>)}</select></Field>
         <Field label="Task Type"><select style={inp} value={form.task_type} onChange={(e)=>set("task_type",e.target.value)}>{TASK_TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
         <Field label="Expected Date" required><input type="date" style={inp} value={form.expected_date} onChange={(e)=>set("expected_date",e.target.value)} /></Field>
+        <Field label="🔔 Follow-up Date"><input type="date" style={inp} value={form.follow_up_date||""} onChange={(e)=>set("follow_up_date",e.target.value)} title="Set a reminder date — appears in Today's Actions on that day" /></Field>
         <div style={{ gridColumn:"1/-1" }}><Field label="Next Action" required><input style={inp} value={form.next_action} onChange={(e)=>set("next_action",e.target.value)} /></Field></div>
+        {form.follow_up_date && <div style={{ gridColumn:"1/-1" }}><Field label="Follow-up Note"><input style={inp} value={form.follow_up_note||""} onChange={(e)=>set("follow_up_note",e.target.value)} placeholder="What to check or ask when you follow up..." /></Field></div>}
         <div style={{ gridColumn:"1/-1" }}><Field label="Notes"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes} onChange={(e)=>set("notes",e.target.value)} placeholder="Add context, details or background..." /></Field></div>
         {form.status === "Done" && <div style={{ gridColumn:"1/-1" }}><Field label="Outcome"><input style={inp} value={form.outcome} onChange={(e)=>set("outcome",e.target.value)} /></Field></div>}
       </div>
@@ -406,8 +539,8 @@ function TaskCard({ task, onClick, compact, onComplete }) {
             <span style={{ fontSize:11,padding:"2px 8px",borderRadius:99,background:STATUS_COLOR[task.status]+"33",color:STATUS_COLOR[task.status],fontWeight:700 }}>{STATUS_EMOJI[task.status]} {task.status}</span>
             <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:PRIORITY_COLOR[task.priority]+"22",color:PRIORITY_COLOR[task.priority],fontWeight:600 }}>{task.priority}</span>
             {over && <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:"#7f1d1d",color:"#fca5a5",fontWeight:600 }}>OVERDUE</span>}
-            {task.project && !compact && STRATEGIC_PROJECTS.find(x=>x.name===task.project) && (
-              <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:(STRATEGIC_PROJECTS.find(x=>x.name===task.project).color)+"22",color:STRATEGIC_PROJECTS.find(x=>x.name===task.project).color,fontWeight:600 }}>📋 {task.project}</span>
+            {task.project && !compact && _projectsCache.find(x=>x.name===task.project) && (
+              <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:(_projectsCache.find(x=>x.name===task.project).color)+"22",color:_projectsCache.find(x=>x.name===task.project).color,fontWeight:600 }}>📋 {task.project}</span>
             )}
           </div>
           <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{task.subject||"Untitled"}</div>
@@ -944,7 +1077,7 @@ function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy })
   const getProjectTasks = (name) => tasks.filter(t => t.project === name);
 
   if (selectedProject) {
-    const proj = STRATEGIC_PROJECTS.find(p => p.name === selectedProject);
+    const proj = _projectsCache.find(p => p.name === selectedProject);
     const allTasks = getProjectTasks(selectedProject);
     const filtered = statusFilter === "All" ? allTasks : allTasks.filter(t => t.status === statusFilter);
     const sorted = sortTasks(filtered, sortBy);
@@ -1004,7 +1137,7 @@ function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy })
         <div style={{ fontSize:12, color:"#6b7280" }}>{tasks.filter(t=>t.project&&t.status!=="Done").length} active project tasks</div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
-        {STRATEGIC_PROJECTS.map(proj => (
+        {_projectsCache.map(proj => (
             <div key={proj.name} onClick={()=>setSelectedProject(proj.name)}
               style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderTop:"3px solid "+proj.color, borderRadius:12, padding:"16px 18px", cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
               onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
@@ -1179,12 +1312,15 @@ export default function App() {
   const [seanWeek, setSeanWeek] = useState([]);
   const [inboxTriage, setInboxTriage] = useState([]);
   const [flags, setFlags] = useState([]);
+  const [projects, setProjects] = useState(STRATEGIC_PROJECTS_FALLBACK);
+  const [reminders, setReminders] = useState([]);
   const [view, setView] = useState("dashboard");
   const [modalTask, setModalTask] = useState(null);
   const [modalLead, setModalLead] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSmartIntake, setShowSmartIntake] = useState(false);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("urgency");
   const [status, setStatus] = useState("Connecting…");
@@ -1220,19 +1356,31 @@ export default function App() {
     if (data) setFlags(data);
   }, []);
 
+  const loadProjects = useCallback(async () => {
+    const { data } = await supabase.from("projects").select("*").order("name", { ascending: true });
+    if (data && data.length > 0) { setProjects(data); _projectsCache = data; }
+  }, []);
+
+  const loadReminders = useCallback(async () => {
+    const { data } = await supabase.from("reminders").select("*").eq("completed", false).order("remind_date", { ascending: true });
+    if (data) setReminders(data);
+  }, []);
+
   useEffect(() => {
-    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags();
+    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadProjects(); loadReminders();
     const taskCh = supabase.channel("tasks-ch").on("postgres_changes",{event:"*",schema:"public",table:"tasks"},loadTasks).subscribe();
     const leadCh = supabase.channel("leads-ch").on("postgres_changes",{event:"*",schema:"public",table:"leads"},loadLeads).subscribe();
     const weekCh = supabase.channel("week-ch").on("postgres_changes",{event:"*",schema:"public",table:"sean_week"},loadSeanWeek).subscribe();
     const inboxCh = supabase.channel("inbox-ch").on("postgres_changes",{event:"*",schema:"public",table:"inbox_triage"},loadInboxTriage).subscribe();
     const flagsCh = supabase.channel("flags-ch").on("postgres_changes",{event:"*",schema:"public",table:"flags"},loadFlags).subscribe();
-    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); }, 30000);
-    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(flagsCh); clearInterval(interval); };
-  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags]);
+    const projCh = supabase.channel("projects-ch").on("postgres_changes",{event:"*",schema:"public",table:"projects"},loadProjects).subscribe();
+    const remCh = supabase.channel("reminders-ch").on("postgres_changes",{event:"*",schema:"public",table:"reminders"},loadReminders).subscribe();
+    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadReminders(); }, 30000);
+    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(flagsCh); supabase.removeChannel(projCh); supabase.removeChannel(remCh); clearInterval(interval); };
+  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags, loadProjects, loadReminders]);
 
   const upsertTask = async (form) => {
-    const payload = { subject:form.subject, client:normaliseName(form.client), company:normaliseName(form.company), email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type, project:form.project||null };
+    const payload = { subject:form.subject, client:normaliseName(form.client), company:normaliseName(form.company), email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type, project:form.project||null, follow_up_date:form.follow_up_date||null, follow_up_note:form.follow_up_note||null };
     if (form.id) {
       const original = tasks.find(t => t.id === form.id);
       const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
@@ -1323,8 +1471,16 @@ export default function App() {
   const followUpDueToday = dueToday.filter(t => t.status === "Follow Up");
   const activeProjectTasks = tasks.filter(t=>t.project&&t.status!=="Done").length;
 
+  // ── Follow-up & Reminder Notifications ──────────────────
+  const followUpTasksToday = tasks.filter(t => t.status !== "Done" && t.follow_up_date === todayStr);
+  const followUpTasksOverdue = tasks.filter(t => t.status !== "Done" && t.follow_up_date && t.follow_up_date < todayStr);
+  const remindersToday = reminders.filter(r => !r.completed && r.remind_date === todayStr);
+  const remindersOverdue = reminders.filter(r => !r.completed && r.remind_date < todayStr);
+  const todayAlertCount = followUpTasksToday.length + followUpTasksOverdue.length + remindersToday.length + remindersOverdue.length + dueToday.length;
+
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
+    { id:"today", label:"Today's Actions", icon:"🔔", count: todayAlertCount },
     { id:"projects", label:"Projects", icon:"📋", count: activeProjectTasks },
     { id:"accounts", label:"Accounts", icon:"🏢", count: totalAccounts },
     { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length, group:"tasks" },
@@ -1359,7 +1515,7 @@ export default function App() {
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#1e1e35":"none",color:view===v.id?"#0891b2":"#6b7280",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
             <span style={{ flex:1 }}>{v.label}</span>
-            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="projects"?"#d97706":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="projects"?"#fff":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11 }}>{v.count}</span>}
+            {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="today"?"#7f1d1d":v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="projects"?"#d97706":v.id==="accounts"?"#0891b233":"#2a2a45",color:v.id==="today"?"#fca5a5":v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="projects"?"#fff":v.id==="accounts"?"#0891b2":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:v.id==="today"?700:400 }}>{v.count}</span>}
           </button>
         ))}
         {/* Tasks collapsible group */}
@@ -1389,6 +1545,7 @@ export default function App() {
         <button onClick={()=>setShowNotes(!showNotes)} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #1e3a8a",borderRadius:8,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📝 Quick Notes</button>
         <button onClick={()=>setShowSummary(true)} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #2a2a45",borderRadius:8,color:"#0891b2",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📋 Daily Summary</button>
         <button onClick={()=>setModalTask({})} style={{ width:"100%",padding:"10px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ New Task</button>
+        <button onClick={()=>setShowSmartIntake(true)} style={{ width:"100%",padding:"10px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,marginTop:6 }}>✨ Smart Intake</button>
       </div>
     </div>
   );
@@ -1466,6 +1623,107 @@ export default function App() {
           </div>
           <div style={{ flex:1,overflowY:"auto",padding:28 }}>
 
+            {view==="today" && (
+              <div>
+                <div style={{ marginBottom:24 }}>
+                  <h1 style={{ margin:0,fontSize:24,fontWeight:800,color:"#e2e8f0" }}>🔔 Today's Actions</h1>
+                  <div style={{ fontSize:13,color:"#6b7280",marginTop:4 }}>{new Date().toLocaleDateString("en-ZA",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+                </div>
+
+                {todayAlertCount === 0 && (
+                  <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}>
+                    <div style={{ fontSize:48,marginBottom:16 }}>✅</div>
+                    <div style={{ fontSize:18,fontWeight:700,color:"#e2e8f0" }}>All clear!</div>
+                    <div style={{ fontSize:14,color:"#6b7280",marginTop:8 }}>Nothing due or overdue today.</div>
+                  </div>
+                )}
+
+                {(remindersOverdue.length > 0 || remindersToday.length > 0) && (
+                  <div style={{ marginBottom:24 }}>
+                    <div style={{ fontSize:13,fontWeight:700,color:"#ef4444",marginBottom:12,textTransform:"uppercase",letterSpacing:1 }}>
+                      📅 Reminders {remindersOverdue.length > 0 ? `(${remindersOverdue.length} overdue)` : ""}
+                    </div>
+                    {[...remindersOverdue, ...remindersToday].map(r => (
+                      <div key={r.id} style={{ background:r.remind_date < todayStr ? "#7f1d1d22" : "#0c1a0c", border:`1px solid ${r.remind_date < todayStr ? "#ef444466" : "#10b98166"}`, borderRadius:10, padding:"14px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4 }}>{r.title}</div>
+                          {r.description && <div style={{ fontSize:12,color:"#9ca3af" }}>{r.description}</div>}
+                          <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
+                            <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>👤 {r.owner}</span>
+                            <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>🏷 {r.category}</span>
+                            <span style={{ fontSize:11,borderRadius:99,padding:"2px 8px",background:r.remind_date < todayStr?"#7f1d1d":"#14532d",color:r.remind_date < todayStr?"#fca5a5":"#86efac",fontWeight:700 }}>
+                              {r.remind_date < todayStr ? "⚠ Overdue" : "📅 Today"}
+                            </span>
+                          </div>
+                        </div>
+                        <button onClick={async () => { await supabase.from("reminders").update({completed:true}).eq("id",r.id); loadReminders(); }}
+                          style={{ background:"#10b981",border:"none",borderRadius:8,color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0 }}>
+                          ✓ Done
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(followUpTasksOverdue.length > 0 || followUpTasksToday.length > 0) && (
+                  <div style={{ marginBottom:24 }}>
+                    <div style={{ fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:12,textTransform:"uppercase",letterSpacing:1 }}>
+                      🔔 Task Follow-ups {followUpTasksOverdue.length > 0 ? `(${followUpTasksOverdue.length} overdue)` : ""}
+                    </div>
+                    {[...followUpTasksOverdue,...followUpTasksToday].map(t => (
+                      <div key={t.id} onClick={() => setModalTask(t)}
+                        style={{ background:t.follow_up_date < todayStr?"#7f1d1d22":"#1a1a2e", border:`1px solid ${t.follow_up_date < todayStr?"#ef444466":"#f59e0b66"}`, borderRadius:10, padding:"14px 16px", marginBottom:10, cursor:"pointer" }}
+                        onMouseEnter={e=>e.currentTarget.style.background=t.follow_up_date<todayStr?"#7f1d1d33":"#2a2a45"}
+                        onMouseLeave={e=>e.currentTarget.style.background=t.follow_up_date<todayStr?"#7f1d1d22":"#1a1a2e"}>
+                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4 }}>{t.subject}</div>
+                            {t.follow_up_note && <div style={{ fontSize:12,color:"#f59e0b",marginBottom:6,fontStyle:"italic" }}>💬 {t.follow_up_note}</div>}
+                            {t.next_action && <div style={{ fontSize:12,color:"#9ca3af" }}>→ {t.next_action}</div>}
+                            <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
+                              <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>👤 {t.owner}</span>
+                              {t.client && <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>{t.client}</span>}
+                              {t.company && <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>{t.company}</span>}
+                            </div>
+                          </div>
+                          <span style={{ fontSize:11,borderRadius:99,padding:"2px 8px",background:t.follow_up_date<todayStr?"#7f1d1d":"#78350f",color:t.follow_up_date<todayStr?"#fca5a5":"#fde68a",fontWeight:700,flexShrink:0,marginLeft:8 }}>
+                            {t.follow_up_date < todayStr ? "⚠ Overdue" : "🔔 Today"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {dueToday.length > 0 && (
+                  <div style={{ marginBottom:24 }}>
+                    <div style={{ fontSize:13,fontWeight:700,color:"#0891b2",marginBottom:12,textTransform:"uppercase",letterSpacing:1 }}>
+                      📋 Tasks Due Today ({dueToday.length})
+                    </div>
+                    {dueToday.map(t => (
+                      <div key={t.id} onClick={() => setModalTask(t)}
+                        style={{ background:"#1a1a2e",border:"1px solid #0891b266",borderRadius:10,padding:"14px 16px",marginBottom:10,cursor:"pointer" }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#2a2a45"}
+                        onMouseLeave={e=>e.currentTarget.style.background="#1a1a2e"}>
+                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4 }}>{t.subject}</div>
+                            {t.next_action && <div style={{ fontSize:12,color:"#9ca3af" }}>→ {t.next_action}</div>}
+                            <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
+                              <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>👤 {t.owner}</span>
+                              {t.client && <span style={{ fontSize:11,background:"#2a2a45",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>{t.client}</span>}
+                              <span style={{ fontSize:11,borderRadius:99,padding:"2px 8px",background:STATUS_COLOR[t.status]+"33",color:STATUS_COLOR[t.status],fontWeight:600 }}>{t.status}</span>
+                            </div>
+                          </div>
+                          <span style={{ fontSize:11,background:PRIORITY_COLOR[t.priority]+"33",color:PRIORITY_COLOR[t.priority],borderRadius:99,padding:"2px 8px",fontWeight:700,flexShrink:0,marginLeft:8 }}>{t.priority}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {view==="dashboard" && (
               <div>
                 {unseenFlags.length > 0 && (
@@ -1493,7 +1751,7 @@ export default function App() {
                     <span style={{ fontSize:24 }}>📋</span>
                     <div>
                       <div style={{ fontSize:14,fontWeight:700,color:"#d97806" }}>{activeProjectTasks} active strategic project tasks</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{STRATEGIC_PROJECTS.filter(p=>tasks.some(t=>t.project===p.name&&t.status!=="Done")).length} of 12 workstreams in progress — click to view</div>
+                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{projects.filter(p=>tasks.some(t=>t.project===p.name&&t.status!=="Done")).length} of {projects.length} workstreams in progress — click to view</div>
                     </div>
                     <span style={{ marginLeft:"auto",color:"#d97806",fontSize:18 }}>→</span>
                   </div>
@@ -1701,6 +1959,20 @@ export default function App() {
 
       {showSummary && <SummaryModal tasks={tasks} onClose={()=>setShowSummary(false)} />}
       {showNotes && <StickyNote onClose={()=>setShowNotes(false)} />}
+
+      {showSmartIntake && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 20px",overflowY:"auto" }}>
+          <div style={{ background:"#12122a",borderRadius:16,padding:32,width:"100%",maxWidth:680,boxShadow:"0 24px 64px rgba(0,0,0,0.6)",border:"1px solid #2a2a45" }}>
+            <SmartIntake
+              onClose={() => setShowSmartIntake(false)}
+              onTaskExtracted={(extracted) => {
+                setShowSmartIntake(false);
+                setModalTask({ ...newTask(), ...extracted });
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
