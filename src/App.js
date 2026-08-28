@@ -315,124 +315,6 @@ function ProjectDropdown({ value, onChange }) {
   );
 }
 
-// ── AI Email / WhatsApp → Task Parser ─────────────────────
-function SmartIntake({ onTaskExtracted, onClose }) {
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [inputType, setInputType] = useState("email");
-
-  const SYSTEM_PROMPT = `You are an operations assistant for ES Business Development (ESBD), a South African cold chain packaging company.
-Your job is to read an email or WhatsApp message and extract a structured task.
-
-Context you must know:
-- Vanya is the PA/Operations support. She handles admin, document prep, sourcing, follow-ups.
-- Sean is the owner/director. He handles client relationships, financial decisions, strategic calls.
-- Jason is National Operations Manager. He handles logistics, PQs, box movements.
-- Andrea is Sales and Operations Support. She handles HR, SOPs, operational admin.
-- Key clients/projects: Discovery Medical, Adcock Ingram, Aspen PLZ, Strategnos, Medipost, Lumière Global, CIMC, CJ Distribution, UPD, 2nd Level Solutions, Bayworld PE, Pfizer, GPAK SA.
-
-Rules:
-- owner: if Sean needs to make a decision, sign, pay, call, approve → "Sean". If it's admin/docs/sourcing/follow-up → "Vanya". If ops/logistics → "Jason". If HR/SOP → "Andrea".
-- status: "FYA" if Sean must act. "To Do" if Vanya/team must act. "FYI" if informational only. "Follow Up" if waiting on external party.
-- priority: "Urgent" if deadline today/tomorrow or money at risk. "High" if this week. "Medium" if next week. "Low" otherwise.
-- follow_up_date: only set if the email implies a specific follow-up date (e.g. "please respond by Friday", "call me next week"). Format: YYYY-MM-DD.
-- expected_date: the deadline for the action. Format: YYYY-MM-DD. Leave empty if not clear.
-- project: match to one of these exactly if applicable: Discovery Medical, Adcock Ingram, Aspen PLZ / Solaris Cargo, CJ Distribution, UPD, Strategnos, Medipost, Lumière Global, CIMC, 2nd Level Solutions / Solaris, Bayworld PE, Paris / International Sales, Acino / DSV, Pfizer / Adriaan Fourie, ESBD Africa, Canterbury Square, Financial & Admin, James / Systems Development. Leave empty if none match.
-
-Respond ONLY with a JSON object, no markdown, no explanation:
-{
-  "subject": "short task title (max 10 words)",
-  "client": "person name who sent or is involved",
-  "company": "company name",
-  "owner": "Sean|Vanya|Jason|Andrea",
-  "status": "To Do|FYA|Follow Up|FYI",
-  "priority": "Urgent|High|Medium|Low",
-  "next_action": "one clear sentence: what needs to happen next",
-  "notes": "2-3 sentence summary of the email/message context",
-  "expected_date": "YYYY-MM-DD or empty string",
-  "follow_up_date": "YYYY-MM-DD or empty string",
-  "follow_up_note": "what to check when following up, or empty string",
-  "project": "project name from the list or empty string",
-  "task_type": "Quote|Order Request|Information Request|Complaint|Follow-up|Internal Admin|FYI"
-}`;
-
-  const parse = async () => {
-    if (!text.trim()) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: `Please extract a task from this ${inputType === "email" ? "email" : "WhatsApp message"}:\n\n${text}` }]
-        })
-      });
-      const data = await res.json();
-      const raw = data.content?.[0]?.text || "";
-      const clean = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      onTaskExtracted(parsed);
-    } catch (e) {
-      setError("Could not parse the message. Please check the format and try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-        <div>
-          <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#e2e8f0" }}>✨ Smart Intake</h2>
-          <div style={{ fontSize:12,color:"#6b7280",marginTop:4 }}>Paste an email or WhatsApp message — Claude will extract the task automatically</div>
-        </div>
-        <button onClick={onClose} style={{ background:"none",border:"none",color:"#6b7280",cursor:"pointer",fontSize:20 }}>✕</button>
-      </div>
-
-      {/* Type toggle */}
-      <div style={{ display:"flex",gap:8,marginBottom:16 }}>
-        {["email","whatsapp"].map(t => (
-          <button key={t} onClick={() => setInputType(t)}
-            style={{ padding:"8px 18px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
-              background:inputType===t?(t==="email"?"#0891b2":"#10b981"):"#1e1e35",
-              color:inputType===t?"#fff":"#6b7280" }}>
-            {t === "email" ? "📧 Email" : "💬 WhatsApp"}
-          </button>
-        ))}
-      </div>
-
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder={inputType === "email"
-          ? "Paste the full email here (including From, Subject, body)..."
-          : "Paste the WhatsApp message(s) here..."}
-        style={{ width:"100%",minHeight:220,background:"#0d0d1a",border:"1px solid #2a2a45",borderRadius:10,color:"#e2e8f0",fontSize:13,padding:14,resize:"vertical",fontFamily:"monospace",lineHeight:1.6,boxSizing:"border-box" }}
-      />
-
-      {error && (
-        <div style={{ marginTop:10,padding:"10px 14px",background:"#7f1d1d22",border:"1px solid #ef444466",borderRadius:8,color:"#fca5a5",fontSize:13 }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ marginTop:16,display:"flex",gap:10,justifyContent:"flex-end",alignItems:"center" }}>
-        {loading && <div style={{ fontSize:13,color:"#9ca3af" }}>⏳ Claude is reading the message...</div>}
-        <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer" }}>Cancel</button>
-        <button onClick={parse} disabled={loading || !text.trim()}
-          style={{ padding:"10px 24px",background:loading||!text.trim()?"#2a2a45":"linear-gradient(135deg,#0891b2,#6366f1)",border:"none",borderRadius:8,color:loading||!text.trim()?"#4b5563":"#fff",cursor:loading||!text.trim()?"not-allowed":"pointer",fontWeight:700,fontSize:14 }}>
-          {loading ? "Extracting..." : "✨ Extract Task"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function TaskForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({ ...newTask(), ...initial });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1320,7 +1202,6 @@ export default function App() {
   const [showSummary, setShowSummary] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showSmartIntake, setShowSmartIntake] = useState(false);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("urgency");
   const [status, setStatus] = useState("Connecting…");
@@ -1545,7 +1426,6 @@ export default function App() {
         <button onClick={()=>setShowNotes(!showNotes)} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #1e3a8a",borderRadius:8,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📝 Quick Notes</button>
         <button onClick={()=>setShowSummary(true)} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #2a2a45",borderRadius:8,color:"#0891b2",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📋 Daily Summary</button>
         <button onClick={()=>setModalTask({})} style={{ width:"100%",padding:"10px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ New Task</button>
-        <button onClick={()=>setShowSmartIntake(true)} style={{ width:"100%",padding:"10px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,marginTop:6 }}>✨ Smart Intake</button>
       </div>
     </div>
   );
@@ -1959,20 +1839,6 @@ export default function App() {
 
       {showSummary && <SummaryModal tasks={tasks} onClose={()=>setShowSummary(false)} />}
       {showNotes && <StickyNote onClose={()=>setShowNotes(false)} />}
-
-      {showSmartIntake && (
-        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 20px",overflowY:"auto" }}>
-          <div style={{ background:"#12122a",borderRadius:16,padding:32,width:"100%",maxWidth:680,boxShadow:"0 24px 64px rgba(0,0,0,0.6)",border:"1px solid #2a2a45" }}>
-            <SmartIntake
-              onClose={() => setShowSmartIntake(false)}
-              onTaskExtracted={(extracted) => {
-                setShowSmartIntake(false);
-                setModalTask({ ...newTask(), ...extracted });
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
