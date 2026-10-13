@@ -1176,6 +1176,13 @@ export default function App() {
   const [sortBy, setSortBy] = useState("duedate");
   const [status, setStatus] = useState("Connecting…");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Phone layout: below 820px the menu lives behind ☰ instead of taking a third of the screen.
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 820);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 820);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [seenTaskIds, setSeenTaskIds] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }
   });
@@ -1368,7 +1375,7 @@ export default function App() {
   const [tasksExpanded, setTasksExpanded] = useState(false);
 
   const Sidebar = (
-    <div style={{ width:220,background:"#08202c",borderRight:"1px solid #10364a",padding:"24px 12px",display:"flex",flexDirection:"column",height:"100%" }}>
+    <div style={{ width:isMobile?"100%":220,background:"#08202c",borderRight:"1px solid #10364a",padding:isMobile?"16px 10px":"24px 12px",display:"flex",flexDirection:"column",minHeight:"100%" }}>
       <div style={{ padding:"0 8px 24px",borderBottom:"1px solid #10364a" }}>
         <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:120,marginBottom:6 }} />
         <div style={{ fontSize:11,color:"#6a8090",marginTop:2 }}>Operations Tracker</div>
@@ -1407,6 +1414,7 @@ export default function App() {
           <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:status==="Live"?"#10b981":status==="Connecting…"?"#f59e0b":"#ef4444",marginRight:6,verticalAlign:"middle" }} />{status}
         </div>
         {signOut && <div style={{ fontSize:11,color:"#7f93a1",textAlign:"center",marginBottom:8 }}>Signed in as {me} · <button onClick={signOut} style={{ background:"none",border:"none",color:"#118fb5",cursor:"pointer",fontSize:11 }}>Sign out</button></div>}
+        <a href="/sean" style={{ display:"block",textAlign:"center",padding:"8px",background:"#10364a",border:"1px solid #18b9dc",borderRadius:8,color:"#5ccee8",fontSize:12,fontWeight:600,marginBottom:8,textDecoration:"none" }}>📱 Sean's phone view</a>
         <button onClick={()=>setCommDraft({})} style={{ width:"100%",padding:"8px",background:"#10364a",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>✉️ Log Communication</button>
         <button onClick={()=>setShowNotes(!showNotes)} style={{ width:"100%",padding:"8px",background:"#10364a",border:"1px solid #1e3a8a",borderRadius:8,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📝 Quick Notes</button>
         <button onClick={()=>setShowSummary(true)} style={{ width:"100%",padding:"8px",background:"#10364a",border:"1px solid #1b4a60",borderRadius:8,color:"#118fb5",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📋 Daily Summary</button>
@@ -1419,18 +1427,18 @@ export default function App() {
     <div style={{ minHeight:"100vh",background:"#0a2432",color:"#e2e8f0",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column" }}>
       <style>{`*{box-sizing:border-box;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#0a2432;} ::-webkit-scrollbar-thumb{background:#1b4a60;border-radius:3px;} select option{background:#10364a;}`}</style>
 
-      <div style={{ display:"flex",alignItems:"center",padding:"14px 16px",borderBottom:"1px solid #10364a",background:"#08202c",gap:12 }}>
-        <button onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"6px 10px",fontSize:16 }}>☰</button>
-        <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1 }}>{VIEWS.find(v=>v.id===view)?.label}</span>
-        <button onClick={()=>setShowNotes(!showNotes)} style={{ padding:"7px 12px",background:"none",border:"1px solid #1e3a8a",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600 }}>📝</button>
-        <button onClick={()=>setShowSummary(true)} style={{ padding:"7px 12px",background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#118fb5",cursor:"pointer",fontSize:12,fontWeight:600 }}>📋</button>
+      <div style={{ display:"flex",alignItems:"center",padding:isMobile?"10px 10px":"14px 16px",borderBottom:"1px solid #10364a",background:"#08202c",gap:isMobile?6:12 }}>
+        <button aria-label="Menu" onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"6px 10px",fontSize:16,display:isMobile?"block":"none" }}>☰</button>
+        <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{VIEWS.find(v=>v.id===view)?.label}</span>
+        <button aria-label="Quick notes" onClick={()=>setShowNotes(!showNotes)} style={{ padding:isMobile?"7px 8px":"7px 12px",background:"none",border:"1px solid #1e3a8a",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600 }}>📝</button>
+        <button aria-label="Summary" onClick={()=>setShowSummary(true)} style={{ display:isMobile?"none":"block",padding:"7px 12px",background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#118fb5",cursor:"pointer",fontSize:12,fontWeight:600 }}>📋</button>
         <div style={{ position:"relative" }}>
           <button onClick={()=>setShowNotifications(!showNotifications)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
             🔔
             {newTasks.length>0 && <span style={{ position:"absolute",top:-6,right:-6,background:"#ef4444",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center" }}>{newTasks.length}</span>}
           </button>
           {showNotifications && (
-            <div style={{ position:"absolute",top:42,right:0,width:300,background:"#0b2735",border:"1px solid #1b4a60",borderRadius:12,zIndex:800,boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
+            <div style={{ position:"absolute",top:42,right:isMobile?-60:0,width:isMobile?"min(300px, calc(100vw - 20px))":300,background:"#0b2735",border:"1px solid #1b4a60",borderRadius:12,zIndex:800,boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
               <div style={{ padding:"10px 14px",borderBottom:"1px solid #1b4a60",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                 <span style={{ fontSize:13,fontWeight:700,color:"#e2e8f0" }}>🔔 New Today</span>
                 <button onClick={markAllSeen} style={{ background:"none",border:"none",color:"#118fb5",cursor:"pointer",fontSize:11 }}>Mark all seen</button>
@@ -1464,21 +1472,21 @@ export default function App() {
             📊 {unreadReports.length}
           </button>
         )}
-        <button onClick={()=>setModalTask({})} style={{ padding:"7px 14px",background:"#118fb5",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>+ New</button>
+        <button onClick={()=>setModalTask({})} style={{ padding:isMobile?"7px 10px":"7px 14px",background:"#118fb5",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>+ New</button>
       </div>
 
       <div style={{ flex:1,display:"flex",overflow:"hidden" }}>
-        <div style={{ display:"flex",flexDirection:"column" }}>{Sidebar}</div>
+        {!isMobile && <div style={{ display:"flex",flexDirection:"column" }}>{Sidebar}</div>}
         {sidebarOpen && (
           <div style={{ position:"fixed",inset:0,zIndex:500,display:"flex" }} onClick={()=>setSidebarOpen(false)}>
-            <div style={{ width:240,height:"100%",background:"#08202c" }} onClick={e=>e.stopPropagation()}>{Sidebar}</div>
+            <div style={{ width:260,maxWidth:"85vw",height:"100%",background:"#08202c",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>{Sidebar}</div>
             <div style={{ flex:1,background:"rgba(0,0,0,0.5)" }} />
           </div>
         )}
-        <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-          <div style={{ padding:"14px 20px",borderBottom:"1px solid #10364a",background:"#08202c",display:"flex",alignItems:"center",gap:12 }}>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp,maxWidth:280,padding:"8px 14px" }} />
-            <div style={{ display:"flex",gap:6,marginLeft:"auto" }}>
+        <div style={{ flex:1,minWidth:0,display:"flex",flexDirection:"column",overflow:"hidden" }}>
+          <div style={{ padding:isMobile?"10px 12px":"14px 20px",borderBottom:"1px solid #10364a",background:"#08202c",display:"flex",alignItems:"center",gap:isMobile?8:12,flexWrap:isMobile?"wrap":"nowrap" }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp,maxWidth:isMobile?"none":280,flex:isMobile?"1 1 100%":"0 1 auto",padding:"8px 14px" }} />
+            <div style={{ display:"flex",gap:6,marginLeft:isMobile?0:"auto",overflowX:"auto",maxWidth:"100%" }}>
               {[{id:"urgency",label:"🔥 Urgency"},{id:"duedate",label:"📅 Due Date"},{id:"recent",label:"🕐 Recent"}].map(s=>(
                 <button key={s.id} onClick={()=>setSortBy(s.id)} style={{ padding:"7px 12px",background:sortBy===s.id?"#118fb522":"none",border:`1px solid ${sortBy===s.id?"#118fb5":"#1b4a60"}`,borderRadius:7,color:sortBy===s.id?"#118fb5":"#7f93a1",cursor:"pointer",fontSize:12,fontWeight:sortBy===s.id?700:400,whiteSpace:"nowrap" }}>
                   {s.label}
@@ -1486,7 +1494,7 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div style={{ flex:1,overflowY:"auto",padding:28 }}>
+          <div style={{ flex:1,overflowY:"auto",overflowX:"hidden",padding:isMobile?"14px 12px":28 }}>
 
             {view==="today" && (
               <div>
