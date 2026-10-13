@@ -1,0 +1,177 @@
+import "@testing-library/jest-dom";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { makeSupabaseMock } from "../testUtils/supabaseMock";
+import { todayISO, addDays } from "../lib/hub";
+
+const T = todayISO();
+const mock = makeSupabaseMock({});
+jest.mock("../supabase", () => ({ get supabase() { return mock.client; } }));
+// Login flag is read through the config module; tests switch it via global.__HUB_AUTH.
+jest.mock("../lib/config", () => ({ __esModule: true, get AUTH_ENABLED() { return global.__HUB_AUTH === true; }, DEFAULT_USER: "Vanya" }));
+
+const companies = [{ id: 1, name: "UPD (Clicks Group)", relationship_types: ["client"], status: "Active", aliases: ["Upd"] }];
+const leads = [
+  { id: 10, name: "UPD March 2027 renewal", company: "UPD (Clicks Group)", company_id: 1, pipeline_stage: "Proposal / Quotation", owner: "Sean", next_action: "Prepare proposal", follow_up_date: T, value_amount: 100000, currency: "ZAR", created_at: "2026-10-01" },
+  { id: 11, name: "Acino quote", pipeline_stage: "Proposal / Quotation", owner: "Sean", currency: "EUR", value_amount: 5000, next_action: "Await reply", follow_up_date: addDays(T, 20), created_at: "2026-10-01" },
+  { id: 12, name: "Discovery DMS-JHB-5", pipeline_stage: "Won", value_amount: 51720, currency: "ZAR", value_basis: "per month", created_at: "2026-08-01" },
+  { id: 13, name: "Avio", pipeline_stage: "On Hold / Nurture", review_date: addDays(T, 3), hold_reason: "Their project", next_action: "They'll contact us", created_at: "2026-03-01" },
+];
+const tasks = [
+  { id: 1, subject: "Approve UPD quotation", owner: "Sean", action_state: "Our action", status: "FYA", expected_date: addDays(T, -2), priority: "High", next_action: "Approve" },
+  { id: 2, subject: "Supplier delivery update", owner: "Vanya", action_state: "Awaiting response", status: "Follow Up", waiting_on: "CIMC", follow_up_date: T },
+  { id: 3, subject: "Vanya prepared the quote", owner: "Vanya", action_state: "Completed", status: "Done", completed_at: "2026-10-10T08:00:00Z", expected_date: addDays(T, -10) },
+  { id: 4, subject: "Monitor supplier confirmation", owner: "Sean", action_state: "Monitoring", status: "FYI", follow_up_date: addDays(T, 5) },
+  { id: 5, subject: "Andrea Medipost email", owner: "Andrea", action_state: "Our action", status: "To Do", expected_date: addDays(T, 4) },
+];
+
+describe("login is off by default", () => {
+  test("AuthGate renders the app untouched when REACT_APP_AUTH_ENABLED is not 'true'", () => {
+    const AuthGate = require("../AuthGate").default;
+    render(<AuthGate><div>the hub</div></AuthGate>);
+    expect(screen.getByText("the hub")).toBeInTheDocument();
+    expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
+  });
+  test("with the flag on, a signed-out visitor sees only the login form — no data", async () => {
+    // Flip the flag through the config module (one React instance; no module isolation).
+    global.__HUB_AUTH = true;
+    const Gate = require("../AuthGate").default;
+    render(<Gate><div>secret data</div></Gate>);
+    expect(await screen.findByText("Sign in to continue")).toBeInTheDocument();
+    expect(screen.queryByText("secret data")).not.toBeInTheDocument();
+    global.__HUB_AUTH = false;
+  });
+});
+
+describe("follow-up views", () => {
+  const FollowUps = require("../hub/FollowUps").default;
+  const renderView = (view) => render(<FollowUps initialView={view} tasks={tasks} opportunities={leads} companies={companies} onOpenTask={() => {}} onOpenOpportunity={() => {}} onChanged={() => {}} />);
+
+  test("Sean's view lists only Sean's open items — not work Vanya prepared or completed", () => {
+    renderView("sean");
+    expect(screen.getByText("Approve UPD quotation")).toBeInTheDocument();
+    expect(screen.queryByText("Vanya prepared the quote")).not.toBeInTheDocument();
+    expect(screen.queryByText("Supplier delivery update")).not.toBeInTheDocument();
+    expect(screen.queryByText("Andrea Medipost email")).not.toBeInTheDocument();
+  });
+  test("Overdue shows the overdue approval; completed work never appears as overdue", () => {
+    renderView("overdue");
+    expect(screen.getByText("Approve UPD quotation")).toBeInTheDocument();
+    expect(screen.queryByText("Vanya prepared the quote")).not.toBeInTheDocument();
+  });
+  test("Awaiting response: supplier item whose follow-up date has arrived is marked 'chase now'", () => {
+    renderView("awaiting");
+    const card = screen.getByText("Supplier delivery update").closest("div[style]").parentElement.parentElement;
+    expect(within(card).getByText("chase now")).toBeInTheDocument();
+  });
+  test("Team view shows delegated work; Completed view keeps history", () => {
+    renderView("team");
+    expect(screen.getByText("Andrea Medipost email")).toBeInTheDocument();
+  });
+  test("Completed view", () => {
+    renderView("completed");
+    expect(screen.getByText("Vanya prepared the quote")).toBeInTheDocument();
+  });
+  test("Opportunity follow-ups appear next to tasks", () => {
+    renderView("today");
+    // The opportunity's name may appear twice (title + link); it must be there at least once.
+    expect(screen.getAllByText("UPD March 2027 renewal").length).toBeGreaterThan(0);
+    expect(screen.getByText("Supplier delivery update")).toBeInTheDocument();
+  });
+});
+
+describe("pipeline", () => {
+  const Pipeline = require("../hub/Pipeline").default;
+  test("active stages shown; Won/Lost hidden until asked; totals per currency, never mixed", () => {
+    render(<Pipeline opportunities={leads} companies={companies} contacts={[]} tasks={tasks} onChanged={() => {}} onOpenTask={() => {}} onNewTask={() => {}} />);
+    expect(screen.getByText("On Hold / Nurture")).toBeInTheDocument();
+    expect(screen.queryByText("Discovery DMS-JHB-5")).not.toBeInTheDocument();
+    expect(screen.getByText("Avio")).toBeInTheDocument(); // on hold is kept, not dropped
+    // Totals: one figure per currency, never converted or added together.
+    const totals = screen.getByTestId("pipeline-totals");
+    const figures = within(totals).getAllByText(/^(ZAR|EUR) /).map((el) => el.textContent.replace(/\s+/g, " ").trim());
+    expect(figures).toEqual(expect.arrayContaining(["ZAR 100 000", "EUR 5 000"]));
+    expect(figures).toHaveLength(2);
+    expect(totals.textContent).not.toMatch(/105 000/);
+    fireEvent.click(screen.getByLabelText(/Show Won/));
+    expect(screen.getByText("Discovery DMS-JHB-5")).toBeInTheDocument();
+  });
+  test("marking an opportunity Lost requires a reason before anything is saved", async () => {
+    const { OpportunityModal } = require("../hub/Pipeline");
+    mock.calls.length = 0;
+    render(<OpportunityModal opp={{ ...leads[0], pipeline_stage: "Lost" }} companies={companies} contacts={[]} tasks={tasks} onClose={() => {}} onSaved={() => {}} onOpenTask={() => {}} onNewTask={() => {}} />);
+    fireEvent.click(screen.getByText("Save changes"));
+    expect(await screen.findByText("Record why it was lost.")).toBeInTheDocument();
+    expect(mock.calls.filter((c) => c.table === "leads")).toHaveLength(0);
+  });
+  test("a value without a currency is refused", async () => {
+    const { OpportunityModal } = require("../hub/Pipeline");
+    mock.calls.length = 0;
+    render(<OpportunityModal opp={{ name: "New", pipeline_stage: "New Lead", value_amount: "1000" }} companies={companies} contacts={[]} tasks={[]} onClose={() => {}} onSaved={() => {}} onOpenTask={() => {}} onNewTask={() => {}} />);
+    fireEvent.click(screen.getByText("Create opportunity"));
+    expect(await screen.findByText("Choose a currency for this value.")).toBeInTheDocument();
+    expect(mock.calls).toHaveLength(0);
+  });
+  test("saving a valid opportunity writes the 9-stage value and the matching legacy stage", async () => {
+    const { OpportunityModal } = require("../hub/Pipeline");
+    mock.calls.length = 0;
+    const onSaved = jest.fn();
+    render(<OpportunityModal opp={{ name: "Thrutainers", pipeline_stage: "Discussion / Discovery", owner: "Sean", next_action: "Send doc" }} companies={companies} contacts={[]} tasks={[]} onClose={() => {}} onSaved={onSaved} onOpenTask={() => {}} onNewTask={() => {}} />);
+    fireEvent.click(screen.getByText("Create opportunity"));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const ins = mock.calls.find((c) => c.table === "leads" && c.op === "insert");
+    expect(ins.payload[0]).toMatchObject({ name: "Thrutainers", pipeline_stage: "Discussion / Discovery", stage: "Warm", updated_by: "Vanya" });
+  });
+});
+
+describe("companies", () => {
+  const { CompanyForm } = require("../hub/Companies");
+  test("an exact duplicate company name is blocked; nothing is written", async () => {
+    mock.calls.length = 0;
+    render(<CompanyForm company={{ name: "upd (clicks group)", relationship_types: [] }} all={companies} onClose={() => {}} onSaved={() => {}} />);
+    fireEvent.click(screen.getByText("Save"));
+    expect(await screen.findByText(/already exists/)).toBeInTheDocument();
+    expect(mock.calls).toHaveLength(0);
+  });
+});
+
+describe("dashboard", () => {
+  const HubDashboard = require("../hub/HubDashboard").default;
+  test("'Sean to action' counts only items needing Sean's own action, not monitoring or delegated work", () => {
+    render(<HubDashboard tasks={tasks} opportunities={leads} companies={companies} orders={[{ id: 1, name: "PO29364", target_date: addDays(T, -1), customer_confirmed: true }]} go={() => {}} openTask={() => {}} openOpp={() => {}} openOrder={() => {}} />);
+    const tile = screen.getByText("Sean to action").parentElement;
+    expect(within(tile).getByText("1")).toBeInTheDocument();
+    // An order past its target date is shown as "not confirmed", never as delivered
+    expect(screen.getByText("Target passed — not confirmed")).toBeInTheDocument();
+    expect(screen.getByText(/not booked revenue/)).toBeInTheDocument();
+  });
+});
+
+describe("logging a communication", () => {
+  const CommLog = require("../hub/CommLog").default;
+  test("an outbound email creates an 'Awaiting response' follow-up — it does not complete anything", async () => {
+    mock.calls.length = 0;
+    const onSaved = jest.fn();
+    render(<CommLog initial={{ company_id: 1, opportunity_id: 10, subject: "Quotation sent" }} companies={companies} contacts={[]} opportunities={leads} tasks={tasks} onClose={() => {}} onSaved={onSaved} />);
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const comm = mock.calls.find((c) => c.table === "interactions" && c.op === "insert");
+    expect(comm.payload[0]).toMatchObject({ type: "Email", direction: "Outbound", company_id: 1, opportunity_id: 10, subject: "Quotation sent" });
+    const task = mock.calls.find((c) => c.table === "tasks" && c.op === "insert");
+    expect(task.payload[0]).toMatchObject({ action_state: "Awaiting response", status: "Follow Up", opportunity_id: 10 });
+    expect(task.payload[0].follow_up_date).toBeTruthy();
+    expect(mock.calls.some((c) => c.table === "tasks" && c.op === "update")).toBe(false);
+  });
+});
+
+describe("search", () => {
+  const Search = require("../hub/Search").default;
+  test("searches on the server, at least 2 characters, and shows an empty state", async () => {
+    mock.calls.length = 0;
+    render(<Search onPick={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search the hub"), { target: { value: "x" } });
+    expect(screen.getByText("Type at least 2 characters")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search the hub"), { target: { value: "Kerr" } });
+    expect(await screen.findByText(/Nothing matches "Kerr"/)).toBeInTheDocument();
+    expect(mock.calls.find((c) => c.rpc === "search_hub").args).toMatchObject({ q: "Kerr" });
+  });
+});

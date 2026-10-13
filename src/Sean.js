@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import { todayISO, addDays, stageOf, isActiveLead, leadFollowUp, dueBucket, formatMoney, PIPELINE_STAGES, STAGE_COLOR, stateOf, isOpenTask, actionDate } from "./lib/hub";
+import { saveOpportunity, addActivityNote } from "./lib/data";
 
-const TODAY = () => new Date().toISOString().split("T")[0];
+const TODAY = () => todayISO(); // local date (was UTC)
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—";
 const fmtDateTime = (ts) => {
   if (!ts) return "—";
   const d = new Date(ts);
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 };
-const isOverdue = (t) => t.status !== "Done" && t.expected_date && t.expected_date < TODAY();
+const isOverdue = (t) => isOpenTask(t) && stateOf(t) === "Our action" && t.expected_date && t.expected_date < TODAY();
 
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
@@ -66,8 +68,8 @@ function TaskCard({ task, onEdit, onDone }) {
           </div>
         </div>
         <div style={{ display:"flex", gap:6, flexShrink:0, alignItems:"center" }}>
-          <button onClick={function() { onEdit(task); }} style={{ padding:"5px 10px", background:"#0891b222", border:"1px solid #0891b2", borderRadius:6, color:"#0891b2", fontSize:12, fontWeight:600, cursor:"pointer" }}>✎</button>
-          <button onClick={function() { onDone(task.id); }} style={{ padding:"5px 10px", background:"#10b98122", border:"1px solid #10b981", borderRadius:6, color:"#10b981", fontSize:12, fontWeight:600, cursor:"pointer" }}>✓</button>
+          <button aria-label="Edit" onClick={function() { onEdit(task); }} style={{ minWidth:42, minHeight:42, background:"#0891b222", border:"1px solid #0891b2", borderRadius:8, color:"#0891b2", fontSize:16, fontWeight:600, cursor:"pointer" }}>✎</button>
+          <button aria-label="Mark done" onClick={function() { onDone(task.id); }} style={{ minWidth:42, minHeight:42, background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:16, fontWeight:600, cursor:"pointer" }}>✓</button>
         </div>
       </div>
       {task.next_action && <div style={{ fontSize:12, color:"#0891b2", marginTop:2 }}>→ {task.next_action}</div>}
@@ -198,11 +200,97 @@ function ProjectDetail({ projectName, tasks, statusFilter, onFilterChange, onBac
   );
 }
 
+function OppRow({ o, onOpen }) {
+  var fu = leadFollowUp(o);
+  var b = dueBucket(fu, TODAY());
+  var money = formatMoney(o.value_amount, o.currency, o.value_basis);
+  return (
+    <div onClick={function() { onOpen(o); }} style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderLeft:"3px solid " + STAGE_COLOR[stageOf(o)], borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", minHeight:44 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
+        <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", flex:1, minWidth:0 }}>{o.name || o.company}</div>
+        {fu && <span style={{ fontSize:12, color: b === "overdue" ? "#fca5a5" : b === "today" ? "#fde68a" : "#6b7280", flexShrink:0 }}>{fmtDate(fu)}</span>}
+      </div>
+      <div style={{ fontSize:12, color:"#9ca3af", marginTop:2 }}>{stageOf(o)}{money ? " · " + money : ""}</div>
+      {o.next_action && <div style={{ fontSize:12, color:"#0891b2", marginTop:4 }}>→ {o.next_action}</div>}
+    </div>
+  );
+}
+
+// ── Opportunity sheet: quick status update for Sean ─────────
+function OppSheet({ opp, onClose, onSaved }) {
+  var [stage, setStage] = useState(stageOf(opp));
+  var [nextAction, setNextAction] = useState(opp.next_action || "");
+  var [followUp, setFollowUp] = useState(opp.follow_up_date || "");
+  var [note, setNote] = useState("");
+  var [lostReason, setLostReason] = useState(opp.lost_reason || "");
+  var [error, setError] = useState(null);
+  var [saving, setSaving] = useState(false);
+  var money = formatMoney(opp.value_amount, opp.currency, opp.value_basis);
+  async function save() {
+    if (stage === "Lost" && !lostReason.trim()) { setError("Add a short reason it was lost."); return; }
+    setSaving(true); setError(null);
+    var res = await saveOpportunity({ id: opp.id, pipeline_stage: stage, next_action: nextAction, follow_up_date: followUp || null, lost_reason: stage === "Lost" ? lostReason : opp.lost_reason }, "Sean");
+    if (!res.error && note.trim()) res = await addActivityNote("opportunity", opp.id, note.trim(), "Sean");
+    setSaving(false);
+    if (res.error) setError(res.error); else onSaved();
+  }
+  var lbl = { fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 };
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+      <div style={{ background:"#13131f", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%", maxHeight:"88vh", overflowY:"auto" }} onClick={function(e) { e.stopPropagation(); }}>
+        <div style={{ width:36, height:4, background:"#2a2a45", borderRadius:99, margin:"0 auto 16px" }} />
+        <div style={{ fontSize:16, fontWeight:800, color:"#e2e8f0" }}>{opp.name || opp.company}</div>
+        <div style={{ fontSize:12, color:"#9ca3af", margin:"4px 0 14px" }}>{[opp.company, money, opp.owner && "Owner: " + opp.owner].filter(Boolean).join(" · ")}</div>
+        {opp.notes && <div style={{ fontSize:12, color:"#9ca3af", background:"#1a1a2e", borderRadius:8, padding:10, marginBottom:14, whiteSpace:"pre-wrap" }}>{opp.notes}</div>}
+        {error && <div style={{ background:"#7f1d1d55", color:"#fca5a5", borderRadius:8, padding:10, fontSize:13, marginBottom:12 }}>{error}</div>}
+        <div style={lbl}>Stage</div>
+        <select value={stage} onChange={function(e) { setStage(e.target.value); }} style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12, borderColor: STAGE_COLOR[stage] })}>
+          {PIPELINE_STAGES.map(function(st) { return <option key={st}>{st}</option>; })}
+        </select>
+        {stage === "Lost" && <><div style={lbl}>Why lost?</div><input value={lostReason} onChange={function(e) { setLostReason(e.target.value); }} style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12 })} /></>}
+        <div style={lbl}>Next step</div>
+        <input value={nextAction} onChange={function(e) { setNextAction(e.target.value); }} placeholder="What happens next?" style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12 })} />
+        <div style={lbl}>Follow up on</div>
+        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+          {[["Tomorrow",1],["+3 days",3],["Next week",7]].map(function(x) { return <button key={x[0]} onClick={function() { setFollowUp(addDays(TODAY(), x[1])); }} style={{ flex:1, minHeight:42, background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, color:"#9ca3af", fontSize:13 }}>{x[0]}</button>; })}
+        </div>
+        <input type="date" value={followUp} onChange={function(e) { setFollowUp(e.target.value); }} style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12 })} />
+        <div style={lbl}>Quick note (kept in history)</div>
+        <textarea value={note} onChange={function(e) { setNote(e.target.value); }} placeholder="e.g. Spoke to Kerr — wants revised costing" style={Object.assign({}, inp, { minHeight:70, fontSize:15, marginBottom:16 })} />
+        <button disabled={saving} onClick={save} style={{ width:"100%", padding:"14px", background:"#0891b2", border:"none", borderRadius:10, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
+      </div>
+    </div>
+  );
+}
+
+function NoteSheet({ onClose }) {
+  var [text, setText] = useState("");
+  var [error, setError] = useState(null);
+  async function send() {
+    if (!text.trim()) return;
+    var res = await supabase.from("notes").insert([{ content: text.trim(), author: "Sean" }]);
+    if (res.error) setError(res.error.message); else onClose();
+  }
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+      <div style={{ background:"#13131f", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%" }} onClick={function(e) { e.stopPropagation(); }}>
+        <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:10 }}>📝 Quick note for Vanya</div>
+        {error && <div style={{ color:"#fca5a5", fontSize:13, marginBottom:8 }}>{error}</div>}
+        <textarea autoFocus value={text} onChange={function(e) { setText(e.target.value); }} placeholder="Anything to action or remember…" style={Object.assign({}, inp, { minHeight:110, fontSize:15, marginBottom:14 })} />
+        <button onClick={send} style={{ width:"100%", padding:"14px", background:"#0891b2", border:"none", borderRadius:10, color:"#fff", fontSize:16, fontWeight:700 }}>Send</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Sean() {
   var [tasks, setTasks] = useState([]);
   var [flags, setFlags] = useState([]);
   var [loading, setLoading] = useState(true);
-  var [activeTab, setActiveTab] = useState("todo");
+  var [activeTab, setActiveTab] = useState("today");
+  var [leads, setLeads] = useState([]);
+  var [openOpp, setOpenOpp] = useState(null);
+  var [showNote, setShowNote] = useState(false);
   var [editingTask, setEditingTask] = useState(null);
   var [selectedAccount, setSelectedAccount] = useState(null);
   var [accountFilter, setAccountFilter] = useState("All");
@@ -211,8 +299,11 @@ export default function Sean() {
   var [projectStatusFilter, setProjectStatusFilter] = useState("All");
 
   function load() {
-    supabase.from("tasks").select("*").order("created_at", { ascending: false }).then(function(res) {
+    supabase.from("tasks").select("*").is("archived_at", null).order("created_at", { ascending: false }).then(function(res) {
       if (res.data) setTasks(res.data);
+    });
+    supabase.from("leads").select("*").is("archived_at", null).then(function(res) {
+      if (res.data) setLeads(res.data);
     });
     supabase.from("flags").select("*").order("created_at", { ascending: false }).then(function(res) {
       if (res.data) setFlags(res.data);
@@ -226,6 +317,7 @@ export default function Sean() {
     var ch = supabase.channel("sean-rt")
       .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, load)
       .on("postgres_changes", { event:"*", schema:"public", table:"flags" }, load)
+      .on("postgres_changes", { event:"*", schema:"public", table:"leads" }, load)
       .subscribe();
     return function() { clearInterval(interval); supabase.removeChannel(ch); };
   }, []);
@@ -278,7 +370,17 @@ export default function Sean() {
     supabase.from("flags").delete().eq("id", id).then(load);
   }
 
-  var seanActive = tasks.filter(function(t) { return t.owner === "Sean" && t.status !== "Done"; });
+  var seanActive = tasks.filter(function(t) { return t.owner === "Sean" && isOpenTask(t); });
+  // "Today": only what needs Sean personally — delegated and monitored work stays off this list.
+  var today = TODAY();
+  var seanAction = seanActive.filter(function(t) { return stateOf(t) === "Our action"; });
+  var tOverdue = sortByUrgency(seanAction.filter(isOverdue));
+  var tToday = sortByUrgency(seanAction.filter(function(t) { return t.expected_date === today; }));
+  var tDecide = sortByUrgency(seanAction.filter(function(t) { return t.status === "FYA" && !isOverdue(t) && t.expected_date !== today; }));
+  var tFollow = sortByUrgency(seanActive.filter(function(t) { return stateOf(t) === "Awaiting response" && ["overdue","today"].includes(dueBucket(actionDate(t), today)); }));
+  var oppsForSean = leads.filter(function(o) { return isActiveLead(o) && (o.next_action_owner === "Sean" || (!o.next_action_owner && o.owner === "Sean")) && stageOf(o) !== "On Hold / Nurture"; })
+    .sort(function(a, b) { return (leadFollowUp(a) || "9999") > (leadFollowUp(b) || "9999") ? 1 : -1; });
+  var oppsDue = oppsForSean.filter(function(o) { return ["overdue","today","week"].includes(dueBucket(leadFollowUp(o), today)); });
   var todoTab = sortByUrgency(seanActive.filter(function(t) { return t.status === "FYA" || t.status === "To Do"; }));
   var followTab = sortByUrgency(seanActive.filter(function(t) { return t.status === "Follow Up"; }));
   var regularFlags = flags.filter(function(f) { return f.task_subject !== "Weekly Customer Report"; });
@@ -299,6 +401,8 @@ export default function Sean() {
   }
 
   var TABS = [
+    { id:"today", emoji:"☀️", label:"Today", count: tOverdue.length + tToday.length + tFollow.length },
+    { id:"deals", emoji:"🎯", label:"Deals", count: oppsDue.length },
     { id:"todo", emoji:"🔴", label:"To Do", count: todoTab.length },
     { id:"follow", emoji:"🏌️", label:"Follow", count: followTab.length },
     { id:"accounts", emoji:"🏢", label:"Accounts", count: 0 },
@@ -354,6 +458,29 @@ export default function Sean() {
       </div>
 
       <div style={s.content}>
+
+        {activeTab === "today" && (
+          <div>
+            <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"12px 14px", marginBottom:14, fontSize:14, color:"#e2e8f0", lineHeight:1.5 }}>
+              {tOverdue.length + tToday.length + tDecide.length + tFollow.length + oppsDue.length === 0
+                ? "Nothing needs you right now. 🎉"
+                : <span><b style={{ color: tOverdue.length ? "#fca5a5" : "#e2e8f0" }}>{tOverdue.length} overdue</b> · {tToday.length} due today · {tDecide.length} for your decision · {tFollow.length} follow-ups due · {oppsDue.length} deals to move</span>}
+            </div>
+            <button onClick={function() { setShowNote(true); }} style={{ width:"100%", minHeight:46, background:"#1e3a8a33", border:"1px solid #1e3a8a", borderRadius:10, color:"#93c5fd", fontSize:14, fontWeight:600, marginBottom:16 }}>📝 Quick note to Vanya</button>
+            {tOverdue.length > 0 && <div><div style={Object.assign({}, s.sectionLabel, { color:"#fca5a5" })}>⚠ Overdue</div>{tOverdue.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
+            {tToday.length > 0 && <div><div style={s.sectionLabel}>📅 Due today</div>{tToday.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
+            {tDecide.length > 0 && <div><div style={s.sectionLabel}>🟠 For your decision / approval</div>{tDecide.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
+            {tFollow.length > 0 && <div><div style={s.sectionLabel}>🏌️ Follow-ups due — no reply yet</div>{tFollow.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
+            {oppsDue.length > 0 && <div><div style={s.sectionLabel}>🎯 Deals needing you this week</div>{oppsDue.map(function(o) { return <OppRow key={o.id} o={o} onOpen={setOpenOpp} />; })}</div>}
+          </div>
+        )}
+
+        {activeTab === "deals" && (
+          <div>
+            <div style={s.sectionLabel}>🎯 Your opportunities ({oppsForSean.length})</div>
+            {oppsForSean.length === 0 ? <div style={s.empty}><div style={{ fontSize:13 }}>No open deals assigned to you</div></div> : oppsForSean.map(function(o) { return <OppRow key={o.id} o={o} onOpen={setOpenOpp} />; })}
+          </div>
+        )}
 
         {activeTab === "todo" && (
           <div>
@@ -570,6 +697,8 @@ export default function Sean() {
       </div>
 
       {editingTask && <EditSheet task={editingTask} onSave={saveEdit} onClose={function() { setEditingTask(null); }} />}
+      {openOpp && <OppSheet opp={openOpp} onClose={function() { setOpenOpp(null); }} onSaved={function() { setOpenOpp(null); load(); }} />}
+      {showNote && <NoteSheet onClose={function() { setShowNote(false); }} />}
     </div>
   );
 }

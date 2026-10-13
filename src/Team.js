@@ -215,7 +215,8 @@ function TaskModal({ task, myName, onClose, onUpdate, onDelete, onAddToAgenda })
     await supabase.from("task_history").insert([{ task_id:task.id, changed_by:myName, entry_type:"status_change", old_status:task.status, new_status:"Done", note:null }]);
     onUpdate(); onClose();
   };
-  const deleteTask = async () => { await supabase.from("tasks").delete().eq("id",task.id); onDelete(); onClose(); };
+  // Archive instead of delete — history and links are kept, and Vanya can restore it.
+  const deleteTask = async () => { await supabase.from("tasks").update({ archived_at: new Date().toISOString(), archive_reason: "Archived by " + myName, updated_by: myName }).eq("id",task.id); onDelete(); onClose(); };
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(10,10,20,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
@@ -258,13 +259,13 @@ function TaskModal({ task, myName, onClose, onUpdate, onDelete, onAddToAgenda })
             </div>
             <div style={{ borderTop:"1px solid #2a2a45", paddingTop:12 }}>
               {!confirmDelete ? (
-                <button onClick={()=>setConfirmDelete(true)} style={{ width:"100%", padding:"9px", background:"none", border:"1px solid #7f1d1d", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13 }}>🗑️ Delete Task</button>
+                <button onClick={()=>setConfirmDelete(true)} style={{ width:"100%", padding:"9px", background:"none", border:"1px solid #7f1d1d", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13 }}>🗄️ Archive Task</button>
               ) : (
                 <div style={{ background:"#7f1d1d22", border:"1px solid #ef4444", borderRadius:8, padding:12 }}>
-                  <div style={{ fontSize:13, color:"#fca5a5", marginBottom:10, textAlign:"center" }}>Are you sure? This cannot be undone.</div>
+                  <div style={{ fontSize:13, color:"#fca5a5", marginBottom:10, textAlign:"center" }}>Archive this task? Its history is kept and Vanya can restore it.</div>
                   <div style={{ display:"flex", gap:8 }}>
                     <button onClick={()=>setConfirmDelete(false)} style={{ flex:1, padding:"8px", background:"none", border:"1px solid #2a2a45", borderRadius:7, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
-                    <button onClick={deleteTask} style={{ flex:1, padding:"8px", background:"#ef4444", border:"none", borderRadius:7, color:"#fff", cursor:"pointer", fontWeight:700 }}>Yes, Delete</button>
+                    <button onClick={deleteTask} style={{ flex:1, padding:"8px", background:"#ef4444", border:"none", borderRadius:7, color:"#fff", cursor:"pointer", fontWeight:700 }}>Yes, Archive</button>
                   </div>
                 </div>
               )}
@@ -564,7 +565,7 @@ export default function Team() {
   const [showDone, setShowDone] = useState(false);
 
   const load = async () => {
-    const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    const { data: t } = await supabase.from("tasks").select("*").is("archived_at", null).order("created_at", { ascending: false });
     const { data: f } = await supabase.from("flags").select("*").order("created_at", { ascending: false });
     const { data: i } = await supabase.from("interactions").select("*").order("interaction_date", { ascending: false });
     if (t) setTasks(t);

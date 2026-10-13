@@ -1,7 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
+import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO } from "./lib/hub";
+import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord } from "./lib/data";
+import { useHubUser, Banner as HubBanner, Picker, Field as HubField } from "./hub/ui";
+import HubDashboard from "./hub/HubDashboard";
+import Pipeline, { OpportunityModal } from "./hub/Pipeline";
+import Companies from "./hub/Companies";
+import FollowUps from "./hub/FollowUps";
+import Orders from "./hub/Orders";
+import CommLog from "./hub/CommLog";
+import Search from "./hub/Search";
+import DataQuality from "./hub/DataQuality";
 
-const TODAY = () => new Date().toISOString().split("T")[0];
+const TODAY = () => todayISO(); // local date (was UTC — wrong between 00:00 and 02:00 SAST)
 const fmtDate = (d) =>
   d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtDateTime = (ts) => {
@@ -9,12 +20,7 @@ const fmtDateTime = (ts) => {
   const d = new Date(ts);
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 };
-const isOverdue = (t) => t.status !== "Done" && t.expected_date && t.expected_date < TODAY();
-const thisWeekStart = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
-  return d.toISOString().split("T")[0];
-};
+const isOverdue = (t) => isOpenTask(t) && stateOf(t) === "Our action" && t.expected_date && t.expected_date < TODAY();
 
 // Normalise company/client: trim + title case to prevent duplicates
 const normaliseName = (s) => {
@@ -49,10 +55,7 @@ const sortTasks = (tasks, sortBy) => {
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
-const OWNERS = ["Vanya", "Sean", "Jason", "Andrea"];
-const LEAD_STAGES = ["Cold", "Warm", "Hot", "Negotiating", "Won", "Lost"];
-const LEAD_STAGE_COLOR = { Cold: "#3b82f6", Warm: "#f59e0b", Hot: "#ef4444", Negotiating: "#8b5cf6", Won: "#10b981", Lost: "#6b7280" };
-const LEAD_STAGE_EMOJI = { Cold: "🧊", Warm: "🌡️", Hot: "🔥", Negotiating: "🤝", Won: "✅", Lost: "❌" };
+const OWNERS = ["Vanya", "Sean", "Jason", "Andrea", "Unassigned"];
 const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
 const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
@@ -96,13 +99,8 @@ const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
   date_received: TODAY(), owner: "Vanya", status: "To Do", priority: "Medium",
   expected_date: "", actual_date: "", next_action: "", notes: "", outcome: "", task_type: "Information Request",
-  project: "", follow_up_date: "", follow_up_note: "",
-  ...overrides,
-});
-
-const newLead = (overrides = {}) => ({
-  company: "", contact: "", email: "", phone: "", product_interest: "",
-  value: "", stage: "Cold", owner: "Vanya", next_action: "", notes: "", last_contact: TODAY(),
+  project: "", follow_up_date: "", follow_up_note: "", action_state: "Our action", visibility: "team",
+  company_id: null, opportunity_id: null, waiting_on: "", expected_response_date: "",
   ...overrides,
 });
 
@@ -134,22 +132,16 @@ function generateSummary(tasks) {
 function Modal({ children, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,10,20,0.8)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}>
-      <div onClick={(e)=>e.stopPropagation()} style={{ background:"#13131f",border:"1px solid #2a2a45",borderRadius:16,padding:"28px",maxWidth:740,width:"95vw",maxHeight:"92vh",overflowY:"auto" }}>
+      <div onClick={(e)=>e.stopPropagation()} role="dialog" aria-modal="true" style={{ background:"#13131f",border:"1px solid #2a2a45",borderRadius:16,padding:"28px",maxWidth:740,width:"95vw",maxHeight:"92vh",overflowY:"auto" }}>
         {children}
       </div>
     </div>
   );
 }
 
+// Same look as before; the label is now linked to its input (shared implementation in hub/ui.js).
 function Field({ label, required, children }) {
-  return (
-    <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
-      <label style={{ fontSize:11,fontWeight:600,letterSpacing:"0.08em",color:"#6b7280",textTransform:"uppercase" }}>
-        {label}{required && <span style={{ color:"#ef4444",marginLeft:3 }}>*</span>}
-      </label>
-      {children}
-    </div>
-  );
+  return <HubField label={label} required={required}>{children}</HubField>;
 }
 
 const inp = { background:"#1e1e30",border:"1px solid #2a2a45",borderRadius:8,padding:"8px 12px",color:"#e2e8f0",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box" };
@@ -315,71 +307,63 @@ function ProjectDropdown({ value, onChange }) {
   );
 }
 
-function TaskForm({ initial, onSave, onClose }) {
-  const [form, setForm] = useState({ ...newTask(), ...initial });
+function TaskForm({ initial, onSave, onClose, companies = [], opportunities = [] }) {
+  const [form, setForm] = useState({ ...newTask(), ...initial, action_state: stateOf({ ...newTask(), ...initial }) });
+  const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const valid = form.owner && form.status && form.expected_date && form.next_action && form.subject;
+  const v = validateTask(form);
+  const st = form.action_state;
+  const err = (k) => (submitted ? v.errors[k] : undefined);
+  const save = async () => {
+    setSubmitted(true);
+    if (!v.ok) return;
+    setSaving(true); setError(null);
+    const e = await onSave({ ...form, status: stateToStatus(st, form.status) });
+    setSaving(false);
+    if (e) setError(e); else onClose();
+  };
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24 }}>
         <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#e2e8f0" }}>{initial.id ? "Edit Task" : "New Task"}</h2>
         <button onClick={onClose} style={{ background:"none",border:"none",color:"#6b7280",cursor:"pointer",fontSize:20 }}>✕</button>
       </div>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
-        <div style={{ gridColumn:"1/-1" }}><Field label="Subject" required><input style={inp} value={form.subject} onChange={(e)=>set("subject",e.target.value)} placeholder="What needs to be done?" /></Field></div>
-        <Field label="Client"><input style={inp} value={form.client} onChange={(e)=>set("client",e.target.value)} /></Field>
-        <Field label="Company"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>
-        <Field label="Project"><ProjectDropdown value={form.project||""} onChange={v=>set("project",v)} /></Field>
-        <Field label="Email"><input style={inp} value={form.email} onChange={(e)=>set("email",e.target.value)} /></Field>
-        <Field label="Date Received"><input type="date" style={inp} value={form.date_received} onChange={(e)=>set("date_received",e.target.value)} /></Field>
-        <Field label="Owner" required><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{OWNERS.map(o=><option key={o}>{o}</option>)}</select></Field>
-        <Field label="Status" required><select style={inp} value={form.status} onChange={(e)=>set("status",e.target.value)}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select></Field>
+      {error && <HubBanner onClose={()=>setError(null)}>{error}</HubBanner>}
+      {form.needs_review && <HubBanner kind="warn">Open question: {form.needs_review}</HubBanner>}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14 }}>
+        <div style={{ gridColumn:"1/-1" }}><Field label="Subject" required><input style={inp} value={form.subject} onChange={(e)=>set("subject",e.target.value)} placeholder="What needs to be done?" />{err("subject") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("subject")}</div>}</Field></div>
+        <Field label="Responsible" required><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{OWNERS.map(o=><option key={o}>{o}</option>)}</select></Field>
+        <Field label="State" required>
+          <select style={{ ...inp, borderColor: STATE_COLOR[st] }} value={st} onChange={(e)=>set("action_state",e.target.value)}>{ACTION_STATES.map(s=><option key={s}>{s}</option>)}</select>
+        </Field>
         <Field label="Priority"><select style={inp} value={form.priority} onChange={(e)=>set("priority",e.target.value)}>{PRIORITIES.map(p=><option key={p}>{p}</option>)}</select></Field>
-        <Field label="Task Type"><select style={inp} value={form.task_type} onChange={(e)=>set("task_type",e.target.value)}>{TASK_TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
-        <Field label="Expected Date" required><input type="date" style={inp} value={form.expected_date} onChange={(e)=>set("expected_date",e.target.value)} /></Field>
-        <Field label="🔔 Follow-up Date"><input type="date" style={inp} value={form.follow_up_date||""} onChange={(e)=>set("follow_up_date",e.target.value)} title="Set a reminder date — appears in Today's Actions on that day" /></Field>
-        <div style={{ gridColumn:"1/-1" }}><Field label="Next Action" required><input style={inp} value={form.next_action} onChange={(e)=>set("next_action",e.target.value)} /></Field></div>
+        <Field label="Task Type"><select style={inp} value={form.task_type||"Information Request"} onChange={(e)=>set("task_type",e.target.value)}>{TASK_TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
+        <Field label="Due Date"><input type="date" style={inp} value={form.expected_date||""} onChange={(e)=>set("expected_date",e.target.value)} />{err("expected_date") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("expected_date")}</div>}</Field>
+        <Field label="🔔 Follow-up Date" required={st==="Awaiting response"}><input type="date" style={inp} value={form.follow_up_date||""} onChange={(e)=>set("follow_up_date",e.target.value)} title="Comes back into Today's Actions on this date" />{err("follow_up_date") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("follow_up_date")}</div>}</Field>
+        {(st==="Awaiting response"||st==="Monitoring") && <>
+          <Field label="Waiting on"><input style={inp} value={form.waiting_on||""} onChange={(e)=>set("waiting_on",e.target.value)} placeholder="Who must respond? e.g. Emily (CIMC)" /></Field>
+          <Field label="Expected response by"><input type="date" style={inp} value={form.expected_response_date||""} onChange={(e)=>set("expected_response_date",e.target.value)} /></Field>
+        </>}
+        <Field label="Company (record)"><Picker value={form.company_id} onChange={(id)=>{ set("company_id",id); const c=companies.find(x=>x.id===id); if(c) set("company",c.name); }} noneLabel="— Not linked" options={companies.map(c=>({ value:c.id, label:c.name }))} /></Field>
+        <Field label="Opportunity"><Picker value={form.opportunity_id} onChange={(id)=>set("opportunity_id",id)} noneLabel="— None" options={opportunities.filter(o=>!form.company_id||o.company_id===form.company_id).map(o=>({ value:o.id, label:o.name||o.company }))} /></Field>
+        <Field label="Client / contact"><input style={inp} value={form.client||""} onChange={(e)=>set("client",e.target.value)} /></Field>
+        <Field label="Company (text)"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>
+        <Field label="Project"><ProjectDropdown value={form.project||""} onChange={v=>set("project",v)} /></Field>
+        <Field label="Email"><input style={inp} value={form.email||""} onChange={(e)=>set("email",e.target.value)} /></Field>
+        <Field label="Date Received"><input type="date" style={inp} value={form.date_received||""} onChange={(e)=>set("date_received",e.target.value)} /></Field>
+        <Field label="Visibility"><select style={inp} value={form.visibility||"team"} onChange={(e)=>set("visibility",e.target.value)}><option value="team">Team</option><option value="private">Private (Sean & Vanya only, once login is on)</option></select></Field>
+        <div style={{ gridColumn:"1/-1" }}><Field label="Next Action"><input style={inp} value={form.next_action||""} onChange={(e)=>set("next_action",e.target.value)} /></Field></div>
         {form.follow_up_date && <div style={{ gridColumn:"1/-1" }}><Field label="Follow-up Note"><input style={inp} value={form.follow_up_note||""} onChange={(e)=>set("follow_up_note",e.target.value)} placeholder="What to check or ask when you follow up..." /></Field></div>}
-        <div style={{ gridColumn:"1/-1" }}><Field label="Notes"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes} onChange={(e)=>set("notes",e.target.value)} placeholder="Add context, details or background..." /></Field></div>
-        {form.status === "Done" && <div style={{ gridColumn:"1/-1" }}><Field label="Outcome"><input style={inp} value={form.outcome} onChange={(e)=>set("outcome",e.target.value)} /></Field></div>}
+        <div style={{ gridColumn:"1/-1" }}><Field label="Notes"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes||""} onChange={(e)=>set("notes",e.target.value)} placeholder="Add context, details or background..." /></Field></div>
+        {(st === "Completed" || st === "Cancelled") && <div style={{ gridColumn:"1/-1" }}><Field label="Outcome"><input style={inp} value={form.outcome||""} onChange={(e)=>set("outcome",e.target.value)} placeholder={st==="Completed"?"What was actually achieved?":"Why was it cancelled?"} /></Field></div>}
       </div>
+      {v.warnings.length > 0 && <div style={{ marginTop:12,fontSize:12,color:"#fde68a" }}>Missing (you can still save): {v.warnings.join(" · ")}</div>}
       <div style={{ marginTop:24,display:"flex",gap:10,justifyContent:"flex-end" }}>
         <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer" }}>Cancel</button>
-        <button disabled={!valid} onClick={()=>{ if(valid){ onSave(form); onClose(); }}} style={{ padding:"10px 24px",background:valid?"#0891b2":"#2a2a45",border:"none",borderRadius:8,color:valid?"#fff":"#4b5563",cursor:valid?"pointer":"not-allowed",fontWeight:600 }}>
-          {initial.id ? "Save Changes" : "Create Task"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function LeadForm({ initial, onSave, onClose }) {
-  const [form, setForm] = useState({ ...newLead(), ...initial });
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const valid = form.company && form.stage;
-  return (
-    <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24 }}>
-        <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#e2e8f0" }}>{initial.id ? "Edit Lead" : "New Lead"}</h2>
-        <button onClick={onClose} style={{ background:"none",border:"none",color:"#6b7280",cursor:"pointer",fontSize:20 }}>✕</button>
-      </div>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
-        <Field label="Company" required><input style={inp} value={form.company} onChange={(e)=>set("company",e.target.value)} placeholder="Company name" /></Field>
-        <Field label="Contact Name"><input style={inp} value={form.contact} onChange={(e)=>set("contact",e.target.value)} /></Field>
-        <Field label="Email"><input style={inp} value={form.email} onChange={(e)=>set("email",e.target.value)} /></Field>
-        <Field label="Phone"><input style={inp} value={form.phone} onChange={(e)=>set("phone",e.target.value)} /></Field>
-        <Field label="Product Interest"><input style={inp} value={form.product_interest} onChange={(e)=>set("product_interest",e.target.value)} placeholder="e.g. Top Loader Boxes" /></Field>
-        <Field label="Deal Value (R)"><input style={inp} value={form.value} onChange={(e)=>set("value",e.target.value)} placeholder="0.00" /></Field>
-        <Field label="Stage" required><select style={inp} value={form.stage} onChange={(e)=>set("stage",e.target.value)}>{LEAD_STAGES.map(s=><option key={s}>{s}</option>)}</select></Field>
-        <Field label="Owner"><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{OWNERS.map(o=><option key={o}>{o}</option>)}</select></Field>
-        <Field label="Last Contact"><input type="date" style={inp} value={form.last_contact} onChange={(e)=>set("last_contact",e.target.value)} /></Field>
-        <div style={{ gridColumn:"1/-1" }}><Field label="Next Action"><input style={inp} value={form.next_action} onChange={(e)=>set("next_action",e.target.value)} /></Field></div>
-        <div style={{ gridColumn:"1/-1" }}><Field label="Notes"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes} onChange={(e)=>set("notes",e.target.value)} /></Field></div>
-      </div>
-      <div style={{ marginTop:24,display:"flex",gap:10,justifyContent:"flex-end" }}>
-        <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #2a2a45",borderRadius:8,color:"#6b7280",cursor:"pointer" }}>Cancel</button>
-        <button disabled={!valid} onClick={()=>{ if(valid){ onSave(form); onClose(); }}} style={{ padding:"10px 24px",background:valid?"#0891b2":"#2a2a45",border:"none",borderRadius:8,color:valid?"#fff":"#4b5563",cursor:valid?"pointer":"not-allowed",fontWeight:600 }}>
-          {initial.id ? "Save Changes" : "Add Lead"}
+        <button disabled={saving} onClick={save} style={{ padding:"10px 24px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontWeight:600,opacity:saving?0.6:1 }}>
+          {saving ? "Saving…" : initial.id ? "Save Changes" : "Create Task"}
         </button>
       </div>
     </div>
@@ -435,42 +419,6 @@ function TaskCard({ task, onClick, compact, onComplete }) {
       </div>
       {!compact && task.next_action && <div style={{ marginTop:8,fontSize:12,color:"#0891b2",borderTop:"1px solid #2a2a45",paddingTop:8 }}>→ {task.next_action}</div>}
       {!compact && task.notes && <div style={{ marginTop:6,fontSize:12,color:"#6b7280",fontStyle:"italic",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>💬 {task.notes.length > 80 ? task.notes.substring(0,80)+"..." : task.notes}</div>}
-    </div>
-  );
-}
-
-function LeadCard({ lead, onClick }) {
-  const color = LEAD_STAGE_COLOR[lead.stage];
-  return (
-    <div onClick={()=>onClick(lead)}
-      style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderLeft:`3px solid ${color}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:8 }}
-      onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
-      onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
-            <span style={{ fontSize:11,padding:"2px 8px",borderRadius:99,background:color+"33",color,fontWeight:700 }}>{LEAD_STAGE_EMOJI[lead.stage]} {lead.stage}</span>
-            {lead.value && <span style={{ fontSize:10,color:"#10b981",fontWeight:600 }}>R {lead.value}</span>}
-          </div>
-          <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:2 }}>{lead.company}</div>
-          {lead.contact && <div style={{ fontSize:12,color:"#6b7280" }}>{lead.contact}</div>}
-          {lead.product_interest && <div style={{ fontSize:11,color:"#4b5563",marginTop:2 }}>{lead.product_interest}</div>}
-        </div>
-        <div style={{ textAlign:"right",flexShrink:0 }}>
-          <div style={{ fontSize:11,color:"#6b7280",marginBottom:3 }}>{lead.owner}</div>
-          <div style={{ fontSize:11,color:"#4b5563" }}>Last: {fmtDate(lead.last_contact)}</div>
-        </div>
-      </div>
-      {lead.next_action && <div style={{ marginTop:8,fontSize:12,color:"#0891b2",borderTop:"1px solid #2a2a45",paddingTop:8 }}>→ {lead.next_action}</div>}
-    </div>
-  );
-}
-
-function Stat({ label, value, color, onClick }) {
-  return (
-    <div onClick={onClick} style={{ background:"#1a1a2e",border:"1px solid #2a2a45",borderRadius:12,padding:"20px 24px",cursor:onClick?"pointer":"default",borderTop:`3px solid ${color}` }}>
-      <div style={{ fontSize:32,fontWeight:800,color }}>{value}</div>
-      <div style={{ fontSize:11,color:"#6b7280",marginTop:4,fontWeight:500,letterSpacing:"0.06em",textTransform:"uppercase" }}>{label}</div>
     </div>
   );
 }
@@ -880,7 +828,7 @@ function SeanWeekView({ items, onAdd, onDelete }) {
   );
 }
 
-function InboxTriageView({ items, onAdd, onClear }) {
+function InboxTriageView({ items, onAdd, onClear, onLog }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ subject:"", action:"Delete", next_action:"" });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -931,7 +879,10 @@ function InboxTriageView({ items, onAdd, onClear }) {
               <div style={{ fontSize:13,fontWeight:600,color:"#e2e8f0",marginBottom:2 }}>{item.subject}</div>
               {item.next_action && <div style={{ fontSize:12,color:"#6b7280" }}>→ {item.next_action}</div>}
             </div>
-            <button onClick={()=>onClear(item.id)} style={{ flexShrink:0,marginLeft:12,padding:"6px 12px",background:"#10b98122",border:"1px solid #10b981",borderRadius:6,color:"#10b981",cursor:"pointer",fontSize:11,fontWeight:700 }}>✓ Done</button>
+            <div style={{ display:"flex",gap:6,flexShrink:0,marginLeft:12 }}>
+              {onLog && <button onClick={()=>onLog(item)} title="Record this email against a company / opportunity / task (the record stays even after the email is deleted)" style={{ padding:"6px 12px",background:"#0891b222",border:"1px solid #0891b2",borderRadius:6,color:"#0891b2",cursor:"pointer",fontSize:11,fontWeight:700 }}>✉️ Log &amp; link</button>}
+              <button onClick={()=>onClear(item.id)} style={{ padding:"6px 12px",background:"#10b98122",border:"1px solid #10b981",borderRadius:6,color:"#10b981",cursor:"pointer",fontSize:11,fontWeight:700 }}>✓ Done</button>
+            </div>
           </div>
         ))
       }
@@ -1189,7 +1140,15 @@ function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy, onNewTask })
 }
 
 export default function App() {
+  const { name: me, signOut } = useHubUser();
   const [tasks, setTasks] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [modalOpp, setModalOpp] = useState(null);
+  const [commDraft, setCommDraft] = useState(null);
+  const [followView, setFollowView] = useState("mine");
+  const [appError, setAppError] = useState(null);
   const [leads, setLeads] = useState([]);
   const [seanWeek, setSeanWeek] = useState([]);
   const [inboxTriage, setInboxTriage] = useState([]);
@@ -1198,7 +1157,6 @@ export default function App() {
   const [reminders, setReminders] = useState([]);
   const [view, setView] = useState("dashboard");
   const [modalTask, setModalTask] = useState(null);
-  const [modalLead, setModalLead] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -1206,20 +1164,21 @@ export default function App() {
   const [sortBy, setSortBy] = useState("urgency");
   const [status, setStatus] = useState("Connecting…");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [leadStageFilter, setLeadStageFilter] = useState("All");
   const [seenTaskIds, setSeenTaskIds] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("seenTaskIds")||"[]"); } catch { return []; }
   });
 
   const loadTasks = useCallback(async () => {
-    const { data, error } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    // Archived tasks stay in the database (with history) but leave the working lists.
+    const { data, error } = await supabase.from("tasks").select("*").is("archived_at", null).order("created_at", { ascending: false });
     if (!error) { setTasks(data||[]); setStatus("Live"); }
-    else { console.error(error); setStatus("Error"); }
+    else { console.error(error); setStatus("Error"); setAppError("Couldn't load tasks: " + friendlyError(error)); }
   }, []);
 
   const loadLeads = useCallback(async () => {
-    const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("leads").select("*").is("archived_at", null).order("updated_at", { ascending: false });
     if (data) setLeads(data);
+    if (error) setAppError("Couldn't load opportunities: " + friendlyError(error));
   }, []);
 
   const loadSeanWeek = useCallback(async () => {
@@ -1242,13 +1201,22 @@ export default function App() {
     if (data && data.length > 0) { setProjects(data); _projectsCache = data; }
   }, []);
 
+  const loadCrm = useCallback(async () => {
+    const [c, p, o] = await Promise.all([loadCompanies(), loadContacts(), loadOrders()]);
+    if (c.data) setCompanies(c.data);
+    if (p.data) setContacts(p.data);
+    if (o.data) setOrders(o.data);
+    const e = c.error || p.error || o.error;
+    if (e) setAppError("Couldn't load companies/orders: " + e);
+  }, []);
+
   const loadReminders = useCallback(async () => {
     const { data } = await supabase.from("reminders").select("*").eq("completed", false).order("remind_date", { ascending: true });
     if (data) setReminders(data);
   }, []);
 
   useEffect(() => {
-    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadProjects(); loadReminders();
+    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadProjects(); loadReminders(); loadCrm();
     const taskCh = supabase.channel("tasks-ch").on("postgres_changes",{event:"*",schema:"public",table:"tasks"},loadTasks).subscribe();
     const leadCh = supabase.channel("leads-ch").on("postgres_changes",{event:"*",schema:"public",table:"leads"},loadLeads).subscribe();
     const weekCh = supabase.channel("week-ch").on("postgres_changes",{event:"*",schema:"public",table:"sean_week"},loadSeanWeek).subscribe();
@@ -1256,48 +1224,52 @@ export default function App() {
     const flagsCh = supabase.channel("flags-ch").on("postgres_changes",{event:"*",schema:"public",table:"flags"},loadFlags).subscribe();
     const projCh = supabase.channel("projects-ch").on("postgres_changes",{event:"*",schema:"public",table:"projects"},loadProjects).subscribe();
     const remCh = supabase.channel("reminders-ch").on("postgres_changes",{event:"*",schema:"public",table:"reminders"},loadReminders).subscribe();
+    const crmCh = supabase.channel("crm-ch")
+      .on("postgres_changes",{event:"*",schema:"public",table:"companies"},loadCrm)
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},loadCrm)
+      .subscribe();
     const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadReminders(); }, 30000);
-    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(flagsCh); supabase.removeChannel(projCh); supabase.removeChannel(remCh); clearInterval(interval); };
-  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags, loadProjects, loadReminders]);
+    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(flagsCh); supabase.removeChannel(projCh); supabase.removeChannel(remCh); supabase.removeChannel(crmCh); clearInterval(interval); };
+  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags, loadProjects, loadReminders, loadCrm]);
+  const reloadAll = () => { loadTasks(); loadLeads(); loadCrm(); };
 
   const upsertTask = async (form) => {
-    const payload = { subject:form.subject, client:normaliseName(form.client), company:normaliseName(form.company), email:form.email, date_received:form.date_received, owner:form.owner, status:form.status, priority:form.priority, expected_date:form.expected_date, actual_date:form.status==="Done"?(form.actual_date||TODAY()):(form.actual_date||null), next_action:form.next_action, notes:form.notes, outcome:form.outcome, task_type:form.task_type, project:form.project||null, follow_up_date:form.follow_up_date||null, follow_up_note:form.follow_up_note||null };
-    if (form.id) {
-      const original = tasks.find(t => t.id === form.id);
-      const {error} = await supabase.from("tasks").update(payload).eq("id",form.id);
-      if(error) console.error(error);
-      if (original && original.status !== form.status) {
-        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"status_change", old_status:original.status, new_status:form.status, note:null }]);
+    const original = form.id ? tasks.find(t => t.id === form.id) : null;
+    const payload = { ...form, client: normaliseName(form.client), company: normaliseName(form.company), project: form.project || null,
+      actual_date: form.action_state === "Completed" ? (form.actual_date || TODAY()) : (form.actual_date || null) };
+    const { error } = await saveTaskRecord(payload, me);
+    if (error) return error;
+    if (original) {
+      const newStatus = stateToStatus(form.action_state, form.status);
+      if (original.status !== newStatus || stateOf(original) !== form.action_state) {
+        await supabase.from("task_history").insert([{ task_id:form.id, changed_by:me, entry_type:"status_change", old_status:stateOf(original), new_status:form.action_state, note:null }]);
       }
-      // Notes preservation — if notes changed, save OLD note to activity feed first, then new note replaces field
-      if (original && original.notes !== form.notes) {
+      // Notes preservation — the previous note goes into the activity feed before being replaced
+      if (original.notes !== form.notes) {
         if (original.notes && original.notes.trim()) {
-          // Archive the original note into activity feed before overwriting
-          await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"note", old_status:null, new_status:null, note:"[Previous note] " + original.notes.trim() }]);
+          await supabase.from("task_history").insert([{ task_id:form.id, changed_by:me, entry_type:"note", old_status:null, new_status:null, note:"[Previous note] " + original.notes.trim() }]);
         }
         if (form.notes && form.notes.trim()) {
-          // Log the new note too
-          await supabase.from("task_history").insert([{ task_id:form.id, changed_by:"Vanya", entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
+          await supabase.from("task_history").insert([{ task_id:form.id, changed_by:me, entry_type:"note", old_status:null, new_status:null, note:form.notes.trim() }]);
         }
       }
-    } else {
-      const {error} = await supabase.from("tasks").insert([payload]);
-      if(error) console.error(error);
     }
-  };
-
-  const upsertLead = async (form) => {
-    const payload = { company:normaliseName(form.company), contact:normaliseName(form.contact), email:form.email, phone:form.phone, product_interest:form.product_interest, value:form.value, stage:form.stage, owner:form.owner, next_action:form.next_action, notes:form.notes, last_contact:form.last_contact };
-    if (form.id) { await supabase.from("leads").update(payload).eq("id",form.id); }
-    else { await supabase.from("leads").insert([payload]); }
+    loadTasks();
+    return null;
   };
 
   const addSeanWeekItem = async (form) => { await supabase.from("sean_week").insert([form]); };
   const deleteSeanWeekItem = async (id) => { await supabase.from("sean_week").delete().eq("id",id); };
-  const addInboxItem = async (form) => { await supabase.from("inbox_triage").insert([form]); };
-  const clearInboxItem = async (id) => { await supabase.from("inbox_triage").update({cleared:true}).eq("id",id); };
-  const deleteTask = async (id) => { await supabase.from("tasks").delete().eq("id",id); };
-  const deleteLead = async (id) => { await supabase.from("leads").delete().eq("id",id); };
+  const addInboxItem = async (form) => {
+    const { error } = await supabase.from("inbox_triage").insert([form]);
+    if (error) setAppError("Couldn't flag the email: " + friendlyError(error)); else loadInboxTriage();
+  };
+  const clearInboxItem = async (id) => {
+    const { error } = await supabase.from("inbox_triage").update({ cleared:true, cleared_at:new Date().toISOString() }).eq("id",id);
+    if (error) setAppError("Couldn't clear the item: " + friendlyError(error)); else loadInboxTriage();
+  };
+  // Records are archived, never deleted: history, links and follow-ups are kept and can be restored.
+  const archiveTask = async (id) => { const { error } = await archiveRecord("tasks", id, me); if (error) setAppError(error); else loadTasks(); };
   const markFlagSeen = async (id) => { await supabase.from("flags").update({seen:true}).eq("id",id); loadFlags(); };
   const markAllFlagsSeen = async () => {
     const unseen = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
@@ -1310,9 +1282,10 @@ export default function App() {
   const moveTask = async (id, newStatus) => {
     const original = tasks.find(t => t.id === parseInt(id));
     const extra = newStatus==="Done"?{actual_date:TODAY()}:{};
-    await supabase.from("tasks").update({status:newStatus,...extra}).eq("id",id);
+    const { error } = await supabase.from("tasks").update({status:newStatus,...extra,updated_by:me}).eq("id",id);
+    if (error) { setAppError(friendlyError(error)); return; }
     if (original && original.status !== newStatus) {
-      await supabase.from("task_history").insert([{ task_id:parseInt(id), changed_by:"Vanya", entry_type:"status_change", old_status:original.status, new_status:newStatus, note:null }]);
+      await supabase.from("task_history").insert([{ task_id:parseInt(id), changed_by:me, entry_type:"status_change", old_status:original.status, new_status:newStatus, note:null }]);
     }
   };
 
@@ -1327,14 +1300,10 @@ export default function App() {
   const filtered = tasks.filter(t=>!q||[t.subject,t.client,t.company,t.owner,t.status,t.next_action].some(f=>(f||"").toLowerCase().includes(q)));
   const byStatus = (s) => sortTasks(filtered.filter(t=>t.status===s), sortBy);
   const overdue = sortTasks(filtered.filter(isOverdue), sortBy);
-  const myTasks = sortTasks(filtered.filter(t=>t.owner==="Vanya"), sortBy);
+  const myTasks = sortTasks(filtered.filter(t=>t.owner===me), sortBy);
   const seanTasks = sortTasks(filtered.filter(t=>t.owner==="Sean"), sortBy);
-  const noNextAction = filtered.filter(t=>!t.next_action&&t.status!=="Done");
-  const completedThisWeek = tasks.filter(t=>t.status==="Done"&&t.actual_date>=thisWeekStart());
   const jasonTasks = tasks.filter(t=>t.owner==="Jason");
   const andreaTasks = tasks.filter(t=>t.owner==="Andrea");
-  const filteredLeads = leadStageFilter==="All" ? leads : leads.filter(l=>l.stage===leadStageFilter);
-  const hotLeads = leads.filter(l=>l.stage==="Hot"||l.stage==="Negotiating");
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
   const fyiTasks = sortTasks(filtered.filter(t=>t.status==="FYI"), sortBy);
@@ -1345,11 +1314,7 @@ export default function App() {
 
   // ── Due Today & This Week ────────────────────────────────
   const todayStr = TODAY();
-  const weekEndDate = new Date(); weekEndDate.setDate(weekEndDate.getDate() + 7);
-  const weekEnd = weekEndDate.toISOString().split("T")[0];
   const dueToday = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date === todayStr), sortBy);
-  const dueThisWeek = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date > todayStr && t.expected_date <= weekEnd), sortBy);
-  const followUpDueToday = dueToday.filter(t => t.status === "Follow Up");
   const activeProjectTasks = tasks.filter(t=>t.project&&t.status!=="Done").length;
 
   // ── Follow-up & Reminder Notifications ──────────────────
@@ -1361,9 +1326,15 @@ export default function App() {
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
+    { id:"followups", label:"Follow-ups", icon:"⏱", count: tasks.filter(t=>isOpenTask(t)&&((stateOf(t)==="Our action"&&t.expected_date&&t.expected_date<=todayStr)||(t.follow_up_date&&t.follow_up_date<=todayStr))).length },
+    { id:"pipeline", label:"Sales Pipeline", icon:"🎯", count: leads.length },
+    { id:"companies", label:"Companies", icon:"🏢", count: companies.length },
+    { id:"orders", label:"Orders", icon:"📦", count: orders.filter(o=>!o.actual_date).length },
+    { id:"search", label:"Search", icon:"🔍" },
+    { id:"quality", label:"Data Quality", icon:"🧹" },
     { id:"today", label:"Today's Actions", icon:"🔔", count: todayAlertCount },
     { id:"projects", label:"Projects", icon:"📋", count: activeProjectTasks },
-    { id:"accounts", label:"Accounts", icon:"🏢", count: totalAccounts },
+    { id:"accounts", label:"Accounts (by task text)", icon:"🗂", count: totalAccounts },
     { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length, group:"tasks" },
     { id:"fya", label:"FYA", icon:"🟠", count:byStatus("FYA").length, group:"tasks" },
     { id:"followup", label:"Follow Up", icon:"🏌️", count:byStatus("Follow Up").length, group:"tasks" },
@@ -1373,7 +1344,6 @@ export default function App() {
     { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length, group:"tasks" },
     { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length, group:"tasks" },
     { id:"flags", label:"Flags", icon:"🚨", count:unseenFlags.length },
-    { id:"leads", label:"Leads & Pipeline", icon:"🎯", count:hotLeads.length },
     { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
     { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
     { id:"team", label:"Team", icon:"👥" },
@@ -1423,6 +1393,8 @@ export default function App() {
         <div style={{ fontSize:10,color:"#374151",textAlign:"center",marginBottom:8 }}>
           <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:status==="Live"?"#10b981":status==="Connecting…"?"#f59e0b":"#ef4444",marginRight:6,verticalAlign:"middle" }} />{status}
         </div>
+        {signOut && <div style={{ fontSize:11,color:"#6b7280",textAlign:"center",marginBottom:8 }}>Signed in as {me} · <button onClick={signOut} style={{ background:"none",border:"none",color:"#0891b2",cursor:"pointer",fontSize:11 }}>Sign out</button></div>}
+        <button onClick={()=>setCommDraft({})} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>✉️ Log Communication</button>
         <button onClick={()=>setShowNotes(!showNotes)} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #1e3a8a",borderRadius:8,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📝 Quick Notes</button>
         <button onClick={()=>setShowSummary(true)} style={{ width:"100%",padding:"8px",background:"#1e1e30",border:"1px solid #2a2a45",borderRadius:8,color:"#0891b2",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📋 Daily Summary</button>
         <button onClick={()=>setModalTask({})} style={{ width:"100%",padding:"10px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ New Task</button>
@@ -1637,100 +1609,9 @@ export default function App() {
                   </div>
                 )}
 
-                {followUpDueToday.length > 0 && (
-                  <div onClick={()=>setView("followup")} style={{ marginBottom:16,background:"#10b98122",border:"1px solid #10b98166",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
-                    <span style={{ fontSize:24 }}>🏌️</span>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:700,color:"#10b981" }}>{followUpDueToday.length} Follow Up{followUpDueToday.length>1?"s":""} due today</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{followUpDueToday.map(t=>t.subject).slice(0,3).join(" · ")}{followUpDueToday.length>3?" · ...":""}</div>
-                    </div>
-                    <span style={{ marginLeft:"auto",color:"#10b981",fontSize:18 }}>→</span>
-                  </div>
-                )}
-
-                {dueToday.filter(t=>t.status!=="Follow Up").length > 0 && (
-                  <div onClick={()=>setView("overdue")} style={{ marginBottom:16,background:"#ef444422",border:"1px solid #ef444466",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
-                    <span style={{ fontSize:24 }}>📅</span>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:700,color:"#ef4444" }}>{dueToday.filter(t=>t.status!=="Follow Up").length} task{dueToday.filter(t=>t.status!=="Follow Up").length>1?"s":""} due today</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{dueToday.filter(t=>t.status!=="Follow Up").map(t=>t.subject).slice(0,3).join(" · ")}{dueToday.filter(t=>t.status!=="Follow Up").length>3?" · ...":""}</div>
-                    </div>
-                    <span style={{ marginLeft:"auto",color:"#ef4444",fontSize:18 }}>→</span>
-                  </div>
-                )}
-
-                {dueThisWeek.length > 0 && (
-                  <div onClick={()=>setView("followup")} style={{ marginBottom:20,background:"#0891b222",border:"1px solid #0891b266",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
-                    <span style={{ fontSize:24 }}>📆</span>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:700,color:"#0891b2" }}>{dueThisWeek.length} task{dueThisWeek.length>1?"s":""} due this week</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{dueThisWeek.map(t=>t.subject).slice(0,3).join(" · ")}{dueThisWeek.length>3?" · ...":""}</div>
-                    </div>
-                    <span style={{ marginLeft:"auto",color:"#0891b2",fontSize:18 }}>→</span>
-                  </div>
-                )}
-
-                {(tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length>0||tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length>0) && (
-                  <div style={{ marginBottom:28,border:"0.5px solid #2a2a45",borderRadius:12,overflow:"hidden" }}>
-                    <div style={{ padding:"10px 16px",borderBottom:"0.5px solid #2a2a45" }}>
-                      <div style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.08em",textTransform:"uppercase" }}>Daily Briefing</div>
-                    </div>
-                    <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr" }}>
-                      <div style={{ padding:"14px 16px",borderRight:"0.5px solid #2a2a45" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
-                          <div style={{ width:8,height:8,borderRadius:"50%",background:"#f97316" }} />
-                          <span style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>FYA — Sean</span>
-                          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length}</span>
-                        </div>
-                        {tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").length===0
-                          ? <div style={{ fontSize:12,color:"#374151",padding:"8px 0" }}>No FYA for Sean</div>
-                          : tasks.filter(t=>t.owner==="Sean"&&t.status==="FYA").map(t=>(
-                            <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #f97316",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
-                              <div style={{ fontSize:13,fontWeight:500,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
-                              <div style={{ fontSize:11,color:"#6b7280" }}>{t.client||t.company||"—"} · {fmtDate(t.date_received)}</div>
-                            </div>
-                          ))
-                        }
-                      </div>
-                      <div style={{ padding:"14px 16px" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
-                          <div style={{ width:8,height:8,borderRadius:"50%",background:"#8b5cf6" }} />
-                          <span style={{ fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.06em",textTransform:"uppercase" }}>FYI</span>
-                          <span style={{ marginLeft:"auto",fontSize:11,background:"#1e1e30",border:"0.5px solid #2a2a45",borderRadius:99,padding:"1px 8px",color:"#6b7280" }}>{tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length}</span>
-                        </div>
-                        {tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").length===0
-                          ? <div style={{ fontSize:12,color:"#374151",padding:"8px 0" }}>No FYI items</div>
-                          : tasks.filter(t=>(t.status==="FYI"||t.task_type==="FYI")&&t.status!=="Done").map(t=>(
-                            <div key={t.id} onClick={()=>setModalTask(t)} style={{ borderLeft:"2px solid #8b5cf6",padding:"8px 10px",background:"#1a1a2e",borderRadius:"0 8px 8px 0",marginBottom:8,cursor:"pointer" }}>
-                              <div style={{ fontSize:13,fontWeight:500,color:"#e2e8f0",marginBottom:2 }}>{t.subject}</div>
-                              <div style={{ fontSize:11,color:"#6b7280" }}>{t.client||t.company||"—"} · {fmtDate(t.date_received)}</div>
-                            </div>
-                          ))
-                        }
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:28 }}>
-                  <Stat label="FYA" value={tasks.filter(t=>t.status==="FYA").length} color="#f97316" onClick={()=>setView("fya")} />
-                  <Stat label="To Do" value={tasks.filter(t=>t.status==="To Do").length} color="#ef4444" onClick={()=>setView("todo")} />
-                  <Stat label="Follow Up" value={tasks.filter(t=>t.status==="Follow Up").length} color="#10b981" onClick={()=>setView("followup")} />
-                  <Stat label="FYI" value={tasks.filter(t=>t.status==="FYI").length} color="#8b5cf6" onClick={()=>setView("fyi")} />
-                  <Stat label="Overdue" value={tasks.filter(isOverdue).length} color="#ef4444" onClick={()=>setView("overdue")} />
-                  <Stat label="Done This Week" value={completedThisWeek.length} color="#0891b2" />
-                </div>
-                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20 }}>
-                  {[
-                    { title:"⚠️ Overdue", items:sortTasks(tasks.filter(isOverdue),sortBy).slice(0,5), empty:"No overdue tasks 🎉" },
-                    { title:"⚡ No Next Action", items:noNextAction.slice(0,5), empty:"All tasks have next actions ✓" },
-                    { title:"✅ Done This Week", items:completedThisWeek.slice(0,5), empty:"None yet this week" },
-                  ].map(function(panel){return(
-                    <div key={panel.title}>
-                      <div style={{ fontSize:12,fontWeight:700,color:"#6b7280",marginBottom:10,letterSpacing:"0.06em",textTransform:"uppercase" }}>{panel.title}</div>
-                      {panel.items.length===0 ? <div style={{ color:"#374151",fontSize:13,padding:"12px 0" }}>{panel.empty}</div> : panel.items.map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} compact />)}
-                    </div>
-                  );})}
-                </div>
+                <HubDashboard tasks={tasks} opportunities={leads} companies={companies} orders={orders}
+                  go={(v, sub)=>{ if (sub) setFollowView(sub); setView(v); }}
+                  openTask={t=>setModalTask(t)} openOpp={o=>setModalOpp(o)} openOrder={()=>setView("orders")} />
               </div>
             )}
 
@@ -1757,35 +1638,26 @@ export default function App() {
             {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} onViewReports={()=>setView("weeklyreport_inline")} />}
             {view==="weeklyreport_inline" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} onDeleteReport={deleteFlag} onBack={()=>setView("flags")} />}
 
-            {view==="leads" && (
-              <div>
-                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12 }}>
-                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,flex:1 }}>
-                    {LEAD_STAGES.map(s=>(
-                      <div key={s} style={{ background:"#1a1a2e",borderRadius:10,padding:"10px 12px",textAlign:"center",border:`1px solid ${leadStageFilter===s?LEAD_STAGE_COLOR[s]:"#2a2a45"}`,cursor:"pointer" }} onClick={()=>setLeadStageFilter(leadStageFilter===s?"All":s)}>
-                        <div style={{ fontSize:18,marginBottom:2 }}>{LEAD_STAGE_EMOJI[s]}</div>
-                        <div style={{ fontSize:20,fontWeight:800,color:LEAD_STAGE_COLOR[s] }}>{leads.filter(l=>l.stage===s).length}</div>
-                        <div style={{ fontSize:10,color:"#6b7280" }}>{s}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={()=>setModalLead({})} style={{ padding:"10px 20px",background:"#0891b2",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,flexShrink:0 }}>+ Add Lead</button>
-                </div>
-                {leadStageFilter!=="All" && (
-                  <div style={{ marginBottom:12,display:"flex",alignItems:"center",gap:8 }}>
-                    <span style={{ fontSize:12,color:"#6b7280" }}>Showing: {LEAD_STAGE_EMOJI[leadStageFilter]} {leadStageFilter}</span>
-                    <button onClick={()=>setLeadStageFilter("All")} style={{ background:"none",border:"1px solid #2a2a45",borderRadius:6,color:"#6b7280",cursor:"pointer",fontSize:11,padding:"2px 8px" }}>Clear filter</button>
-                  </div>
-                )}
-                {filteredLeads.length===0
-                  ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>🎯</div><div>No leads yet</div></div>
-                  : filteredLeads.map(l=><LeadCard key={l.id} lead={l} onClick={l=>setModalLead(l)} />)
-                }
-              </div>
-            )}
+            {appError && <HubBanner onClose={()=>setAppError(null)}>{appError}</HubBanner>}
+            {view==="pipeline" && <Pipeline opportunities={leads} companies={companies} contacts={contacts} tasks={tasks} onChanged={reloadAll} onOpenTask={t=>setModalTask(t)} onNewTask={(init)=>setModalTask(newTask(init))} />}
+            {view==="companies" && <Companies companies={companies} contacts={contacts} opportunities={leads} tasks={tasks} orders={orders} onChanged={reloadAll} onOpenTask={t=>setModalTask(t)} onOpenOpportunity={o=>setModalOpp(o)} onNewTask={(init)=>setModalTask(newTask(init))} onLogComm={(init)=>setCommDraft(init)} />}
+            {view==="followups" && <FollowUps key={followView} initialView={followView} tasks={tasks} opportunities={leads} companies={companies} onOpenTask={t=>setModalTask(t)} onOpenOpportunity={o=>setModalOpp(o)} onChanged={reloadAll} />}
+            {view==="orders" && <Orders orders={orders} companies={companies} opportunities={leads} onChanged={loadCrm} />}
+            {view==="search" && <Search autoFocus onPick={(kind,id)=>{
+              if (kind==="task") { const t=tasks.find(x=>x.id===id); if (t) setModalTask(t); else supabase.from("tasks").select("*").eq("id",id).single().then(({data})=>data&&setModalTask(data)); }
+              else if (kind==="opportunity") { const o=leads.find(x=>x.id===id); if (o) setModalOpp(o); else supabase.from("leads").select("*").eq("id",id).single().then(({data})=>data&&setModalOpp(data)); }
+              else if (kind==="company"||kind==="contact") setView("companies");
+              else if (kind==="order") setView("orders");
+              else setView("companies");
+            }} />}
+            {view==="quality" && <DataQuality onOpen={(type,id)=>{
+              if (type==="task") { const t=tasks.find(x=>x.id===id); if (t) setModalTask(t); }
+              else if (type==="opportunity") { const o=leads.find(x=>x.id===id); if (o) setModalOpp(o); }
+              else if (type==="order") setView("orders"); else setView("companies");
+            }} />}
 
             {view==="seanweek" && <SeanWeekView items={seanWeek} onAdd={addSeanWeekItem} onDelete={deleteSeanWeekItem} />}
-            {view==="inbox" && <InboxTriageView items={inboxTriage} onAdd={addInboxItem} onClear={clearInboxItem} />}
+            {view==="inbox" && <InboxTriageView items={inboxTriage} onAdd={addInboxItem} onClear={clearInboxItem} onLog={(item)=>setCommDraft({ type:"Email", direction:"Inbound", subject:item.subject, notes:item.next_action||"" })} />}
 
             {view==="team" && (
               <div>
@@ -1795,7 +1667,7 @@ export default function App() {
               </div>
             )}
 
-            {!["dashboard","projects","accounts","leads","seanweek","inbox","team","flags","weeklyreport_inline"].includes(view) && (
+            {!["dashboard","projects","accounts","pipeline","companies","followups","orders","search","quality","seanweek","inbox","team","flags","weeklyreport_inline"].includes(view) && (
               <div>
                 {(viewTasks[view]||[]).length===0
                   ? <div style={{ textAlign:"center",padding:"60px 0",color:"#374151" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
@@ -1811,31 +1683,27 @@ export default function App() {
         <Modal onClose={()=>setModalTask(null)}>
           {modalTask.id
             ? <div>
-                <TaskForm initial={modalTask} onSave={upsertTask} onClose={()=>setModalTask(null)} />
+                <TaskForm initial={modalTask} onSave={upsertTask} onClose={()=>setModalTask(null)} companies={companies} opportunities={leads} />
                 <TaskActivityFeed taskId={modalTask.id} taskNotes={modalTask.notes} onNoteAdded={loadTasks} />
                 <div style={{ marginTop:16,borderTop:"1px solid #2a2a45",paddingTop:16,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:12,color:"#4b5563" }}>Received {fmtDate(modalTask.date_received)}</div>
-                  <button onClick={()=>{ if(window.confirm("Delete this task?")){ deleteTask(modalTask.id); setModalTask(null); }}} style={{ padding:"6px 14px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:12 }}>Delete Task</button>
+                  <div style={{ display:"flex",gap:8 }}>
+                    <button onClick={()=>setCommDraft({ task_id: modalTask.id, company_id: modalTask.company_id, opportunity_id: modalTask.opportunity_id })} style={{ padding:"6px 14px",background:"none",border:"1px solid #10b981",borderRadius:6,color:"#10b981",cursor:"pointer",fontSize:12 }}>✉️ Log communication</button>
+                    <button onClick={()=>{ if(window.confirm("Archive this task? Its history is kept and it can be restored.")){ archiveTask(modalTask.id); setModalTask(null); }}} style={{ padding:"6px 14px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:12 }}>Archive Task</button>
+                  </div>
                 </div>
               </div>
-            : <TaskForm initial={newTask()} onSave={upsertTask} onClose={()=>setModalTask(null)} />
+            : <TaskForm initial={{ ...newTask(), ...modalTask }} onSave={upsertTask} onClose={()=>setModalTask(null)} companies={companies} opportunities={leads} />
           }
         </Modal>
       )}
 
-      {modalLead !== null && (
-        <Modal onClose={()=>setModalLead(null)}>
-          {modalLead.id
-            ? <div>
-                <LeadForm initial={modalLead} onSave={upsertLead} onClose={()=>setModalLead(null)} />
-                <div style={{ marginTop:16,borderTop:"1px solid #2a2a45",paddingTop:16,display:"flex",justifyContent:"flex-end" }}>
-                  <button onClick={()=>{ if(window.confirm("Delete this lead?")){ deleteLead(modalLead.id); setModalLead(null); }}} style={{ padding:"6px 14px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:12 }}>Delete Lead</button>
-                </div>
-              </div>
-            : <LeadForm initial={newLead()} onSave={upsertLead} onClose={()=>setModalLead(null)} />
-          }
-        </Modal>
+      {modalOpp && (
+        <OpportunityModal opp={modalOpp} companies={companies} contacts={contacts} tasks={tasks}
+          onClose={()=>setModalOpp(null)} onSaved={()=>{ setModalOpp(null); reloadAll(); }}
+          onOpenTask={t=>{ setModalOpp(null); setModalTask(t); }} onNewTask={(init)=>{ setModalOpp(null); setModalTask(newTask(init)); }} />
       )}
+      {commDraft && <CommLog initial={commDraft} companies={companies} contacts={contacts} opportunities={leads} tasks={tasks} onClose={()=>setCommDraft(null)} onSaved={()=>{ setCommDraft(null); reloadAll(); }} />}
 
       {showSummary && <SummaryModal tasks={tasks} onClose={()=>setShowSummary(false)} />}
       {showNotes && <StickyNote onClose={()=>setShowNotes(false)} />}
