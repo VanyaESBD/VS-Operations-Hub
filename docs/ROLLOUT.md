@@ -8,7 +8,7 @@
 | Tested | ✅ On a staging copy of the live data (see below) |
 | Deployed | ❌ Not yet — waiting for the Claude GitHub App on `VanyaESBD` so the branch can be pushed and Vercel builds a preview. Vercel access confirmed 13 Oct |
 | Production database changed | ✅ Migration 0002 applied 13 Oct 09:12 SAST after a verified backup; every original value unchanged (fingerprints match), row counts unchanged |
-| 0002a security tidy-up | Tested on staging; awaiting approval for production |
+| 0002a security tidy-up | APPLIED to production 13 Oct 2026 (~11:25 SAST); verified: API execute revoked, 7 audit triggers intact, 235 tasks |
 | Login activated | ❌ No — built, switched off (`REACT_APP_AUTH_ENABLED` unset) |
 | Data import applied | ❌ No — preview v4 only |
 
