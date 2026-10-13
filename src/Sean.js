@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
+import { CATEGORIES, normaliseCategory } from "./lib/categories";
+import { CategoryTag } from "./hub/tags";
 import { todayISO, addDays, stageOf, isActiveLead, leadFollowUp, dueBucket, formatMoney, PIPELINE_STAGES, STAGE_COLOR, stateOf, isOpenTask, actionDate } from "./lib/hub";
 import { saveOpportunity, addActivityNote } from "./lib/data";
 
@@ -12,14 +14,14 @@ const fmtDateTime = (ts) => {
 };
 const isOverdue = (t) => isOpenTask(t) && stateOf(t) === "Our action" && t.expected_date && t.expected_date < TODAY();
 
-const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
+const STATUS_COLOR = { "To Do": "#c57f58", "FYA": "#c57f58", "Follow Up": "#a8a8a8", "FYI": "#b39ecc", "Done": "#5ccee8" }; // Outlook FYA / FlwUP / FYI
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
-const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+const URGENCY_COLOR = { Low: "#7f93a1", Medium: "#118fb5", High: "#f59e0b", Urgent: "#ef4444" };
 const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 
 const STRATEGIC_PROJECTS = [
-  { name: "UPD", color: "#0891b2" },
+  { name: "UPD", color: "#118fb5" },
   { name: "CJ Distribution", color: "#f97316" },
   { name: "Adcock Ingram", color: "#8b5cf6" },
   { name: "Strategnos", color: "#10b981" },
@@ -40,39 +42,42 @@ const SPECIAL_ACCOUNTS = [
 const specialKeys = ["finance", "personal"];
 const normKey = (s) => (s || "").trim().toLowerCase();
 
-const inp = { background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
+const inp = { background:"#10364a", border:"1px solid #1b4a60", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
 
+// Earliest date that needs attention first (most overdue at the top); urgency breaks ties.
 function sortByUrgency(arr) {
   return [...arr].sort((a, b) => {
-    const aOver = isOverdue(a) ? 0 : 1;
-    const bOver = isOverdue(b) ? 0 : 1;
-    if (aOver !== bOver) return aOver - bOver;
+    const da = actionDate(a) || "9999-12-31", db = actionDate(b) || "9999-12-31";
+    if (da !== db) return da < db ? -1 : 1;
     const ap = PRIORITY_ORDER[a.priority] !== undefined ? PRIORITY_ORDER[a.priority] : 2;
     const bp = PRIORITY_ORDER[b.priority] !== undefined ? PRIORITY_ORDER[b.priority] : 2;
-    if (ap !== bp) return ap - bp;
-    return (a.expected_date || "9999") > (b.expected_date || "9999") ? 1 : -1;
+    return ap - bp;
   });
 }
 
 function TaskCard({ task, onEdit, onDone }) {
   var over = isOverdue(task);
-  var borderColor = STATUS_COLOR[task.status] || "#2a2a45";
+  var cat = normaliseCategory(task.category);
+  var borderColor = cat ? CATEGORIES[cat].ink : (STATUS_COLOR[task.status] || "#1b4a60");
+  var when = actionDate(task);
+  var waiting = stateOf(task) === "Awaiting response";
   return (
-    <div style={{ background:"#1a1a2e", border:"1px solid " + (over ? "#7f1d1d" : "#2a2a45"), borderLeft:"3px solid " + borderColor, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
+    <div style={{ background:"#0e2d3e", border:"1px solid " + (over ? "#7f1d1d" : "#1b4a60"), borderLeft:"3px solid " + borderColor, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:4 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", lineHeight:1.3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{task.subject}</div>
-          <div style={{ fontSize:11, color: over ? "#fca5a5" : "#6b7280", marginTop:2 }}>
-            {task.company ? task.company + " · " : ""}{over ? "⚠ " : ""}Due {fmtDate(task.expected_date)}
+          <div style={{ fontSize:11, color: over ? "#fca5a5" : "#7f93a1", marginTop:2 }}>
+            {task.company ? task.company + " · " : ""}{over ? "⚠ " : ""}{waiting ? "Follow up " : "Due "}{fmtDate(when)}
+            {cat && <span style={{ marginLeft:6 }}><CategoryTag category={cat} small /></span>}
             {task.priority === "Urgent" && <span style={{ marginLeft:6, background:"#ef444422", color:"#ef4444", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>URGENT</span>}
           </div>
         </div>
         <div style={{ display:"flex", gap:6, flexShrink:0, alignItems:"center" }}>
-          <button aria-label="Edit" onClick={function() { onEdit(task); }} style={{ minWidth:42, minHeight:42, background:"#0891b222", border:"1px solid #0891b2", borderRadius:8, color:"#0891b2", fontSize:16, fontWeight:600, cursor:"pointer" }}>✎</button>
+          <button aria-label="Edit" onClick={function() { onEdit(task); }} style={{ minWidth:42, minHeight:42, background:"#118fb522", border:"1px solid #118fb5", borderRadius:8, color:"#118fb5", fontSize:16, fontWeight:600, cursor:"pointer" }}>✎</button>
           <button aria-label="Mark done" onClick={function() { onDone(task.id); }} style={{ minWidth:42, minHeight:42, background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:16, fontWeight:600, cursor:"pointer" }}>✓</button>
         </div>
       </div>
-      {task.next_action && <div style={{ fontSize:12, color:"#0891b2", marginTop:2 }}>→ {task.next_action}</div>}
+      {task.next_action && <div style={{ fontSize:12, color:"#118fb5", marginTop:2 }}>→ {task.next_action}</div>}
     </div>
   );
 }
@@ -88,28 +93,28 @@ function EditSheet({ task, onSave, onClose }) {
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div style={{ background:"#13131f", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%", maxHeight:"80vh", overflowY:"auto" }} onClick={function(e) { e.stopPropagation(); }}>
-        <div style={{ width:36, height:4, background:"#2a2a45", borderRadius:99, margin:"0 auto 16px" }} />
+      <div style={{ background:"#0b2735", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%", maxHeight:"80vh", overflowY:"auto" }} onClick={function(e) { e.stopPropagation(); }}>
+        <div style={{ width:36, height:4, background:"#1b4a60", borderRadius:99, margin:"0 auto 16px" }} />
         <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{task.subject}</div>
-        <div style={{ fontSize:11, color:"#4b5563", marginBottom:16 }}>{task.company || ""}{task.client ? " · " + task.client : ""}</div>
-        <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:8 }}>Status</div>
+        <div style={{ fontSize:11, color:"#6a8090", marginBottom:16 }}>{task.company || ""}{task.client ? " · " + task.client : ""}</div>
+        <div style={{ fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:8 }}>Status</div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
           {STATUSES.map(function(st) {
             return (
               <button key={st} onClick={function() { set("status", st); }}
-                style={{ padding:"6px 12px", borderRadius:99, border:"1px solid " + (form.status===st ? STATUS_COLOR[st] : "#2a2a45"), background:form.status===st ? STATUS_COLOR[st]+"33" : "none", color:form.status===st ? STATUS_COLOR[st] : "#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===st ? 700 : 400 }}>
+                style={{ padding:"6px 12px", borderRadius:99, border:"1px solid " + (form.status===st ? STATUS_COLOR[st] : "#1b4a60"), background:form.status===st ? STATUS_COLOR[st]+"33" : "none", color:form.status===st ? STATUS_COLOR[st] : "#7f93a1", cursor:"pointer", fontSize:12, fontWeight:form.status===st ? 700 : 400 }}>
                 {STATUS_EMOJI[st]} {st}
               </button>
             );
           })}
         </div>
-        <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Follow Up Date</div>
+        <div style={{ fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Follow Up Date</div>
         <input type="date" value={form.expected_date} onChange={function(e) { set("expected_date", e.target.value); }} style={Object.assign({}, inp, { marginBottom:12, fontSize:13 })} />
-        <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Next Action</div>
+        <div style={{ fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Next Action</div>
         <input value={form.next_action} onChange={function(e) { set("next_action", e.target.value); }} placeholder="What needs to happen next?" style={Object.assign({}, inp, { marginBottom:12, fontSize:13 })} />
-        <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Notes</div>
+        <div style={{ fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>Notes</div>
         <textarea value={form.notes} onChange={function(e) { set("notes", e.target.value); }} placeholder="Add a note..." style={Object.assign({}, inp, { minHeight:80, resize:"vertical", marginBottom:16, fontSize:13 })} />
-        <button onClick={function() { onSave(form); }} style={{ width:"100%", padding:"13px", background:"#0891b2", border:"none", borderRadius:10, color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer" }}>
+        <button onClick={function() { onSave(form); }} style={{ width:"100%", padding:"13px", background:"#118fb5", border:"none", borderRadius:10, color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer" }}>
           Save
         </button>
       </div>
@@ -120,7 +125,7 @@ function EditSheet({ task, onSave, onClose }) {
 function ProjectList({ tasks, onSelect }) {
   return (
     <div>
-      <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>📋 Strategic Workstreams</div>
+      <div style={{ fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>📋 Strategic Workstreams</div>
       {STRATEGIC_PROJECTS.map(function(proj) {
         var pt = tasks.filter(function(t) { return t.project === proj.name; });
         var ptActive = pt.filter(function(t) { return t.status !== "Done"; }).length;
@@ -130,20 +135,20 @@ function ProjectList({ tasks, onSelect }) {
         var ptProgress = ptTotal > 0 ? Math.round((ptDone / ptTotal) * 100) : 0;
         return (
           <div key={proj.name} onClick={function() { onSelect(proj.name); }}
-            style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderTop:"2px solid "+proj.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
+            style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderTop:"2px solid "+proj.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
               <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0", lineHeight:1.3, marginBottom:3 }}>{proj.name}</div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {ptActive > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{ptActive} active</span>}
                   {ptOverdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {ptOverdue} overdue</span>}
-                  {ptTotal === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                  {ptTotal === 0 && <span style={{ fontSize:11, color:"#557080" }}>No tasks yet</span>}
                   {ptActive === 0 && ptTotal > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Done</span>}
                 </div>
               </div>
               <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{ptProgress}%</span>
             </div>
-            <div style={{ height:3, background:"#2a2a45", borderRadius:99, overflow:"hidden" }}>
+            <div style={{ height:3, background:"#1b4a60", borderRadius:99, overflow:"hidden" }}>
               <div style={{ height:"100%", width:ptProgress+"%", background:proj.color, borderRadius:99 }} />
             </div>
           </div>
@@ -154,7 +159,7 @@ function ProjectList({ tasks, onSelect }) {
 }
 
 function ProjectDetail({ projectName, tasks, statusFilter, onFilterChange, onBack, onEdit, onDone }) {
-  var proj = STRATEGIC_PROJECTS.find(function(p) { return p.name === projectName; }) || { name: projectName, color: "#0891b2" };
+  var proj = STRATEGIC_PROJECTS.find(function(p) { return p.name === projectName; }) || { name: projectName, color: "#118fb5" };
   var projTasks = tasks.filter(function(t) { return t.project === projectName; });
   var PROJ_FILTERS = ["All", "To Do", "FYA", "Follow Up", "FYI", "Overdue"];
   var filtered = sortByUrgency(projTasks.filter(function(t) {
@@ -171,10 +176,10 @@ function ProjectDetail({ projectName, tasks, statusFilter, onFilterChange, onBac
         <button onClick={onBack} style={{ background:"none", border:"none", color:"#9ca3af", cursor:"pointer", fontSize:20, padding:"4px 8px 4px 0" }}>←</button>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:15, fontWeight:800, color:"#e2e8f0", lineHeight:1.2 }}>{proj.name}</div>
-          <div style={{ fontSize:11, color:"#6b7280" }}>{projDone}/{projTotal} done · {projProgress}%</div>
+          <div style={{ fontSize:11, color:"#7f93a1" }}>{projDone}/{projTotal} done · {projProgress}%</div>
         </div>
       </div>
-      <div style={{ height:4, background:"#2a2a45", borderRadius:99, overflow:"hidden", marginBottom:12 }}>
+      <div style={{ height:4, background:"#1b4a60", borderRadius:99, overflow:"hidden", marginBottom:12 }}>
         <div style={{ height:"100%", width:projProgress+"%", background:proj.color, borderRadius:99 }} />
       </div>
       <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:2 }}>
@@ -186,14 +191,14 @@ function ProjectDetail({ projectName, tasks, statusFilter, onFilterChange, onBac
           var col = f === "Overdue" ? "#ef4444" : f === "All" ? proj.color : (STATUS_COLOR[f] || proj.color);
           return (
             <button key={f} onClick={function() { onFilterChange(f); }}
-              style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid "+(isAct ? col : "#2a2a45"), background:isAct ? col+"33" : "none", color:isAct ? col : "#6b7280", cursor:"pointer", fontSize:11, fontWeight:isAct ? 700 : 400 }}>
+              style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid "+(isAct ? col : "#1b4a60"), background:isAct ? col+"33" : "none", color:isAct ? col : "#7f93a1", cursor:"pointer", fontSize:11, fontWeight:isAct ? 700 : 400 }}>
               {f} {cnt > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 4px", fontSize:10 }}>{cnt}</span>}
             </button>
           );
         })}
       </div>
       {filtered.length === 0
-        ? <div style={{ textAlign:"center", padding:"48px 0", color:"#374151" }}><div style={{ fontSize:28, marginBottom:8 }}>📋</div><div style={{ fontSize:13 }}>No tasks here</div></div>
+        ? <div style={{ textAlign:"center", padding:"48px 0", color:"#557080" }}><div style={{ fontSize:28, marginBottom:8 }}>📋</div><div style={{ fontSize:13 }}>No tasks here</div></div>
         : filtered.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={onEdit} onDone={onDone} />; })
       }
     </div>
@@ -205,13 +210,13 @@ function OppRow({ o, onOpen }) {
   var b = dueBucket(fu, TODAY());
   var money = formatMoney(o.value_amount, o.currency, o.value_basis);
   return (
-    <div onClick={function() { onOpen(o); }} style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderLeft:"3px solid " + STAGE_COLOR[stageOf(o)], borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", minHeight:44 }}>
+    <div onClick={function() { onOpen(o); }} style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderLeft:"3px solid " + STAGE_COLOR[stageOf(o)], borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", minHeight:44 }}>
       <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
         <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", flex:1, minWidth:0 }}>{o.name || o.company}</div>
-        {fu && <span style={{ fontSize:12, color: b === "overdue" ? "#fca5a5" : b === "today" ? "#fde68a" : "#6b7280", flexShrink:0 }}>{fmtDate(fu)}</span>}
+        {fu && <span style={{ fontSize:12, color: b === "overdue" ? "#fca5a5" : b === "today" ? "#fde68a" : "#7f93a1", flexShrink:0 }}>{fmtDate(fu)}</span>}
       </div>
       <div style={{ fontSize:12, color:"#9ca3af", marginTop:2 }}>{stageOf(o)}{money ? " · " + money : ""}</div>
-      {o.next_action && <div style={{ fontSize:12, color:"#0891b2", marginTop:4 }}>→ {o.next_action}</div>}
+      {o.next_action && <div style={{ fontSize:12, color:"#118fb5", marginTop:4 }}>→ {o.next_action}</div>}
     </div>
   );
 }
@@ -234,14 +239,14 @@ function OppSheet({ opp, onClose, onSaved }) {
     setSaving(false);
     if (res.error) setError(res.error); else onSaved();
   }
-  var lbl = { fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 };
+  var lbl = { fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 };
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div style={{ background:"#13131f", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%", maxHeight:"88vh", overflowY:"auto" }} onClick={function(e) { e.stopPropagation(); }}>
-        <div style={{ width:36, height:4, background:"#2a2a45", borderRadius:99, margin:"0 auto 16px" }} />
+      <div style={{ background:"#0b2735", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%", maxHeight:"88vh", overflowY:"auto" }} onClick={function(e) { e.stopPropagation(); }}>
+        <div style={{ width:36, height:4, background:"#1b4a60", borderRadius:99, margin:"0 auto 16px" }} />
         <div style={{ fontSize:16, fontWeight:800, color:"#e2e8f0" }}>{opp.name || opp.company}</div>
         <div style={{ fontSize:12, color:"#9ca3af", margin:"4px 0 14px" }}>{[opp.company, money, opp.owner && "Owner: " + opp.owner].filter(Boolean).join(" · ")}</div>
-        {opp.notes && <div style={{ fontSize:12, color:"#9ca3af", background:"#1a1a2e", borderRadius:8, padding:10, marginBottom:14, whiteSpace:"pre-wrap" }}>{opp.notes}</div>}
+        {opp.notes && <div style={{ fontSize:12, color:"#9ca3af", background:"#0e2d3e", borderRadius:8, padding:10, marginBottom:14, whiteSpace:"pre-wrap" }}>{opp.notes}</div>}
         {error && <div style={{ background:"#7f1d1d55", color:"#fca5a5", borderRadius:8, padding:10, fontSize:13, marginBottom:12 }}>{error}</div>}
         <div style={lbl}>Stage</div>
         <select value={stage} onChange={function(e) { setStage(e.target.value); }} style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12, borderColor: STAGE_COLOR[stage] })}>
@@ -252,12 +257,12 @@ function OppSheet({ opp, onClose, onSaved }) {
         <input value={nextAction} onChange={function(e) { setNextAction(e.target.value); }} placeholder="What happens next?" style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12 })} />
         <div style={lbl}>Follow up on</div>
         <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-          {[["Tomorrow",1],["+3 days",3],["Next week",7]].map(function(x) { return <button key={x[0]} onClick={function() { setFollowUp(addDays(TODAY(), x[1])); }} style={{ flex:1, minHeight:42, background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, color:"#9ca3af", fontSize:13 }}>{x[0]}</button>; })}
+          {[["Tomorrow",1],["+3 days",3],["Next week",7]].map(function(x) { return <button key={x[0]} onClick={function() { setFollowUp(addDays(TODAY(), x[1])); }} style={{ flex:1, minHeight:42, background:"#10364a", border:"1px solid #1b4a60", borderRadius:8, color:"#9ca3af", fontSize:13 }}>{x[0]}</button>; })}
         </div>
         <input type="date" value={followUp} onChange={function(e) { setFollowUp(e.target.value); }} style={Object.assign({}, inp, { fontSize:15, padding:"12px", marginBottom:12 })} />
         <div style={lbl}>Quick note (kept in history)</div>
         <textarea value={note} onChange={function(e) { setNote(e.target.value); }} placeholder="e.g. Spoke to Kerr — wants revised costing" style={Object.assign({}, inp, { minHeight:70, fontSize:15, marginBottom:16 })} />
-        <button disabled={saving} onClick={save} style={{ width:"100%", padding:"14px", background:"#0891b2", border:"none", borderRadius:10, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
+        <button disabled={saving} onClick={save} style={{ width:"100%", padding:"14px", background:"#118fb5", border:"none", borderRadius:10, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
       </div>
     </div>
   );
@@ -273,11 +278,11 @@ function NoteSheet({ onClose }) {
   }
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div style={{ background:"#13131f", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%" }} onClick={function(e) { e.stopPropagation(); }}>
+      <div style={{ background:"#0b2735", borderRadius:"16px 16px 0 0", padding:"20px 16px 32px", width:"100%" }} onClick={function(e) { e.stopPropagation(); }}>
         <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:10 }}>📝 Quick note for Vanya</div>
         {error && <div style={{ color:"#fca5a5", fontSize:13, marginBottom:8 }}>{error}</div>}
         <textarea autoFocus value={text} onChange={function(e) { setText(e.target.value); }} placeholder="Anything to action or remember…" style={Object.assign({}, inp, { minHeight:110, fontSize:15, marginBottom:14 })} />
-        <button onClick={send} style={{ width:"100%", padding:"14px", background:"#0891b2", border:"none", borderRadius:10, color:"#fff", fontSize:16, fontWeight:700 }}>Send</button>
+        <button onClick={send} style={{ width:"100%", padding:"14px", background:"#118fb5", border:"none", borderRadius:10, color:"#fff", fontSize:16, fontWeight:700 }}>Send</button>
       </div>
     </div>
   );
@@ -394,7 +399,7 @@ export default function Sean() {
     return found ? found.company.trim() : key;
   };
   var companyKeys = Array.from(new Set(tasks.map(function(t) { return normKey(t.company); }).filter(function(k) { return k && !specialKeys.includes(k); }))).sort();
-  var allAccounts = SPECIAL_ACCOUNTS.concat(companyKeys.map(function(k) { return { key: k, label: getDisplayName(k), color: "#0891b2" }; }));
+  var allAccounts = SPECIAL_ACCOUNTS.concat(companyKeys.map(function(k) { return { key: k, label: getDisplayName(k), color: "#118fb5" }; }));
 
   function getAccountTasks(key) {
     return tasks.filter(function(t) { return normKey(t.company) === key; });
@@ -412,26 +417,26 @@ export default function Sean() {
   ];
 
   var s = {
-    page: { minHeight:"100vh", background:"#0d0d1a", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", paddingBottom:40 },
-    header: { background:"#0a0a16", padding:"12px 16px", borderBottom:"1px solid #1e1e30", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
-    tabs: { display:"flex", borderBottom:"1px solid #1e1e30", background:"#0a0a16", position:"sticky", top:49, zIndex:99 },
+    page: { minHeight:"100vh", background:"#0a2432", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", paddingBottom:40 },
+    header: { background:"#08202c", padding:"12px 16px", borderBottom:"1px solid #10364a", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
+    tabs: { display:"flex", borderBottom:"1px solid #10364a", background:"#08202c", position:"sticky", top:49, zIndex:99 },
     content: { padding:"12px" },
-    sectionLabel: { fontSize:10, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:8, marginTop:4 },
-    empty: { textAlign:"center", padding:"48px 0", color:"#374151" },
+    sectionLabel: { fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:8, marginTop:4 },
+    empty: { textAlign:"center", padding:"48px 0", color:"#557080" },
   };
 
   function tabStyle(active) {
-    return { flex:1, padding:"10px 4px", border:"none", borderBottom:"2px solid " + (active ? "#0891b2" : "transparent"), background:"none", color: active ? "#0891b2" : "#6b7280", fontSize:11, fontWeight: active ? 700 : 400, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2 };
+    return { flex:1, padding:"10px 4px", border:"none", borderBottom:"2px solid " + (active ? "#118fb5" : "transparent"), background:"none", color: active ? "#118fb5" : "#7f93a1", fontSize:11, fontWeight: active ? 700 : 400, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2 };
   }
 
   function badgeColor(id) {
     if (id === "reports") return "#3b82f6";
-    if (id === "accounts") return "#0891b2";
+    if (id === "accounts") return "#118fb5";
     if (id === "projects") return "#d97806";
     return "#ef4444";
   }
 
-  if (loading) return <div style={Object.assign({}, s.page, { display:"flex", alignItems:"center", justifyContent:"center" })}><div style={{ color:"#0891b2" }}>Loading...</div></div>;
+  if (loading) return <div style={Object.assign({}, s.page, { display:"flex", alignItems:"center", justifyContent:"center" })}><div style={{ color:"#118fb5" }}>Loading...</div></div>;
 
   return (
     <div style={s.page}>
@@ -441,7 +446,7 @@ export default function Sean() {
           <div style={{ fontSize:12, fontWeight:700, color:"#e2e8f0" }}>
             {new Date().getHours() < 12 ? "Morning" : new Date().getHours() < 17 ? "Afternoon" : "Evening"}, Sean
           </div>
-          <div style={{ fontSize:10, color:"#4b5563" }}>{new Date().toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short" })}</div>
+          <div style={{ fontSize:10, color:"#6a8090" }}>{new Date().toLocaleDateString("en-GB", { weekday:"short", day:"2-digit", month:"short" })}</div>
         </div>
       </div>
 
@@ -461,7 +466,7 @@ export default function Sean() {
 
         {activeTab === "today" && (
           <div>
-            <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"12px 14px", marginBottom:14, fontSize:14, color:"#e2e8f0", lineHeight:1.5 }}>
+            <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:12, padding:"12px 14px", marginBottom:14, fontSize:14, color:"#e2e8f0", lineHeight:1.5 }}>
               {tOverdue.length + tToday.length + tDecide.length + tFollow.length + oppsDue.length === 0
                 ? "Nothing needs you right now. 🎉"
                 : <span><b style={{ color: tOverdue.length ? "#fca5a5" : "#e2e8f0" }}>{tOverdue.length} overdue</b> · {tToday.length} due today · {tDecide.length} for your decision · {tFollow.length} follow-ups due · {oppsDue.length} deals to move</span>}
@@ -517,7 +522,7 @@ export default function Sean() {
         {activeTab === "accounts" && !selectedAccount && (
           <div>
             <div style={{ position:"relative", marginBottom:10 }}>
-              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#4b5563", fontSize:13 }}>🔍</span>
+              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#6a8090", fontSize:13 }}>🔍</span>
               <input value={accountSearch} onChange={function(e) { setAccountSearch(e.target.value); }} placeholder="Search accounts..."
                 style={Object.assign({}, inp, { paddingLeft:32, fontSize:13, padding:"7px 10px 7px 32px" })} />
             </div>
@@ -529,7 +534,7 @@ export default function Sean() {
               if (total === 0 && !specialKeys.includes(account.key)) return null;
               return (
                 <div key={account.key} onClick={function() { setSelectedAccount(account); setAccountFilter("All"); }}
-                  style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderLeft:"3px solid " + account.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderLeft:"3px solid " + account.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginBottom:3 }}>{account.label}</div>
                     <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -537,10 +542,10 @@ export default function Sean() {
                       {overdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {overdue} overdue</span>}
                       {urgent > 0 && <span style={{ fontSize:11, color:"#f59e0b" }}>🔴 {urgent} urgent</span>}
                       {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ All done</span>}
-                      {total === 0 && <span style={{ fontSize:11, color:"#374151" }}>No tasks yet</span>}
+                      {total === 0 && <span style={{ fontSize:11, color:"#557080" }}>No tasks yet</span>}
                     </div>
                   </div>
-                  <span style={{ color:"#4b5563", fontSize:16, marginLeft:8 }}>›</span>
+                  <span style={{ color:"#6a8090", fontSize:16, marginLeft:8 }}>›</span>
                 </div>
               );
             })}
@@ -554,7 +559,7 @@ export default function Sean() {
                 style={{ background:"none", border:"none", color:"#9ca3af", cursor:"pointer", fontSize:20, padding:"4px 8px 4px 0" }}>←</button>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:16, fontWeight:800, color:"#e2e8f0" }}>{selectedAccount.label}</div>
-                <div style={{ fontSize:11, color:"#6b7280" }}>
+                <div style={{ fontSize:11, color:"#7f93a1" }}>
                   {getAccountTasks(selectedAccount.key).filter(function(t) { return t.status !== "Done"; }).length} active · {getAccountTasks(selectedAccount.key).filter(isOverdue).length} overdue
                 </div>
               </div>
@@ -567,10 +572,10 @@ export default function Sean() {
                   : f === "Urgent" ? acctTasks.filter(function(t) { return t.priority === "Urgent" && t.status !== "Done"; }).length
                   : acctTasks.filter(function(t) { return t.status === f; }).length;
                 var active = accountFilter === f;
-                var color = f === "Overdue" ? "#ef4444" : f === "Urgent" ? "#f59e0b" : f === "All" ? "#0891b2" : (STATUS_COLOR[f] || "#0891b2");
+                var color = f === "Overdue" ? "#ef4444" : f === "Urgent" ? "#f59e0b" : f === "All" ? "#118fb5" : (STATUS_COLOR[f] || "#118fb5");
                 return (
                   <button key={f} onClick={function() { setAccountFilter(f); }}
-                    style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid " + (active ? color : "#2a2a45"), background:active ? color+"33" : "none", color:active ? color : "#6b7280", cursor:"pointer", fontSize:11, fontWeight:active ? 700 : 400, display:"flex", alignItems:"center", gap:4 }}>
+                    style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid " + (active ? color : "#1b4a60"), background:active ? color+"33" : "none", color:active ? color : "#7f93a1", cursor:"pointer", fontSize:11, fontWeight:active ? 700 : 400, display:"flex", alignItems:"center", gap:4 }}>
                     {f}
                     {count > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 5px", fontSize:10 }}>{count}</span>}
                   </button>
@@ -617,15 +622,15 @@ export default function Sean() {
                 <div style={s.sectionLabel}>⚠️ Needs Attention</div>
                 {unseenFlags.map(function(f) {
                   return (
-                    <div key={f.id} style={{ background:"#1a1a2e", border:"1px solid " + URGENCY_COLOR[f.urgency]+"44", borderLeft:"3px solid " + URGENCY_COLOR[f.urgency], borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
+                    <div key={f.id} style={{ background:"#0e2d3e", border:"1px solid " + URGENCY_COLOR[f.urgency]+"44", borderLeft:"3px solid " + URGENCY_COLOR[f.urgency], borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                           <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
                           <span style={{ fontSize:11, color:"#9ca3af" }}>{f.from_name}</span>
                         </div>
-                        <span style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(f.created_at)}</span>
+                        <span style={{ fontSize:10, color:"#6a8090" }}>{fmtDateTime(f.created_at)}</span>
                       </div>
-                      {f.task_subject && f.task_subject !== "General flag" && <div style={{ fontSize:11, color:"#6b7280", marginBottom:4 }}>Re: {f.task_subject}</div>}
+                      {f.task_subject && f.task_subject !== "General flag" && <div style={{ fontSize:11, color:"#7f93a1", marginBottom:4 }}>Re: {f.task_subject}</div>}
                       <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5, marginBottom:10 }}>{f.note}</div>
                       <button onClick={function() { markFlagSeen(f.id); }} style={{ width:"100%", padding:"9px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:12, fontWeight:700, cursor:"pointer" }}>Got it</button>
                     </div>
@@ -635,12 +640,12 @@ export default function Sean() {
             )}
             {flags.filter(function(f) { return f.seen && f.task_subject !== "Weekly Customer Report"; }).slice(0,5).map(function(f) {
               return (
-                <div key={f.id} style={{ background:"#13131f", border:"1px solid #1e1e30", borderLeft:"3px solid #374151", borderRadius:10, padding:"10px 12px", marginBottom:6, opacity:0.6 }}>
+                <div key={f.id} style={{ background:"#0b2735", border:"1px solid #10364a", borderLeft:"3px solid #557080", borderRadius:10, padding:"10px 12px", marginBottom:6, opacity:0.6 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                    <span style={{ fontSize:11, color:"#4b5563" }}>{f.from_name} · {f.urgency}</span>
-                    <span style={{ fontSize:10, color:"#374151" }}>{fmtDateTime(f.created_at)}</span>
+                    <span style={{ fontSize:11, color:"#6a8090" }}>{f.from_name} · {f.urgency}</span>
+                    <span style={{ fontSize:10, color:"#557080" }}>{fmtDateTime(f.created_at)}</span>
                   </div>
-                  <div style={{ fontSize:12, color:"#6b7280", lineHeight:1.4 }}>{f.note}</div>
+                  <div style={{ fontSize:12, color:"#7f93a1", lineHeight:1.4 }}>{f.note}</div>
                 </div>
               );
             })}
@@ -657,11 +662,11 @@ export default function Sean() {
                 <div style={s.sectionLabel}>New</div>
                 {unreadReports.map(function(r) {
                   return (
-                    <div key={r.id} style={{ background:"#1a1a2e", border:"1px solid #3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
+                    <div key={r.id} style={{ background:"#0e2d3e", border:"1px solid #3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                         <div>
                           <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>from {r.from_name}</div>
-                          <div style={{ fontSize:10, color:"#6b7280" }}>{fmtDateTime(r.created_at)}</div>
+                          <div style={{ fontSize:10, color:"#7f93a1" }}>{fmtDateTime(r.created_at)}</div>
                         </div>
                         <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                           <span style={{ fontSize:10, background:"#f97316", color:"#fff", borderRadius:99, padding:"2px 7px", fontWeight:700 }}>New</span>
@@ -669,7 +674,7 @@ export default function Sean() {
                             style={{ background:"none", border:"1px solid #7f1d1d", borderRadius:6, color:"#ef4444", cursor:"pointer", padding:"3px 7px", fontSize:11 }}>🗑️</button>
                         </div>
                       </div>
-                      <pre style={{ background:"#0a0a16", border:"1px solid #2a2a45", borderRadius:8, padding:10, color:"#e2e8f0", fontSize:11, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.5, margin:"0 0 10px", overflowX:"auto" }}>{r.note}</pre>
+                      <pre style={{ background:"#08202c", border:"1px solid #1b4a60", borderRadius:8, padding:10, color:"#e2e8f0", fontSize:11, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.5, margin:"0 0 10px", overflowX:"auto" }}>{r.note}</pre>
                       <button onClick={function() { markFlagSeen(r.id); }} style={{ width:"100%", padding:"9px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:12, fontWeight:700, cursor:"pointer" }}>Mark Read</button>
                     </div>
                   );
@@ -678,16 +683,16 @@ export default function Sean() {
             )}
             {weeklyReports.filter(function(r) { return r.seen; }).slice(0, 5).map(function(r) {
               return (
-                <div key={r.id} style={{ background:"#13131f", border:"1px solid #1e1e30", borderLeft:"3px solid #374151", borderRadius:10, padding:"10px 12px", marginBottom:6, opacity:0.6 }}>
+                <div key={r.id} style={{ background:"#0b2735", border:"1px solid #10364a", borderLeft:"3px solid #557080", borderRadius:10, padding:"10px 12px", marginBottom:6, opacity:0.6 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                    <span style={{ fontSize:12, color:"#6b7280", fontWeight:600 }}>from {r.from_name}</span>
+                    <span style={{ fontSize:12, color:"#7f93a1", fontWeight:600 }}>from {r.from_name}</span>
                     <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <span style={{ fontSize:10, color:"#374151" }}>{fmtDateTime(r.created_at)}</span>
+                      <span style={{ fontSize:10, color:"#557080" }}>{fmtDateTime(r.created_at)}</span>
                       <button onClick={function() { if(window.confirm("Delete?")) deleteReport(r.id); }}
                         style={{ background:"none", border:"1px solid #7f1d1d", borderRadius:6, color:"#ef4444", cursor:"pointer", padding:"2px 6px", fontSize:10 }}>🗑️</button>
                     </div>
                   </div>
-                  <pre style={{ background:"#0a0a16", border:"1px solid #1e1e30", borderRadius:8, padding:8, color:"#6b7280", fontSize:10, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.5, margin:0, overflowX:"auto" }}>{r.note}</pre>
+                  <pre style={{ background:"#08202c", border:"1px solid #10364a", borderRadius:8, padding:8, color:"#7f93a1", fontSize:10, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.5, margin:0, overflowX:"auto" }}>{r.note}</pre>
                 </div>
               );
             })}

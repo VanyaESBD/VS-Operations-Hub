@@ -39,7 +39,9 @@ export default function HubDashboard({ tasks, opportunities, companies, orders, 
     loadDataQuality().then(({ data }) => setQuality(data || []));
   }, [tasks.length, opportunities.length]);
 
-  const openTasks = tasks.filter(isOpenTask);
+  // Everything sorted by when it is due — earliest (most overdue) first, undated last.
+  const byDue = (a, z) => (actionDate(a) || "9999-12-31").localeCompare(actionDate(z) || "9999-12-31");
+  const openTasks = tasks.filter(isOpenTask).sort(byDue);
   const b = (t) => dueBucket(actionDate(t), today);
   const overdue = openTasks.filter((t) => b(t) === "overdue");
   const dueToday = openTasks.filter((t) => b(t) === "today");
@@ -49,7 +51,7 @@ export default function HubDashboard({ tasks, opportunities, companies, orders, 
   const awaiting = openTasks.filter((t) => stateOf(t) === "Awaiting response");
   const noNext = openTasks.filter((t) => stateOf(t) === "Our action" && !(t.next_action || "").trim());
 
-  const active = opportunities.filter(isActiveLead);
+  const active = opportunities.filter(isActiveLead).sort((a, z) => (leadFollowUp(a) || "9999-12-31").localeCompare(leadFollowUp(z) || "9999-12-31"));
   const byStage = ACTIVE_STAGES.map((s) => [s, active.filter((o) => stageOf(o) === s)]);
   const newLeads = active.filter((o) => stageOf(o) === "New Lead");
   const closingSoon = active.filter((o) => o.expected_close_date && o.expected_close_date <= addDays(today, 30) && stageOf(o) !== "On Hold / Nurture");
@@ -59,8 +61,9 @@ export default function HubDashboard({ tasks, opportunities, companies, orders, 
   const totals = pipelineTotals(opportunities);
 
   const openOrders = orders.filter((o) => !o.actual_date);
-  const lateOrders = openOrders.filter((o) => o.target_date && o.target_date < today);
-  const upcomingOrders = openOrders.filter((o) => o.target_date && o.target_date >= today && o.target_date <= addDays(today, 21));
+  const byTarget = (a, z) => String(a.target_date || "9999").localeCompare(String(z.target_date || "9999"));
+  const lateOrders = openOrders.filter((o) => o.target_date && o.target_date < today).sort(byTarget);
+  const upcomingOrders = openOrders.filter((o) => o.target_date && o.target_date >= today && o.target_date <= addDays(today, 21)).sort(byTarget);
   const unconfirmed = orders.filter((o) => !o.customer_confirmed);
   const coName = (id) => companies.find((c) => c.id === id)?.name;
 

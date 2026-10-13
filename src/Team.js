@@ -10,19 +10,19 @@ const fmtDateTime = (ts) => {
 };
 const isOverdue = (t) => t.status !== "Done" && t.expected_date && t.expected_date < TODAY();
 
-const STATUS_COLOR = { "To Do": "#ef4444", "FYA": "#f97316", "Follow Up": "#10b981", "FYI": "#8b5cf6", "Done": "#0891b2" };
+const STATUS_COLOR = { "To Do": "#c57f58", "FYA": "#c57f58", "Follow Up": "#a8a8a8", "FYI": "#b39ecc", "Done": "#5ccee8" }; // Outlook FYA / FlwUP / FYI
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
-const PRIORITY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+const PRIORITY_COLOR = { Low: "#7f93a1", Medium: "#118fb5", High: "#f59e0b", Urgent: "#ef4444" };
 const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
 const URGENCY_LEVELS = ["Low", "Medium", "High", "Urgent"];
-const URGENCY_COLOR = { Low: "#6b7280", Medium: "#0891b2", High: "#f59e0b", Urgent: "#ef4444" };
+const URGENCY_COLOR = { Low: "#7f93a1", Medium: "#118fb5", High: "#f59e0b", Urgent: "#ef4444" };
 const INTERACTION_TYPES = ["📞 Call", "📧 Email", "🤝 Meeting", "🏢 Site Visit", "💬 WhatsApp", "📋 Other"];
 const ALL_OWNERS = ["Vanya", "Sean", "Jason", "Andrea"];
 
-const inp = { background:"#1e1e30", border:"1px solid #2a2a45", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
-const lbl = { fontSize:11, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 };
+const inp = { background:"#10364a", border:"1px solid #1b4a60", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
+const lbl = { fontSize:11, fontWeight:600, color:"#7f93a1", textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 };
 
 // ── Task Activity Feed ─────────────────────────────────────
 function TaskActivityFeed({ taskId, taskNotes, myName }) {
@@ -47,12 +47,12 @@ function TaskActivityFeed({ taskId, taskNotes, myName }) {
 
   if (loading) return null;
   return (
-    <div style={{ marginTop:16, borderTop:"1px solid #2a2a45", paddingTop:16 }}>
-      <div style={{ fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>📋 Activity & Notes</div>
-      <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:10, padding:12, marginBottom:12 }}>
-        <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add a note or update..." style={{ ...inp, minHeight:60, resize:"vertical", marginBottom:8, background:"#13131f" }} />
+    <div style={{ marginTop:16, borderTop:"1px solid #1b4a60", paddingTop:16 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>📋 Activity & Notes</div>
+      <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:10, padding:12, marginBottom:12 }}>
+        <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Add a note or update..." style={{ ...inp, minHeight:60, resize:"vertical", marginBottom:8, background:"#0b2735" }} />
         <div style={{ display:"flex", justifyContent:"flex-end" }}>
-          <button onClick={addNote} disabled={!newNote.trim()||saving} style={{ padding:"7px 18px", background:newNote.trim()?"#0891b2":"#2a2a45", border:"none", borderRadius:7, color:newNote.trim()?"#fff":"#4b5563", cursor:newNote.trim()?"pointer":"not-allowed", fontSize:13, fontWeight:600 }}>
+          <button onClick={addNote} disabled={!newNote.trim()||saving} style={{ padding:"7px 18px", background:newNote.trim()?"#118fb5":"#1b4a60", border:"none", borderRadius:7, color:newNote.trim()?"#fff":"#6a8090", cursor:newNote.trim()?"pointer":"not-allowed", fontSize:13, fontWeight:600 }}>
             {saving?"Saving...":"Add Note"}
           </button>
         </div>
@@ -62,28 +62,28 @@ function TaskActivityFeed({ taskId, taskNotes, myName }) {
           <div style={{ width:28, height:28, borderRadius:"50%", background:"#1e3a8a", border:"2px solid #3b82f6", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>📌</div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:12, fontWeight:600, color:"#60a5fa", marginBottom:4 }}>📌 Original Notes</div>
-            <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, padding:"10px 12px", fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{taskNotes}</div>
+            <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, padding:"10px 12px", fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{taskNotes}</div>
           </div>
         </div>
       )}
       {history.length === 0 && (!taskNotes || !taskNotes.trim())
-        ? <div style={{ fontSize:12, color:"#374151", textAlign:"center", padding:"8px 0" }}>No activity yet</div>
+        ? <div style={{ fontSize:12, color:"#557080", textAlign:"center", padding:"8px 0" }}>No activity yet</div>
         : history.map((h, i) => (
           <div key={h.id} style={{ display:"flex", gap:12 }}>
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0 }}>
-              <div style={{ width:28, height:28, borderRadius:"50%", background:h.entry_type==="note"?"#1e3a8a":STATUS_COLOR[h.new_status]+"33", border:"2px solid "+(h.entry_type==="note"?"#3b82f6":STATUS_COLOR[h.new_status]||"#2a2a45"), display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:h.entry_type==="note"?"#1e3a8a":STATUS_COLOR[h.new_status]+"33", border:"2px solid "+(h.entry_type==="note"?"#3b82f6":STATUS_COLOR[h.new_status]||"#1b4a60"), display:"flex", alignItems:"center", justifyContent:"center", fontSize:12 }}>
                 {h.entry_type==="note"?"💬":STATUS_EMOJI[h.new_status]||"📌"}
               </div>
-              {i < history.length-1 && <div style={{ width:2, flex:1, background:"#1e1e30", minHeight:16, margin:"2px 0" }} />}
+              {i < history.length-1 && <div style={{ width:2, flex:1, background:"#10364a", minHeight:16, margin:"2px 0" }} />}
             </div>
             <div style={{ flex:1, paddingBottom:12 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                 <div style={{ fontSize:12, fontWeight:600, color:"#9ca3af" }}>
-                  {h.entry_type==="note" ? <span style={{ color:"#60a5fa" }}>{h.changed_by}</span> : <span>{h.changed_by}: <span style={{ color:STATUS_COLOR[h.old_status]||"#6b7280" }}>{h.old_status}</span> → <span style={{ color:STATUS_COLOR[h.new_status]||"#0891b2" }}>{h.new_status}</span></span>}
+                  {h.entry_type==="note" ? <span style={{ color:"#60a5fa" }}>{h.changed_by}</span> : <span>{h.changed_by}: <span style={{ color:STATUS_COLOR[h.old_status]||"#7f93a1" }}>{h.old_status}</span> → <span style={{ color:STATUS_COLOR[h.new_status]||"#118fb5" }}>{h.new_status}</span></span>}
                 </div>
-                <div style={{ fontSize:10, color:"#4b5563", flexShrink:0, marginLeft:8 }}>{fmtDateTime(h.created_at)}</div>
+                <div style={{ fontSize:10, color:"#6a8090", flexShrink:0, marginLeft:8 }}>{fmtDateTime(h.created_at)}</div>
               </div>
-              {h.note && <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, padding:"10px 12px", fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{h.note}</div>}
+              {h.note && <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, padding:"10px 12px", fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{h.note}</div>}
             </div>
           </div>
         ))
@@ -123,8 +123,8 @@ function CompanyDropdown({ value, onChange }) {
   };
 
   if (editMode) return (
-    <div style={{ background:"#1a1a2e", border:"1px solid #0891b2", borderRadius:8, padding:12 }}>
-      <div style={{ fontSize:11, fontWeight:700, color:"#0891b2", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>✏️ Edit Company Names</div>
+    <div style={{ background:"#0e2d3e", border:"1px solid #118fb5", borderRadius:8, padding:12 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#118fb5", marginBottom:10, textTransform:"uppercase", letterSpacing:"0.06em" }}>✏️ Edit Company Names</div>
       <div style={{ maxHeight:160, overflowY:"auto", marginBottom:8 }}>
         {editList.map((c, i) => (
           <div key={i} style={{ display:"flex", gap:6, marginBottom:6 }}>
@@ -135,11 +135,11 @@ function CompanyDropdown({ value, onChange }) {
       </div>
       <div style={{ display:"flex", gap:6, marginBottom:8 }}>
         <input value={editVal} onChange={e=>setEditVal(e.target.value)} placeholder="Add new..." style={{ ...inp, fontSize:13, padding:"6px 10px", flex:1 }} />
-        <button onClick={() => { if(editVal.trim()){ setEditList([...editList, editVal.trim()]); setEditVal(""); }}} style={{ background:"#0891b2", border:"none", borderRadius:6, color:"#fff", cursor:"pointer", padding:"6px 12px", fontSize:13, fontWeight:700 }}>+</button>
+        <button onClick={() => { if(editVal.trim()){ setEditList([...editList, editVal.trim()]); setEditVal(""); }}} style={{ background:"#118fb5", border:"none", borderRadius:6, color:"#fff", cursor:"pointer", padding:"6px 12px", fontSize:13, fontWeight:700 }}>+</button>
       </div>
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-        <button onClick={()=>setEditMode(false)} style={{ padding:"6px 14px", background:"none", border:"1px solid #2a2a45", borderRadius:6, color:"#6b7280", cursor:"pointer", fontSize:12 }}>Cancel</button>
-        <button onClick={saveEdit} style={{ padding:"6px 14px", background:"#0891b2", border:"none", borderRadius:6, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>Save</button>
+        <button onClick={()=>setEditMode(false)} style={{ padding:"6px 14px", background:"none", border:"1px solid #1b4a60", borderRadius:6, color:"#7f93a1", cursor:"pointer", fontSize:12 }}>Cancel</button>
+        <button onClick={saveEdit} style={{ padding:"6px 14px", background:"#118fb5", border:"none", borderRadius:6, color:"#fff", cursor:"pointer", fontSize:12, fontWeight:700 }}>Save</button>
       </div>
     </div>
   );
@@ -149,14 +149,14 @@ function CompanyDropdown({ value, onChange }) {
       <div style={{ display:"flex", gap:6 }}>
         <div style={{ flex:1, position:"relative" }}>
           <input value={search} onChange={e=>{setSearch(e.target.value);onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),200)} placeholder="Type or select company..." style={inp} />
-          {search && <button onMouseDown={e=>{e.preventDefault();onChange("");setSearch("");}} style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:14 }}>✕</button>}
+          {search && <button onMouseDown={e=>{e.preventDefault();onChange("");setSearch("");}} style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:14 }}>✕</button>}
         </div>
-        <button onClick={openEdit} style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer", padding:"0 10px", fontSize:13, flexShrink:0 }}>✏️</button>
+        <button onClick={openEdit} style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer", padding:"0 10px", fontSize:13, flexShrink:0 }}>✏️</button>
       </div>
       {open && (filtered.length > 0 || showAddNew) && (
-        <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, zIndex:300, maxHeight:200, overflowY:"auto", marginTop:4, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
-          {filtered.map(c => <div key={c} onMouseDown={()=>select(c)} style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#e2e8f0", borderBottom:"1px solid #2a2a4522" }} onMouseEnter={e=>e.currentTarget.style.background="#2a2a45"} onMouseLeave={e=>e.currentTarget.style.background="none"}>{c}</div>)}
-          {showAddNew && <div onMouseDown={()=>select(search.trim())} style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#0891b2", fontWeight:600, borderTop:"1px solid #2a2a45" }} onMouseEnter={e=>e.currentTarget.style.background="#0891b222"} onMouseLeave={e=>e.currentTarget.style.background="none"}>+ Add "{search.trim()}"</div>}
+        <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, zIndex:300, maxHeight:200, overflowY:"auto", marginTop:4, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+          {filtered.map(c => <div key={c} onMouseDown={()=>select(c)} style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#e2e8f0", borderBottom:"1px solid #1b4a6022" }} onMouseEnter={e=>e.currentTarget.style.background="#1b4a60"} onMouseLeave={e=>e.currentTarget.style.background="none"}>{c}</div>)}
+          {showAddNew && <div onMouseDown={()=>select(search.trim())} style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#118fb5", fontWeight:600, borderTop:"1px solid #1b4a60" }} onMouseEnter={e=>e.currentTarget.style.background="#118fb522"} onMouseLeave={e=>e.currentTarget.style.background="none"}>+ Add "{search.trim()}"</div>}
         </div>
       )}
     </div>
@@ -172,10 +172,10 @@ function NewTaskModal({ myName, onClose, onSaved }) {
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #1b4a60", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:"#e2e8f0" }}>New Task</h2>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
           <div style={{ gridColumn:"1/-1" }}><label style={lbl}>Subject *</label><input style={inp} value={form.subject} onChange={e=>set("subject",e.target.value)} placeholder="What needs to be done?" /></div>
@@ -190,8 +190,8 @@ function NewTaskModal({ myName, onClose, onSaved }) {
           <div style={{ gridColumn:"1/-1" }}><label style={lbl}>Notes</label><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{ ...inp, minHeight:72, resize:"vertical" }} placeholder="Add context..." /></div>
         </div>
         <div style={{ marginTop:20, display:"flex", gap:10, justifyContent:"flex-end" }}>
-          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
-          <button onClick={save} disabled={!valid} style={{ padding:"10px 24px", background:valid?"#0891b2":"#2a2a45", border:"none", borderRadius:8, color:valid?"#fff":"#4b5563", cursor:valid?"pointer":"not-allowed", fontWeight:600 }}>Create Task</button>
+          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
+          <button onClick={save} disabled={!valid} style={{ padding:"10px 24px", background:valid?"#118fb5":"#1b4a60", border:"none", borderRadius:8, color:valid?"#fff":"#6a8090", cursor:valid?"pointer":"not-allowed", fontWeight:600 }}>Create Task</button>
         </div>
       </div>
     </div>
@@ -220,7 +220,7 @@ function TaskModal({ task, myName, onClose, onUpdate, onDelete, onAddToAgenda })
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(10,10,20,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #1b4a60", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
           <div style={{ flex:1, paddingRight:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
@@ -229,10 +229,10 @@ function TaskModal({ task, myName, onClose, onUpdate, onDelete, onAddToAgenda })
               {isOverdue(task) && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#7f1d1d", color:"#fca5a5", fontWeight:600 }}>OVERDUE</span>}
             </div>
             <div style={{ fontSize:17, fontWeight:700, color:"#e2e8f0", lineHeight:1.3 }}>{task.subject}</div>
-            {(task.client||task.company) && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>{[task.client,task.company].filter(Boolean).join(" · ")}</div>}
-            <div style={{ fontSize:11, color:"#4b5563", marginTop:4 }}>Assigned to {task.owner}</div>
+            {(task.client||task.company) && <div style={{ fontSize:12, color:"#7f93a1", marginTop:4 }}>{[task.client,task.company].filter(Boolean).join(" · ")}</div>}
+            <div style={{ fontSize:11, color:"#6a8090", marginTop:4 }}>Assigned to {task.owner}</div>
           </div>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
 
         {/* Add to agenda button — Jason only */}
@@ -247,24 +247,24 @@ function TaskModal({ task, myName, onClose, onUpdate, onDelete, onAddToAgenda })
             <div>
               <label style={lbl}>Status</label>
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                {STATUSES.map(s => <button key={s} onClick={()=>set("status",s)} style={{ padding:"7px 12px", borderRadius:99, border:"1px solid "+(form.status===s?STATUS_COLOR[s]:"#2a2a45"), background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>{STATUS_EMOJI[s]} {s}</button>)}
+                {STATUSES.map(s => <button key={s} onClick={()=>set("status",s)} style={{ padding:"7px 12px", borderRadius:99, border:"1px solid "+(form.status===s?STATUS_COLOR[s]:"#1b4a60"), background:form.status===s?STATUS_COLOR[s]+"33":"none", color:form.status===s?STATUS_COLOR[s]:"#7f93a1", cursor:"pointer", fontSize:12, fontWeight:form.status===s?700:400 }}>{STATUS_EMOJI[s]} {s}</button>)}
               </div>
             </div>
             <div><label style={lbl}>Follow Up Date</label><input type="date" value={form.expected_date} onChange={e=>set("expected_date",e.target.value)} style={inp} /></div>
             <div><label style={lbl}>Next Action</label><input value={form.next_action} onChange={e=>set("next_action",e.target.value)} style={inp} /></div>
             <div><label style={lbl}>Notes</label><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} style={{ ...inp, minHeight:72, resize:"vertical" }} /></div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={save} style={{ flex:1, padding:"11px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:14, fontWeight:700 }}>Save Changes</button>
+              <button onClick={save} style={{ flex:1, padding:"11px", background:"#118fb5", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:14, fontWeight:700 }}>Save Changes</button>
               {task.status !== "Done" && <button onClick={markDone} style={{ padding:"11px 20px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", cursor:"pointer", fontSize:14, fontWeight:700 }}>✓ Done</button>}
             </div>
-            <div style={{ borderTop:"1px solid #2a2a45", paddingTop:12 }}>
+            <div style={{ borderTop:"1px solid #1b4a60", paddingTop:12 }}>
               {!confirmDelete ? (
                 <button onClick={()=>setConfirmDelete(true)} style={{ width:"100%", padding:"9px", background:"none", border:"1px solid #7f1d1d", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13 }}>🗄️ Archive Task</button>
               ) : (
                 <div style={{ background:"#7f1d1d22", border:"1px solid #ef4444", borderRadius:8, padding:12 }}>
                   <div style={{ fontSize:13, color:"#fca5a5", marginBottom:10, textAlign:"center" }}>Archive this task? Its history is kept and Vanya can restore it.</div>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>setConfirmDelete(false)} style={{ flex:1, padding:"8px", background:"none", border:"1px solid #2a2a45", borderRadius:7, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+                    <button onClick={()=>setConfirmDelete(false)} style={{ flex:1, padding:"8px", background:"none", border:"1px solid #1b4a60", borderRadius:7, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
                     <button onClick={deleteTask} style={{ flex:1, padding:"8px", background:"#ef4444", border:"none", borderRadius:7, color:"#fff", cursor:"pointer", fontWeight:700 }}>Yes, Archive</button>
                   </div>
                 </div>
@@ -272,10 +272,10 @@ function TaskModal({ task, myName, onClose, onUpdate, onDelete, onAddToAgenda })
             </div>
           </div>
         ) : (
-          <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:10, padding:14, marginBottom:12 }}>
-            <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Assigned to <span style={{ color:"#0891b2", fontWeight:600 }}>{task.owner}</span> — view only</div>
-            {task.next_action && <div style={{ fontSize:13, color:"#0891b2" }}>→ {task.next_action}</div>}
-            {task.expected_date && <div style={{ fontSize:12, color:"#6b7280", marginTop:4 }}>Due {fmtDate(task.expected_date)}</div>}
+          <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:10, padding:14, marginBottom:12 }}>
+            <div style={{ fontSize:12, color:"#7f93a1", marginBottom:6 }}>Assigned to <span style={{ color:"#118fb5", fontWeight:600 }}>{task.owner}</span> — view only</div>
+            {task.next_action && <div style={{ fontSize:13, color:"#118fb5" }}>→ {task.next_action}</div>}
+            {task.expected_date && <div style={{ fontSize:12, color:"#7f93a1", marginTop:4 }}>Due {fmtDate(task.expected_date)}</div>}
             {task.notes && <div style={{ fontSize:13, color:"#9ca3af", marginTop:8, fontStyle:"italic" }}>📝 {task.notes}</div>}
           </div>
         )}
@@ -298,19 +298,19 @@ function FlagSeanModal({ task, myName, onClose, onSent }) {
   };
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1100, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #ef4444", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #ef4444", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <div><div style={{ fontSize:18, fontWeight:700, color:"#e2e8f0" }}>🚨 Flag Sean</div>{task && <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Re: {task.subject}</div>}</div>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <div><div style={{ fontSize:18, fontWeight:700, color:"#e2e8f0" }}>🚨 Flag Sean</div>{task && <div style={{ fontSize:12, color:"#7f93a1", marginTop:2 }}>Re: {task.subject}</div>}</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
         <div style={{ marginBottom:16 }}>
           <label style={lbl}>Urgency</label>
-          <div style={{ display:"flex", gap:8 }}>{URGENCY_LEVELS.map(u => <button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:"1px solid "+(urgency===u?URGENCY_COLOR[u]:"#2a2a45"), background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>{u}</button>)}</div>
+          <div style={{ display:"flex", gap:8 }}>{URGENCY_LEVELS.map(u => <button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:"1px solid "+(urgency===u?URGENCY_COLOR[u]:"#1b4a60"), background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#7f93a1", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>{u}</button>)}</div>
         </div>
         <div style={{ marginBottom:20 }}><label style={lbl}>Message to Sean</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="What does Sean need to know or do?" style={{ ...inp, minHeight:90, resize:"vertical" }} /></div>
         <div style={{ display:"flex", gap:10 }}>
-          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
-          <button onClick={send} disabled={!note.trim()||sending} style={{ flex:2, padding:"11px", background:note.trim()?"#ef4444":"#2a2a45", border:"none", borderRadius:8, color:note.trim()?"#fff":"#4b5563", cursor:note.trim()?"pointer":"not-allowed", fontSize:14, fontWeight:700 }}>
+          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
+          <button onClick={send} disabled={!note.trim()||sending} style={{ flex:2, padding:"11px", background:note.trim()?"#ef4444":"#1b4a60", border:"none", borderRadius:8, color:note.trim()?"#fff":"#6a8090", cursor:note.trim()?"pointer":"not-allowed", fontSize:14, fontWeight:700 }}>
             {sending?"Sending...":"🚨 Send Flag to Sean"}
           </button>
         </div>
@@ -329,23 +329,23 @@ function EditFlagModal({ flag, onClose, onSaved, onDeleted }) {
   const deleteFlag = async () => { await supabase.from("flags").delete().eq("id",flag.id); onDeleted(); onClose(); };
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1200, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #f97316", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #f97316", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <div><div style={{ fontSize:18, fontWeight:700, color:"#e2e8f0" }}>✏️ Edit Flag</div>{flag.task_subject && <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Re: {flag.task_subject}</div>}</div>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <div><div style={{ fontSize:18, fontWeight:700, color:"#e2e8f0" }}>✏️ Edit Flag</div>{flag.task_subject && <div style={{ fontSize:12, color:"#7f93a1", marginTop:2 }}>Re: {flag.task_subject}</div>}</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
-        <div style={{ marginBottom:16 }}><label style={lbl}>Urgency</label><div style={{ display:"flex", gap:8 }}>{URGENCY_LEVELS.map(u=><button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:"1px solid "+(urgency===u?URGENCY_COLOR[u]:"#2a2a45"), background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#6b7280", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>{u}</button>)}</div></div>
+        <div style={{ marginBottom:16 }}><label style={lbl}>Urgency</label><div style={{ display:"flex", gap:8 }}>{URGENCY_LEVELS.map(u=><button key={u} onClick={()=>setUrgency(u)} style={{ flex:1, padding:"8px 4px", borderRadius:8, border:"1px solid "+(urgency===u?URGENCY_COLOR[u]:"#1b4a60"), background:urgency===u?URGENCY_COLOR[u]+"33":"none", color:urgency===u?URGENCY_COLOR[u]:"#7f93a1", cursor:"pointer", fontSize:12, fontWeight:urgency===u?700:400 }}>{u}</button>)}</div></div>
         <div style={{ marginBottom:16 }}><label style={lbl}>Message to Sean</label><textarea value={note} onChange={e=>setNote(e.target.value)} style={{ ...inp, minHeight:90, resize:"vertical" }} /></div>
         <div style={{ display:"flex", gap:10, marginBottom:12 }}>
-          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{ flex:2, padding:"11px", background:"#f97316", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:14, fontWeight:700 }}>{saving?"Saving...":"💾 Save Changes"}</button>
         </div>
-        <div style={{ borderTop:"1px solid #2a2a45", paddingTop:12 }}>
+        <div style={{ borderTop:"1px solid #1b4a60", paddingTop:12 }}>
           {!confirmDelete ? <button onClick={()=>setConfirmDelete(true)} style={{ width:"100%", padding:"9px", background:"none", border:"1px solid #7f1d1d", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13 }}>🗑️ Undo — Delete this flag</button>
           : <div style={{ background:"#7f1d1d22", border:"1px solid #ef4444", borderRadius:8, padding:12 }}>
               <div style={{ fontSize:13, color:"#fca5a5", marginBottom:10, textAlign:"center" }}>Remove this flag from Sean's view?</div>
               <div style={{ display:"flex", gap:8 }}>
-                <button onClick={()=>setConfirmDelete(false)} style={{ flex:1, padding:"8px", background:"none", border:"1px solid #2a2a45", borderRadius:7, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>setConfirmDelete(false)} style={{ flex:1, padding:"8px", background:"none", border:"1px solid #1b4a60", borderRadius:7, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
                 <button onClick={deleteFlag} style={{ flex:1, padding:"8px", background:"#ef4444", border:"none", borderRadius:7, color:"#fff", cursor:"pointer", fontWeight:700 }}>Yes, Remove</button>
               </div>
             </div>
@@ -380,25 +380,25 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:520, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #1b4a60", borderRadius:16, padding:"24px", maxWidth:520, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
           <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:"#e2e8f0" }}>📋 Log Interaction</h2>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div ref={taskSearchRef} style={{ position:"relative" }}>
             <label style={lbl}>Link to My Task (optional)</label>
             <div style={{ position:"relative" }}>
               <input value={taskSearch} onChange={e=>{setTaskSearch(e.target.value);setShowTaskList(true);setSelectedTask(null);}} onFocus={()=>setShowTaskList(true)} placeholder="Search your tasks..." style={{ ...inp, paddingRight:selectedTask?36:12 }} />
-              {selectedTask && <button onClick={clearTask} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:16 }}>✕</button>}
+              {selectedTask && <button onClick={clearTask} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:16 }}>✕</button>}
             </div>
             {showTaskList && !selectedTask && (
-              <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:8, zIndex:200, maxHeight:200, overflowY:"auto", marginTop:4 }}>
-                {filteredTasks.length === 0 ? <div style={{ padding:"10px 14px", fontSize:13, color:"#4b5563" }}>No matching tasks</div>
-                  : filteredTasks.map(t => <div key={t.id} onMouseDown={e=>{e.preventDefault();selectTask(t);}} style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #2a2a45", fontSize:13 }} onMouseEnter={e=>e.currentTarget.style.background="#2a2a45"} onMouseLeave={e=>e.currentTarget.style.background="none"}><div style={{ fontWeight:600, color:"#e2e8f0", marginBottom:2 }}>{t.subject}</div>{(t.client||t.company)&&<div style={{ fontSize:11, color:"#6b7280" }}>{[t.client,t.company].filter(Boolean).join(" · ")}</div>}</div>)}
+              <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, zIndex:200, maxHeight:200, overflowY:"auto", marginTop:4 }}>
+                {filteredTasks.length === 0 ? <div style={{ padding:"10px 14px", fontSize:13, color:"#6a8090" }}>No matching tasks</div>
+                  : filteredTasks.map(t => <div key={t.id} onMouseDown={e=>{e.preventDefault();selectTask(t);}} style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #1b4a60", fontSize:13 }} onMouseEnter={e=>e.currentTarget.style.background="#1b4a60"} onMouseLeave={e=>e.currentTarget.style.background="none"}><div style={{ fontWeight:600, color:"#e2e8f0", marginBottom:2 }}>{t.subject}</div>{(t.client||t.company)&&<div style={{ fontSize:11, color:"#7f93a1" }}>{[t.client,t.company].filter(Boolean).join(" · ")}</div>}</div>)}
               </div>
             )}
-            {selectedTask && <div style={{ marginTop:6, padding:"6px 10px", background:"#0891b222", border:"1px solid #0891b244", borderRadius:6, fontSize:12, color:"#0891b2" }}>Linked to: {selectedTask.subject}</div>}
+            {selectedTask && <div style={{ marginTop:6, padding:"6px 10px", background:"#118fb522", border:"1px solid #118fb544", borderRadius:6, fontSize:12, color:"#118fb5" }}>Linked to: {selectedTask.subject}</div>}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
             <div><label style={lbl}>Client / Contact *</label><input style={inp} value={form.client} onChange={e=>set("client",e.target.value)} placeholder="Name" /></div>
@@ -410,8 +410,8 @@ function LogInteractionModal({ myName, tasks, onClose, onSaved }) {
           <div><label style={lbl}>Outcome</label><input style={inp} value={form.outcome} onChange={e=>set("outcome",e.target.value)} placeholder="What was agreed or what happens next?" /></div>
         </div>
         <div style={{ marginTop:20, display:"flex", gap:10, justifyContent:"flex-end" }}>
-          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
-          <button onClick={save} disabled={!valid} style={{ padding:"10px 24px", background:valid?"#0891b2":"#2a2a45", border:"none", borderRadius:8, color:valid?"#fff":"#4b5563", cursor:valid?"pointer":"not-allowed", fontWeight:600 }}>Log It</button>
+          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
+          <button onClick={save} disabled={!valid} style={{ padding:"10px 24px", background:valid?"#118fb5":"#1b4a60", border:"none", borderRadius:8, color:valid?"#fff":"#6a8090", cursor:valid?"pointer":"not-allowed", fontWeight:600 }}>Log It</button>
         </div>
       </div>
     </div>
@@ -441,16 +441,16 @@ function WeeklyReportModal({ interactions, myName, onClose }) {
   };
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #2a2a45", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #1b4a60", borderRadius:16, padding:"24px", maxWidth:600, width:"95vw", maxHeight:"90vh", overflowY:"auto" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:"#e2e8f0" }}>📊 Weekly Report</h2>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
-        <div style={{ fontSize:12, color:"#6b7280", marginBottom:12 }}>{thisWeek.length} interactions this week — edit before sending</div>
+        <div style={{ fontSize:12, color:"#7f93a1", marginBottom:12 }}>{thisWeek.length} interactions this week — edit before sending</div>
         <textarea value={edited} onChange={e=>setEdited(e.target.value)} style={{ ...inp, minHeight:300, resize:"vertical", fontFamily:"monospace", fontSize:13, lineHeight:1.6, marginBottom:16 }} />
         <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Close</button>
-          <button onClick={sendToSean} disabled={sending||sent} style={{ padding:"10px 24px", background:sent?"#10b981":"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontWeight:700 }}>
+          <button onClick={onClose} style={{ padding:"10px 20px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer" }}>Close</button>
+          <button onClick={sendToSean} disabled={sending||sent} style={{ padding:"10px 24px", background:sent?"#10b981":"#118fb5", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontWeight:700 }}>
             {sent?"✅ Sent to Sean!":sending?"Sending...":"📤 Send to Sean"}
           </button>
         </div>
@@ -471,18 +471,18 @@ function AgendaItemModal({ task, onClose, onSaved }) {
   };
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1200, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#13131f", border:"1px solid #3b82f6", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0b2735", border:"1px solid #3b82f6", borderRadius:16, padding:"24px", maxWidth:480, width:"95vw" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ fontSize:18, fontWeight:700, color:"#e2e8f0" }}>📌 Add to Agenda</div>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20 }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:20 }}>✕</button>
         </div>
-        <div style={{ fontSize:13, color:"#9ca3af", marginBottom:16, padding:"10px 12px", background:"#1a1a2e", borderRadius:8, borderLeft:"3px solid #3b82f6" }}>{task.subject}</div>
+        <div style={{ fontSize:13, color:"#9ca3af", marginBottom:16, padding:"10px 12px", background:"#0e2d3e", borderRadius:8, borderLeft:"3px solid #3b82f6" }}>{task.subject}</div>
         <div style={{ marginBottom:16 }}>
           <label style={lbl}>What do you want to discuss? (optional)</label>
           <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. Ask about timeline, need update on pricing..." style={{ ...inp, minHeight:80, resize:"vertical" }} />
         </div>
         <div style={{ display:"flex", gap:10 }}>
-          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer" }}>Cancel</button>
+          <button onClick={onClose} style={{ flex:1, padding:"11px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer" }}>Cancel</button>
           <button onClick={save} style={{ flex:2, padding:"11px", background:"#3b82f6", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:14, fontWeight:700 }}>📌 Add to Agenda</button>
         </div>
       </div>
@@ -509,13 +509,13 @@ function ScratchNote({ note, onDelete, onSave }) {
   const preview = note.content.length > 80 ? note.content.substring(0, 80) + "..." : note.content;
 
   return (
-    <div style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+    <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
       {editing ? (
         <div>
-          <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{ ...inp, minHeight:100, resize:"vertical", marginBottom:10, background:"#13131f" }} autoFocus />
+          <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{ ...inp, minHeight:100, resize:"vertical", marginBottom:10, background:"#0b2735" }} autoFocus />
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-            <button onClick={()=>{ setEditing(false); setEditText(note.content); }} style={{ padding:"6px 14px", background:"none", border:"1px solid #2a2a45", borderRadius:6, color:"#6b7280", cursor:"pointer", fontSize:12 }}>Cancel</button>
-            <button onClick={save} disabled={saving||!editText.trim()} style={{ padding:"6px 16px", background:editText.trim()?"#0891b2":"#2a2a45", border:"none", borderRadius:6, color:editText.trim()?"#fff":"#4b5563", cursor:"pointer", fontSize:12, fontWeight:700 }}>{saving?"Saving...":"Save"}</button>
+            <button onClick={()=>{ setEditing(false); setEditText(note.content); }} style={{ padding:"6px 14px", background:"none", border:"1px solid #1b4a60", borderRadius:6, color:"#7f93a1", cursor:"pointer", fontSize:12 }}>Cancel</button>
+            <button onClick={save} disabled={saving||!editText.trim()} style={{ padding:"6px 16px", background:editText.trim()?"#118fb5":"#1b4a60", border:"none", borderRadius:6, color:editText.trim()?"#fff":"#6a8090", cursor:"pointer", fontSize:12, fontWeight:700 }}>{saving?"Saving...":"Save"}</button>
           </div>
         </div>
       ) : (
@@ -525,14 +525,14 @@ function ScratchNote({ note, onDelete, onSave }) {
               {expanded ? note.content : preview}
             </div>
             {note.content.length > 80 && (
-              <div style={{ fontSize:11, color:"#0891b2", marginTop:4 }}>{expanded ? "▲ Show less" : "▼ Show more"}</div>
+              <div style={{ fontSize:11, color:"#118fb5", marginTop:4 }}>{expanded ? "▲ Show less" : "▼ Show more"}</div>
             )}
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8 }}>
-            <div style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(note.created_at)}</div>
+            <div style={{ fontSize:10, color:"#6a8090" }}>{fmtDateTime(note.created_at)}</div>
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>{ setEditing(true); setExpanded(false); }} style={{ background:"none", border:"1px solid #2a2a45", borderRadius:6, color:"#9ca3af", cursor:"pointer", fontSize:11, padding:"2px 8px" }}>✎ Edit</button>
-              <button onClick={()=>onDelete(note.id)} style={{ background:"none", border:"none", color:"#4b5563", cursor:"pointer", fontSize:14, padding:"2px 6px" }}>✕</button>
+              <button onClick={()=>{ setEditing(true); setExpanded(false); }} style={{ background:"none", border:"1px solid #1b4a60", borderRadius:6, color:"#9ca3af", cursor:"pointer", fontSize:11, padding:"2px 8px" }}>✎ Edit</button>
+              <button onClick={()=>onDelete(note.id)} style={{ background:"none", border:"none", color:"#6a8090", cursor:"pointer", fontSize:14, padding:"2px 6px" }}>✕</button>
             </div>
           </div>
         </div>
@@ -627,28 +627,28 @@ export default function Team() {
   const groupByStatus = (taskList) => STATUSES.filter(s=>s!=="Done").reduce((acc,s) => { acc[s]=taskList.filter(t=>t.status===s); return acc; }, {});
 
   const s = {
-    page: { minHeight:"100vh", background:"#0d0d1a", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", width:"100%", paddingBottom:40 },
-    header: { background:"#0a0a16", padding:"16px 20px", borderBottom:"1px solid #1e1e30", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
-    tabs: { display:"flex", overflowX:"auto", gap:6, padding:"12px 16px", borderBottom:"1px solid #1e1e30", background:"#0a0a16", position:"sticky", top:57, zIndex:99 },
-    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:"1px solid "+(active?"#0891b2":"#2a2a45"), background:active?"#0891b233":"none", color:active?"#0891b2":"#6b7280", fontSize:13, fontWeight:active?700:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
+    page: { minHeight:"100vh", background:"#0a2432", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", width:"100%", paddingBottom:40 },
+    header: { background:"#08202c", padding:"16px 20px", borderBottom:"1px solid #10364a", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
+    tabs: { display:"flex", overflowX:"auto", gap:6, padding:"12px 16px", borderBottom:"1px solid #10364a", background:"#08202c", position:"sticky", top:57, zIndex:99 },
+    tab: (active) => ({ flexShrink:0, padding:"8px 14px", borderRadius:99, border:"1px solid "+(active?"#118fb5":"#1b4a60"), background:active?"#118fb533":"none", color:active?"#118fb5":"#7f93a1", fontSize:13, fontWeight:active?700:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }),
     content: { padding:"16px" },
-    card: (over) => ({ background:"#1a1a2e", border:"1px solid "+(over?"#7f1d1d":"#2a2a45"), borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s" }),
-    sectionTitle: (color) => ({ fontSize:11, fontWeight:700, color:color||"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:10, marginTop:20, display:"flex", alignItems:"center", gap:8 }),
+    card: (over) => ({ background:"#0e2d3e", border:"1px solid "+(over?"#7f1d1d":"#1b4a60"), borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s" }),
+    sectionTitle: (color) => ({ fontSize:11, fontWeight:700, color:color||"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:10, marginTop:20, display:"flex", alignItems:"center", gap:8 }),
   };
 
   // ── Name selection screen ──────────────────────────────
   if (!myName) return (
-    <div style={{ minHeight:"100vh", background:"#0d0d1a", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"system-ui,sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#0a2432", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"system-ui,sans-serif" }}>
       <div style={{ textAlign:"center", padding:32 }}>
         <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:120, marginBottom:24 }} />
         <div style={{ fontSize:20, fontWeight:700, color:"#e2e8f0", marginBottom:8 }}>{"Good "+(new Date().getHours()<12?"morning":new Date().getHours()<17?"afternoon":"evening")+"!"}</div>
-        <div style={{ fontSize:14, color:"#6b7280", marginBottom:28 }}>Who are you?</div>
+        <div style={{ fontSize:14, color:"#7f93a1", marginBottom:28 }}>Who are you?</div>
         <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
           {["Jason","Andrea"].map(name => (
-            <button key={name} onClick={()=>setMyName(name)} style={{ padding:"16px 32px", background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, color:"#e2e8f0", cursor:"pointer", fontSize:18, fontWeight:700 }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="#0891b2";e.currentTarget.style.color="#0891b2";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a2a45";e.currentTarget.style.color="#e2e8f0";}}>
-              <div style={{ width:40, height:40, borderRadius:"50%", background:"#0891b2", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:700, color:"#fff", margin:"0 auto 8px" }}>{name[0]}</div>
+            <button key={name} onClick={()=>setMyName(name)} style={{ padding:"16px 32px", background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:12, color:"#e2e8f0", cursor:"pointer", fontSize:18, fontWeight:700 }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#118fb5";e.currentTarget.style.color="#118fb5";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="#1b4a60";e.currentTarget.style.color="#e2e8f0";}}>
+              <div style={{ width:40, height:40, borderRadius:"50%", background:"#118fb5", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:700, color:"#fff", margin:"0 auto 8px" }}>{name[0]}</div>
               {name}
             </button>
           ))}
@@ -657,7 +657,7 @@ export default function Team() {
     </div>
   );
 
-  if (loading) return <div style={{ ...s.page, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ color:"#0891b2", fontSize:16 }}>Loading...</div></div>;
+  if (loading) return <div style={{ ...s.page, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ color:"#118fb5", fontSize:16 }}>Loading...</div></div>;
 
   // ── Task Card ──────────────────────────────────────────
   const TaskCard = ({ task, showOwner }) => (
@@ -669,15 +669,15 @@ export default function Team() {
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6, flexWrap:"wrap" }}>
             <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:PRIORITY_COLOR[task.priority]+"22", color:PRIORITY_COLOR[task.priority], fontWeight:600 }}>{task.priority}</span>
             {isOverdue(task) && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#7f1d1d", color:"#fca5a5", fontWeight:600 }}>OVERDUE</span>}
-            {showOwner && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#2a2a45", color:"#9ca3af", fontWeight:600 }}>{task.owner}</span>}
+            {showOwner && <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:"#1b4a60", color:"#9ca3af", fontWeight:600 }}>{task.owner}</span>}
           </div>
           <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{task.subject}</div>
-          {(task.client||task.company) && <div style={{ fontSize:12, color:"#6b7280", marginBottom:4 }}>{[task.client,task.company].filter(Boolean).join(" · ")}</div>}
-          {task.next_action && <div style={{ fontSize:12, color:"#0891b2" }}>→ {task.next_action}</div>}
-          {task.notes && <div style={{ fontSize:12, color:"#6b7280", fontStyle:"italic", marginTop:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>💬 {task.notes.length>60?task.notes.substring(0,60)+"...":task.notes}</div>}
+          {(task.client||task.company) && <div style={{ fontSize:12, color:"#7f93a1", marginBottom:4 }}>{[task.client,task.company].filter(Boolean).join(" · ")}</div>}
+          {task.next_action && <div style={{ fontSize:12, color:"#118fb5" }}>→ {task.next_action}</div>}
+          {task.notes && <div style={{ fontSize:12, color:"#7f93a1", fontStyle:"italic", marginTop:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>💬 {task.notes.length>60?task.notes.substring(0,60)+"...":task.notes}</div>}
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>
-          <div style={{ fontSize:11, color:isOverdue(task)?"#fca5a5":"#6b7280" }}>{fmtDate(task.expected_date)}</div>
+          <div style={{ fontSize:11, color:isOverdue(task)?"#fca5a5":"#7f93a1" }}>{fmtDate(task.expected_date)}</div>
           <div style={{ display:"flex", gap:6, marginTop:8, justifyContent:"flex-end" }}>
             {myName === "Jason" && (
               <button onClick={e=>{e.stopPropagation();setAgendaTask(task);}} style={{ padding:"4px 8px", background:"#1e3a8a22", border:"1px solid #3b82f644", borderRadius:6, color:"#60a5fa", cursor:"pointer", fontSize:11 }}>📌</button>
@@ -728,22 +728,22 @@ export default function Team() {
           <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:70 }} />
           <div>
             <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0" }}>{"Good "+(new Date().getHours()<12?"morning":new Date().getHours()<17?"afternoon":"evening")+", "+myName+"!"}</div>
-            <div style={{ fontSize:11, color:"#4b5563" }}>{myTasks.length} active · {myOverdue.length>0?"⚠️ "+myOverdue.length+" overdue":"✅ no overdue"} · {myDoneToday.length} done today</div>
+            <div style={{ fontSize:11, color:"#6a8090" }}>{myTasks.length} active · {myOverdue.length>0?"⚠️ "+myOverdue.length+" overdue":"✅ no overdue"} · {myDoneToday.length} done today</div>
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={()=>setShowNewTask(true)} style={{ padding:"8px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Task</button>
+          <button onClick={()=>setShowNewTask(true)} style={{ padding:"8px 14px", background:"#118fb5", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Task</button>
           <button onClick={()=>setShowLogInteraction(true)} style={{ padding:"8px 14px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", cursor:"pointer", fontSize:13, fontWeight:600 }}>📋 Log</button>
           <button onClick={()=>{setFlagTask(null);setShowFlagModal(true);}} style={{ padding:"8px 14px", background:"#7f1d1d33", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>🚨</button>
-          <button onClick={()=>setMyName(null)} style={{ padding:"8px 12px", background:"none", border:"1px solid #2a2a45", borderRadius:8, color:"#6b7280", cursor:"pointer", fontSize:12 }}>Switch</button>
+          <button onClick={()=>setMyName(null)} style={{ padding:"8px 12px", background:"none", border:"1px solid #1b4a60", borderRadius:8, color:"#7f93a1", cursor:"pointer", fontSize:12 }}>Switch</button>
         </div>
       </div>
 
-      <div style={{ padding:"12px 16px", background:"#0a0a16", borderBottom:"1px solid #1e1e30" }}>
+      <div style={{ padding:"12px 16px", background:"#08202c", borderBottom:"1px solid #10364a" }}>
         <div style={{ position:"relative" }}>
-          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#4b5563", fontSize:14 }}>🔍</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks..." style={{ ...inp, paddingLeft:36, background:"#1a1a2e" }} />
-          {search && <button onClick={()=>setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:16 }}>✕</button>}
+          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#6a8090", fontSize:14 }}>🔍</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks..." style={{ ...inp, paddingLeft:36, background:"#0e2d3e" }} />
+          {search && <button onClick={()=>setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:16 }}>✕</button>}
         </div>
       </div>
 
@@ -770,20 +770,20 @@ export default function Team() {
         {activeTab==="mine" && (
           <div>
             {myTasks.length === 0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>{search?"🔍":"🎉"}</div><div>{search?`No tasks matching "${search}"`:"No active tasks!"}</div></div>
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}><div style={{ fontSize:32, marginBottom:8 }}>{search?"🔍":"🎉"}</div><div>{search?`No tasks matching "${search}"`:"No active tasks!"}</div></div>
               : Object.entries(groupByStatus(myTasks)).map(([status, taskList]) => <StatusSection key={status} status={status} taskList={taskList} showOwner={false} />)
             }
             {/* Completed tasks */}
             {myDoneTasks.length > 0 && (
               <div style={{ marginTop:24 }}>
-                <button onClick={()=>setShowDone(!showDone)} style={{ display:"flex", alignItems:"center", gap:8, background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:11, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", padding:0, marginBottom:10 }}>
+                <button onClick={()=>setShowDone(!showDone)} style={{ display:"flex", alignItems:"center", gap:8, background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:11, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", padding:0, marginBottom:10 }}>
                   <span>✅ Completed ({myDoneTasks.length})</span>
                   <span>{showDone?"▲":"▼"}</span>
                 </button>
                 {showDone && myDoneTasks.map(t => (
-                  <div key={t.id} onClick={()=>setSelectedTask(t)} style={{ background:"#13131f", border:"1px solid #1e1e30", borderLeft:"3px solid #0891b2", borderRadius:10, padding:"10px 14px", marginBottom:8, cursor:"pointer", opacity:0.7 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:"#6b7280", textDecoration:"line-through", marginBottom:2 }}>{t.subject}</div>
-                    <div style={{ fontSize:11, color:"#374151" }}>{t.company||t.client||""}{t.actual_date?" · Done "+fmtDate(t.actual_date):""}</div>
+                  <div key={t.id} onClick={()=>setSelectedTask(t)} style={{ background:"#0b2735", border:"1px solid #10364a", borderLeft:"3px solid #118fb5", borderRadius:10, padding:"10px 14px", marginBottom:8, cursor:"pointer", opacity:0.7 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:"#7f93a1", textDecoration:"line-through", marginBottom:2 }}>{t.subject}</div>
+                    <div style={{ fontSize:11, color:"#557080" }}>{t.company||t.client||""}{t.actual_date?" · Done "+fmtDate(t.actual_date):""}</div>
                   </div>
                 ))}
               </div>
@@ -795,7 +795,7 @@ export default function Team() {
         {activeTab==="team" && (
           <div>
             {theirTasks.length === 0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>{search?"🔍":"✅"}</div><div>{search?`No tasks matching "${search}"`:otherName+" has no active tasks"}</div></div>
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}><div style={{ fontSize:32, marginBottom:8 }}>{search?"🔍":"✅"}</div><div>{search?`No tasks matching "${search}"`:otherName+" has no active tasks"}</div></div>
               : Object.entries(groupByStatus(theirTasks)).map(([status, taskList]) => <StatusSection key={status} status={status} taskList={taskList} showOwner={false} />)
             }
           </div>
@@ -806,21 +806,21 @@ export default function Team() {
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
               <div>
-                <div style={{ fontSize:12, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase" }}>📌 Meeting Agenda</div>
-                <div style={{ fontSize:11, color:"#4b5563", marginTop:2 }}>Pin tasks to discuss in the weekly meeting</div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase" }}>📌 Meeting Agenda</div>
+                <div style={{ fontSize:11, color:"#6a8090", marginTop:2 }}>Pin tasks to discuss in the weekly meeting</div>
               </div>
               {agendaItems.length > 0 && (
                 <span style={{ fontSize:11, background:"#3b82f633", color:"#60a5fa", borderRadius:99, padding:"2px 10px", fontWeight:700 }}>{agendaItems.length} items</span>
               )}
             </div>
             {agendaItems.length === 0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}>
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>📌</div>
                   <div style={{ fontSize:13 }}>No agenda items yet</div>
-                  <div style={{ fontSize:11, color:"#374151", marginTop:6 }}>Tap the 📌 button on any task to add it here</div>
+                  <div style={{ fontSize:11, color:"#557080", marginTop:6 }}>Tap the 📌 button on any task to add it here</div>
                 </div>
               : agendaItems.map(item => (
-                <div key={item.id} style={{ background:"#1a1a2e", border:"1px solid #3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                <div key={item.id} style={{ background:"#0e2d3e", border:"1px solid #3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                     <div style={{ flex:1, paddingRight:12 }}>
                       <div style={{ fontSize:14, fontWeight:600, color:"#e2e8f0", lineHeight:1.3 }}>
@@ -831,7 +831,7 @@ export default function Team() {
                           💬 {item.content.split(" — ").slice(1).join(" — ")}
                         </div>
                       )}
-                      <div style={{ fontSize:10, color:"#4b5563", marginTop:6 }}>{fmtDateTime(item.created_at)}</div>
+                      <div style={{ fontSize:10, color:"#6a8090", marginTop:6 }}>{fmtDateTime(item.created_at)}</div>
                     </div>
                     <button onClick={()=>clearAgendaItem(item.id)} style={{ padding:"4px 10px", background:"#10b98122", border:"1px solid #10b981", borderRadius:6, color:"#10b981", cursor:"pointer", fontSize:11, fontWeight:600, flexShrink:0 }}>✓ Done</button>
                   </div>
@@ -845,15 +845,15 @@ export default function Team() {
         {activeTab==="scratchpad" && (
           <div>
             <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4 }}>📝 Jason's Notes</div>
-              <div style={{ fontSize:11, color:"#4b5563", marginBottom:12 }}>Private scratchpad — only you can see this</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4 }}>📝 Jason's Notes</div>
+              <div style={{ fontSize:11, color:"#6a8090", marginBottom:12 }}>Private scratchpad — only you can see this</div>
               <div style={{ display:"flex", gap:8 }}>
                 <textarea value={newScratchNote} onChange={e=>setNewScratchNote(e.target.value)} placeholder="Type a note..." style={{ ...inp, minHeight:60, resize:"vertical", flex:1 }} />
-                <button onClick={addScratchNote} disabled={!newScratchNote.trim()} style={{ padding:"0 16px", background:newScratchNote.trim()?"#0891b2":"#2a2a45", border:"none", borderRadius:8, color:newScratchNote.trim()?"#fff":"#4b5563", cursor:newScratchNote.trim()?"pointer":"not-allowed", fontSize:18, fontWeight:700, alignSelf:"stretch" }}>+</button>
+                <button onClick={addScratchNote} disabled={!newScratchNote.trim()} style={{ padding:"0 16px", background:newScratchNote.trim()?"#118fb5":"#1b4a60", border:"none", borderRadius:8, color:newScratchNote.trim()?"#fff":"#6a8090", cursor:newScratchNote.trim()?"pointer":"not-allowed", fontSize:18, fontWeight:700, alignSelf:"stretch" }}>+</button>
               </div>
             </div>
             {scratchpadNotes.length === 0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📝</div><div style={{ fontSize:13 }}>No notes yet — start writing!</div></div>
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}><div style={{ fontSize:32, marginBottom:8 }}>📝</div><div style={{ fontSize:13 }}>No notes yet — start writing!</div></div>
               : scratchpadNotes.map(n => <ScratchNote key={n.id} note={n} onDelete={deleteScratchNote} onSave={loadJasonData} />)
             }
           </div>
@@ -863,25 +863,25 @@ export default function Team() {
         {activeTab==="interactions" && (
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase" }}>Customer Interactions</div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase" }}>Customer Interactions</div>
               <div style={{ display:"flex", gap:8 }}>
-                <button onClick={()=>setShowLogInteraction(true)} style={{ padding:"7px 14px", background:"#0891b2", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Log</button>
+                <button onClick={()=>setShowLogInteraction(true)} style={{ padding:"7px 14px", background:"#118fb5", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Log</button>
                 <button onClick={()=>setShowWeeklyReport(true)} style={{ padding:"7px 14px", background:"#1e3a8a22", border:"1px solid #3b82f6", borderRadius:8, color:"#60a5fa", cursor:"pointer", fontSize:13, fontWeight:600 }}>📊 Weekly</button>
               </div>
             </div>
             {interactions.length===0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No interactions logged yet</div></div>
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No interactions logged yet</div></div>
               : interactions.map(i => (
-                <div key={i.id} style={{ background:"#1a1a2e", border:"1px solid #2a2a45", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                <div key={i.id} style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{i.type}</span>
-                      <span style={{ fontSize:11, background:"#2a2a45", borderRadius:99, padding:"2px 8px", color:"#9ca3af" }}>{i.logged_by}</span>
+                      <span style={{ fontSize:11, background:"#1b4a60", borderRadius:99, padding:"2px 8px", color:"#9ca3af" }}>{i.logged_by}</span>
                       {i.week_sent && <span style={{ fontSize:11, color:"#10b981" }}>✅ Reported</span>}
                     </div>
-                    <div style={{ fontSize:11, color:"#4b5563" }}>{fmtDate(i.interaction_date)}</div>
+                    <div style={{ fontSize:11, color:"#6a8090" }}>{fmtDate(i.interaction_date)}</div>
                   </div>
-                  <div style={{ fontSize:13, fontWeight:600, color:"#0891b2", marginBottom:4 }}>{i.client}{i.company?" · "+i.company:""}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#118fb5", marginBottom:4 }}>{i.client}{i.company?" · "+i.company:""}</div>
                   <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5, marginBottom:i.outcome?8:0 }}>{i.notes}</div>
                   {i.outcome && <div style={{ fontSize:12, color:"#10b981" }}>→ {i.outcome}</div>}
                 </div>
@@ -894,26 +894,26 @@ export default function Team() {
         {activeTab==="flags" && (
           <div>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#6b7280", letterSpacing:"0.08em", textTransform:"uppercase" }}>Flags Sent to Sean</div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase" }}>Flags Sent to Sean</div>
               <button onClick={()=>{setFlagTask(null);setShowFlagModal(true);}} style={{ padding:"7px 14px", background:"#ef444422", border:"1px solid #ef4444", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ New Flag</button>
             </div>
             {myFlags.length===0
-              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}><div style={{ fontSize:32, marginBottom:8 }}>🚨</div><div>No flags sent yet</div></div>
+              ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}><div style={{ fontSize:32, marginBottom:8 }}>🚨</div><div>No flags sent yet</div></div>
               : myFlags.map(f => (
-                <div key={f.id} style={{ background:"#1a1a2e", border:"1px solid "+(f.seen?"#2a2a45":URGENCY_COLOR[f.urgency]+"44"), borderLeft:"3px solid "+URGENCY_COLOR[f.urgency], borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
+                <div key={f.id} style={{ background:"#0e2d3e", border:"1px solid "+(f.seen?"#1b4a60":URGENCY_COLOR[f.urgency]+"44"), borderLeft:"3px solid "+URGENCY_COLOR[f.urgency], borderRadius:12, padding:"14px 16px", marginBottom:10 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                       <span style={{ fontSize:11, padding:"2px 8px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
                       {f.seen ? <span style={{ fontSize:11, color:"#10b981" }}>✅ Seen by Sean</span> : <span style={{ fontSize:11, color:"#f59e0b" }}>⏳ Pending</span>}
                     </div>
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                      <div style={{ fontSize:10, color:"#4b5563" }}>{fmtDateTime(f.created_at)}</div>
+                      <div style={{ fontSize:10, color:"#6a8090" }}>{fmtDateTime(f.created_at)}</div>
                       {!f.seen && <button onClick={()=>setEditingFlag(f)} style={{ padding:"4px 10px", background:"#f9731622", border:"1px solid #f97316", borderRadius:6, color:"#f97316", cursor:"pointer", fontSize:11, fontWeight:600 }}>✏️ Edit</button>}
                     </div>
                   </div>
-                  {f.task_subject && f.task_subject!=="General flag" && <div style={{ fontSize:12, color:"#6b7280", marginBottom:6 }}>Re: {f.task_subject}</div>}
+                  {f.task_subject && f.task_subject!=="General flag" && <div style={{ fontSize:12, color:"#7f93a1", marginBottom:6 }}>Re: {f.task_subject}</div>}
                   <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{f.note}</div>
-                  {f.seen && <div style={{ fontSize:11, color:"#374151", marginTop:8, fontStyle:"italic" }}>Sean has seen this — editing disabled</div>}
+                  {f.seen && <div style={{ fontSize:11, color:"#557080", marginTop:8, fontStyle:"italic" }}>Sean has seen this — editing disabled</div>}
                 </div>
               ))
             }

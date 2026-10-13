@@ -213,8 +213,8 @@ def t10(page):
     d.get_by_role("button", name="Create Task").click()
     page.wait_for_timeout(900)
     assert sql("select action_state||'|'||waiting_on from tasks where subject='E2E supplier delivery update'") == "Awaiting response|CIMC"
-    nav(page, "Follow-ups")
-    page.get_by_role("button", name=re.compile("^Awaiting response")).click()
+    nav(page, "Today")
+    page.get_by_role("button", name=re.compile("^Waiting for reply")).click()
     page.get_by_text("E2E supplier delivery update").first.click()
     d = page.get_by_role("dialog")
     d.get_by_label("🔔 Follow-up Date").fill("2026-12-01")
@@ -226,8 +226,8 @@ def t10(page):
 
 @check(11, "Filtering tasks by owner works")
 def t11(page):
-    nav(page, "Follow-ups")
-    page.get_by_role("button", name=re.compile("^Team")).click()
+    nav(page, "Today")
+    page.get_by_role("button", name=re.compile("^Delegated")).click()
     page.get_by_text("Filters").click()
     page.get_by_label("Owner", exact=True).select_option("Andrea")
     page.wait_for_timeout(300)
@@ -357,6 +357,50 @@ def t18(page):
     page.goto(URL, wait_until="networkidle")
 
 
+def card_of(page, subject):
+    return page.get_by_text(subject, exact=True).first.locator("xpath=ancestor::div[.//button[contains(., 'Done')]][1]")
+
+
+@check(20, "Follow-ups: Today is sorted by due date; 'Sent — follow up', 'No reply — chased' and 'Replied' schedule and log correctly")
+def t20(page):
+    late = sql("insert into tasks(subject, owner, status, action_state, next_action, expected_date, category) values ('E2E overdue finance item','Sean','To Do','Our action','Pay CIMC deposit',current_date - 2,'Finance') returning id").splitlines()[0]
+    tid = sql("insert into tasks(subject, owner, status, action_state, next_action, expected_date, client, category) values ('E2E send CIMC quote','Vanya','To Do','Our action','Email quote',current_date,'CIMC','Sales') returning id").splitlines()[0]
+    page.reload(wait_until="networkidle"); page.wait_for_timeout(600)
+    nav(page, "Today")
+    page.wait_for_timeout(600)
+    titles = page.locator("text=/^E2E (overdue finance item|send CIMC quote)$/").all_inner_texts()
+    assert titles[:2] == ["E2E overdue finance item", "E2E send CIMC quote"], titles
+    expect(card_of(page, "E2E send CIMC quote").get_by_text("Sales", exact=True)).to_be_visible()
+    # 1) We sent the email → follow up in 3 days
+    c = card_of(page, "E2E send CIMC quote")
+    c.get_by_role("button", name=re.compile("Sent — follow up")).click()
+    c.get_by_role("button", name="3d", exact=True).click()
+    page.wait_for_timeout(1000)
+    row = sql(f"select action_state||'|'||status||'|'||(follow_up_date - (now() at time zone '{TZ}')::date)||'|'||waiting_on from tasks where id={tid}")
+    assert row == "Awaiting response|Follow Up|3|CIMC", row
+    assert sql(f"select count(*) from interactions where task_id={tid} and direction='Outbound' and type='Email'") == "1"
+    # no longer due today → gone from Today; now under Waiting for reply
+    expect(page.get_by_text("E2E send CIMC quote", exact=True)).to_have_count(0)
+    page.get_by_role("button", name=re.compile("^Waiting for reply")).click()
+    c = card_of(page, "E2E send CIMC quote")
+    expect(c.get_by_text(re.compile("Last contacted"))).to_be_visible()
+    # 2) No reply → chased, follow up again in a week
+    c.get_by_role("button", name="No reply — chased").click()
+    c.get_by_role("button", name="1 wk", exact=True).click()
+    page.wait_for_timeout(1000)
+    assert sql(f"select follow_up_date - (now() at time zone '{TZ}')::date from tasks where id={tid}") == "7"
+    assert sql(f"select count(*) from interactions where task_id={tid} and type='Follow-up'") == "1"
+    expect(card_of(page, "E2E send CIMC quote").get_by_text(re.compile("chased 1×"))).to_be_visible()
+    # 3) They replied → our move again, due today, not marked done
+    card_of(page, "E2E send CIMC quote").get_by_role("button", name="↩ Replied").click()
+    page.wait_for_timeout(1000)
+    row = sql(f"select action_state||'|'||status||'|'||coalesce(follow_up_date::text,'none')||'|'||(expected_date = (now() at time zone '{TZ}')::date)::text from tasks where id={tid}")
+    assert row == "Our action|To Do|none|true", row
+    assert sql(f"select count(*) from interactions where task_id={tid} and direction='Inbound'") == "1"
+    page.get_by_role("button", name=re.compile("^Today")).first.click()
+    expect(page.get_by_text("E2E send CIMC quote", exact=True)).to_be_visible()
+
+
 def mobile_checks(browser):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, timezone_id=TZ)
     m = ctx.new_page()
@@ -395,7 +439,7 @@ def main():
         page.on("dialog", lambda dlg: dlg.accept())
         page.goto(URL, wait_until="networkidle")
         page.wait_for_timeout(1000)
-        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18]:
+        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20]:
             # Fresh page for every check so one failure can't cascade into the next.
             page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(700)
             fn(page)

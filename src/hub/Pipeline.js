@@ -74,7 +74,7 @@ export default function Pipeline({ opportunities, companies, contacts, tasks, on
             <div key={s}
               onDragOver={(e) => { e.preventDefault(); setDragOver(s); }} onDragLeave={() => setDragOver(null)}
               onDrop={(e) => { e.preventDefault(); setDragOver(null); move(e.dataTransfer.getData("oppId"), s); }}
-              style={{ minWidth: 230, width: 230, flexShrink: 0, background: dragOver === s ? "#1e1e35" : C.panel, border: `1px solid ${dragOver === s ? STAGE_COLOR[s] : C.line}`, borderTop: `3px solid ${STAGE_COLOR[s]}`, borderRadius: 12, padding: 10 }}>
+              style={{ minWidth: 230, width: 230, flexShrink: 0, background: dragOver === s ? "#123a4f" : C.panel, border: `1px solid ${dragOver === s ? STAGE_COLOR[s] : C.line}`, borderTop: `3px solid ${STAGE_COLOR[s]}`, borderRadius: 12, padding: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.text, flex: 1 }}>{s}</span>
                 <span style={{ background: C.line, borderRadius: 99, padding: "1px 8px", fontSize: 11, color: C.muted }}>{items.length}</span>
@@ -84,7 +84,7 @@ export default function Pipeline({ opportunities, companies, contacts, tasks, on
                   <OpportunityCard o={o} companyName={companyName(o.company_id)} onClick={setOpen} compact />
                 </div>
               ))}
-              {items.length === 0 && <div style={{ textAlign: "center", padding: "18px 0", color: "#374151", fontSize: 11 }}>Drop here</div>}
+              {items.length === 0 && <div style={{ textAlign: "center", padding: "18px 0", color: "#557080", fontSize: 11 }}>Drop here</div>}
             </div>
           );
         })}

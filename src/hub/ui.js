@@ -6,8 +6,8 @@ export const UserContext = createContext({ name: DEFAULT_USER, role: null, signO
 export const useHubUser = () => useContext(UserContext);
 
 export const C = {
-  bg: "#0d0d1a", panel: "#13131f", card: "#1a1a2e", input: "#1e1e30", line: "#2a2a45", lineSoft: "#1e1e30",
-  text: "#e2e8f0", muted: "#9ca3af", dim: "#6b7280", faint: "#4b5563", accent: "#0891b2",
+  bg: "#0a2432", panel: "#0b2735", card: "#0e2d3e", input: "#10364a", line: "#1b4a60", lineSoft: "#10364a",
+  text: "#e2e8f0", muted: "#9ca3af", dim: "#7f93a1", faint: "#6a8090", accent: "#118fb5",
   red: "#ef4444", redBg: "#7f1d1d", amber: "#f59e0b", green: "#10b981", violet: "#8b5cf6",
 };
 export const inp = { background: C.input, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 12px", color: C.text, fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" };
@@ -87,7 +87,7 @@ export function SectionTitle({ children, right, color = C.dim }) {
 }
 
 export function Empty({ icon = "◌", children }) {
-  return <div style={{ textAlign: "center", padding: "28px 0", color: "#374151", fontSize: 13 }}><div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>{children}</div>;
+  return <div style={{ textAlign: "center", padding: "28px 0", color: "#557080", fontSize: 13 }}><div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>{children}</div>;
 }
 
 export function Card({ children, onClick, accent, style }) {
@@ -118,4 +118,14 @@ export function Picker({ id, value, options, onChange, placeholder = "Search…"
 
 export function useIsMobile() {
   return typeof window !== "undefined" && window.innerWidth < 760;
+}
+
+// Outlook-style tag: dark fill, light outline + text — same look as Vanya's email categories.
+export function Tag({ fill, ink, children, title, small }) {
+  return (
+    <span title={title} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: small ? 10 : 11, padding: small ? "1px 7px" : "2px 8px", borderRadius: 99,
+      background: fill, color: ink, border: `1px solid ${ink}`, fontWeight: 700, whiteSpace: "nowrap", lineHeight: 1.5 }}>
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 2, background: ink, transform: "rotate(45deg)" }} />{children}
+    </span>
+  );
 }

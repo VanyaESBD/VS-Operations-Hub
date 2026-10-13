@@ -175,3 +175,66 @@ describe("search", () => {
     expect(mock.calls.find((c) => c.rpc === "search_hub").args).toMatchObject({ q: "Kerr" });
   });
 });
+
+describe("Today view (Vanya's follow-up workflow)", () => {
+  const FollowUps = require("../hub/FollowUps").default;
+  const dated = [
+    { id: 21, subject: "Later this week", owner: "Vanya", action_state: "Our action", status: "To Do", expected_date: addDays(T, 3), category: "Finance" },
+    { id: 22, subject: "Chase Emily", owner: "Vanya", action_state: "Awaiting response", status: "Follow Up", follow_up_date: T, waiting_on: "Emily", category: "Operations" },
+    { id: 23, subject: "Very overdue", owner: "Sean", action_state: "Our action", status: "FYA", expected_date: addDays(T, -9), category: "Finance" },
+    { id: 24, subject: "Slightly overdue", owner: "Vanya", action_state: "Our action", status: "To Do", expected_date: addDays(T, -1), category: "HR" },
+    { id: 25, subject: "Not chased yet", owner: "Vanya", action_state: "Awaiting response", status: "Follow Up", expected_date: addDays(T, -20), follow_up_date: addDays(T, 5) },
+  ];
+  const renderToday = () => render(<FollowUps tasks={dated} opportunities={[]} companies={[]} onOpenTask={() => {}} onOpenOpportunity={() => {}} onChanged={() => {}} />);
+
+  test("opens on Today: overdue + due today, earliest first, follow-ups mixed in with tasks", () => {
+    renderToday();
+    const titles = ["Very overdue", "Slightly overdue", "Chase Emily"];
+    const pos = titles.map((t) => screen.getByText(t).compareDocumentPosition.bind(screen.getByText(t)));
+    // order on screen matches date order
+    expect(screen.getByText("Very overdue").compareDocumentPosition(screen.getByText("Slightly overdue")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Slightly overdue").compareDocumentPosition(screen.getByText("Chase Emily")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(pos).toHaveLength(3);
+    // not due yet → not in Today (even if its old due date has passed, the follow-up date decides)
+    expect(screen.queryByText("Later this week")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not chased yet")).not.toBeInTheDocument();
+  });
+  test("'Everyone / Vanya / Sean' switch and category chips filter the list", () => {
+    renderToday();
+    fireEvent.click(screen.getByRole("button", { name: "Sean" }));
+    expect(screen.getByText("Very overdue")).toBeInTheDocument();
+    expect(screen.queryByText("Chase Emily")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Everyone" }));
+    fireEvent.click(screen.getByRole("button", { name: "HR" }));
+    expect(screen.getByText("Slightly overdue")).toBeInTheDocument();
+    expect(screen.queryByText("Very overdue")).not.toBeInTheDocument();
+  });
+  test("'Sent — follow up in 3d' logs the email and moves the task to waiting with the new date", async () => {
+    mock.calls.length = 0;
+    renderToday();
+    const card = screen.getByText("Slightly overdue").closest("div[style]").parentElement.parentElement;
+    fireEvent.click(within(card).getByRole("button", { name: /Sent — follow up/ }));
+    fireEvent.click(within(card).getByRole("button", { name: "3d" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.table === "tasks" && c.op === "update")).toBe(true));
+    const comm = mock.calls.find((c) => c.table === "interactions" && c.op === "insert");
+    expect(comm.payload[0]).toMatchObject({ type: "Email", direction: "Outbound", task_id: 24 });
+    const upd = mock.calls.find((c) => c.table === "tasks" && c.op === "update");
+    expect(upd.payload).toMatchObject({ action_state: "Awaiting response", follow_up_date: addDays(T, 3) });
+  });
+  test("'No reply — chased' counts as a chase; 'Replied' makes it our move again (not done)", async () => {
+    mock.calls.length = 0;
+    renderToday();
+    const card = screen.getByText("Chase Emily").closest("div[style]").parentElement.parentElement;
+    fireEvent.click(within(card).getByRole("button", { name: /No reply — chased/ }));
+    fireEvent.click(within(card).getByRole("button", { name: "1 wk" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.table === "tasks" && c.op === "update")).toBe(true));
+    expect(mock.calls.find((c) => c.table === "interactions").payload[0].type).toBe("Follow-up");
+    expect(mock.calls.find((c) => c.table === "tasks").payload.follow_up_date).toBe(addDays(T, 7));
+    mock.calls.length = 0;
+    fireEvent.click(within(card).getByRole("button", { name: /Replied/ }));
+    await waitFor(() => expect(mock.calls.some((c) => c.table === "tasks" && c.op === "update")).toBe(true));
+    const upd = mock.calls.find((c) => c.table === "tasks");
+    expect(upd.payload).toMatchObject({ action_state: "Our action" });
+    expect(upd.payload.action_state).not.toBe("Completed");
+  });
+});

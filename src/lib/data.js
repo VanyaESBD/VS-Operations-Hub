@@ -171,3 +171,48 @@ export function saveOrder(form, actor) {
     ? supabase.from("orders").update(body).eq("id", form.id).select().single()
     : supabase.from("orders").insert([body]).select().single()).then(res);
 }
+
+// ---------- follow-ups: "emailed them — chase on <date> if no reply" ----------
+// Every step is recorded as a communication on the task (and its company/opportunity),
+// so the hub knows when we last contacted them and how many times we've chased.
+const commFor = (task, type, direction, subject, actor) => logCommunication({
+  occurred_at: new Date().toISOString(), type, direction, subject,
+  company_id: task.company_id || null, opportunity_id: task.opportunity_id || null, task_id: task.id,
+  company_name: task.company || null, contact_name: task.client || null, owner: actor,
+}, actor);
+
+// Sent something (or chased again) → waiting for a reply until `followUpDate`.
+export async function scheduleFollowUp(task, followUpDate, actor, { chase = false, waitingOn } = {}) {
+  const c = await commFor(task, chase ? "Follow-up" : "Email", "Outbound",
+    `${chase ? "Chased" : "Sent"}: ${task.subject}`, actor);
+  if (c.error) return c;
+  return supabase.from("tasks").update({
+    action_state: "Awaiting response", status: "Follow Up", follow_up_date: followUpDate,
+    waiting_on: waitingOn || task.waiting_on || task.client || task.company || null, updated_by: actor,
+  }).eq("id", task.id).select().single().then(res);
+}
+
+// They replied → it's our move again (not "done": the reply still needs acting on).
+export async function replyReceived(task, actor) {
+  const c = await commFor(task, "Email", "Inbound", `Reply received: ${task.subject}`, actor);
+  if (c.error) return c;
+  return supabase.from("tasks").update({
+    action_state: "Our action", status: "To Do", follow_up_date: null,
+    next_action: `Act on reply${task.waiting_on ? ` from ${task.waiting_on}` : ""}`, expected_date: todayLocal(), updated_by: actor,
+  }).eq("id", task.id).select().single().then(res);
+}
+const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+// Last contact + number of chases per task (one light query, not the whole log).
+export const loadTaskContacts = () =>
+  supabase.from("interactions").select("task_id, occurred_at, type, direction").not("task_id", "is", null)
+    .is("archived_at", null).order("occurred_at", { ascending: false }).limit(2000).then(res);
+export function summariseContacts(rows = []) {
+  const m = {};
+  for (const r of rows) {
+    const s = (m[r.task_id] ||= { last: null, lastDir: null, chases: 0 });
+    if (!s.last) { s.last = r.occurred_at; s.lastDir = r.direction; }
+    if (r.type === "Follow-up") s.chases++;
+  }
+  return m;
+}

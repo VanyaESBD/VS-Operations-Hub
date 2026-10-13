@@ -14,9 +14,10 @@ export const STAGE_COLOR = {
 
 export const ACTION_STATES = ["Our action", "Awaiting response", "Monitoring", "On hold", "Completed", "Cancelled"];
 export const OPEN_STATES = ["Our action", "Awaiting response", "Monitoring", "On hold"];
+// Colours follow Vanya's Outlook tags: FYA (brown), FlwUP (grey), FYI (purple).
 export const STATE_COLOR = {
-  "Our action": "#ef4444", "Awaiting response": "#10b981", "Monitoring": "#8b5cf6",
-  "On hold": "#a78bfa", "Completed": "#0891b2", "Cancelled": "#6b7280",
+  "Our action": "#c57f58", "Awaiting response": "#a8a8a8", "Monitoring": "#b39ecc",
+  "On hold": "#a59aeb", "Completed": "#5ccee8", "Cancelled": "#8a8a8a",
 };
 
 export const OWNERS = ["Vanya", "Sean", "Andrea", "Jason", "Unassigned"];
@@ -24,7 +25,7 @@ export const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 export const CURRENCIES = ["ZAR", "USD", "EUR", "GBP", "MUR", "INR", "CNY"];
 export const VALUE_BASES = ["once-off", "per month", "per year", "other"];
 export const RELATIONSHIPS = ["client", "prospect", "supplier", "partner", "bank_finance", "intermediary", "property", "other", "needs_review"];
-export const COMM_TYPES = ["Email", "Call", "Meeting", "WhatsApp", "Site visit", "Quotation sent", "Document received", "Decision", "Commitment", "Customer feedback", "Other"];
+export const COMM_TYPES = ["Email", "Follow-up", "Call", "Meeting", "WhatsApp", "Site visit", "Quotation sent", "Document received", "Decision", "Commitment", "Customer feedback", "Other"];
 export const MILESTONE_STATUSES = ["Not started", "Not confirmed", "Awaiting", "In progress", "Target only", "Done", "Blocked", "Unclear"];
 
 // ---- legacy ↔ new mappings (mirror the DB triggers) ----
@@ -203,4 +204,15 @@ export function friendlyError(error) {
   if (/row-level security|permission denied/i.test(msg)) return "You don't have permission to do that.";
   if (/Failed to fetch|NetworkError/i.test(msg)) return "Couldn't reach the server — check your connection and try again. Nothing was lost on screen.";
   return msg;
+}
+
+// "Today": everything that needs attention today or is overdue — tasks, scheduled
+// follow-ups and opportunity follow-ups together, in date order.
+export const isDueNowTask = (t, today = todayISO()) => isOpenTask(t) && ["overdue", "today"].includes(dueBucket(actionDate(t), today));
+export const isDueNowLead = (l, today = todayISO()) => isActiveLead(l) && ["overdue", "today"].includes(dueBucket(leadFollowUp(l), today));
+// "3 days ago", "today", "yesterday"
+export function ago(ts, now = new Date()) {
+  if (!ts) return null;
+  const d = Math.round((new Date(todayISO(now) + "T00:00:00") - new Date(String(ts).slice(0, 10) + "T00:00:00")) / 86400000);
+  return d <= 0 ? "today" : d === 1 ? "yesterday" : d < 14 ? `${d} days ago` : `${Math.round(d / 7)} weeks ago`;
 }
