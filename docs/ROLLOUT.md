@@ -6,8 +6,9 @@
 |---|---|
 | Built | ✅ Code in this branch |
 | Tested | ✅ On a staging copy of the live data (see below) |
-| Deployed | ❌ Not deployed — GitHub pushes from Claude are blocked until the Claude GitHub App is installed on `VanyaESBD`; no Vercel access |
-| Production database changed | ❌ No — live DB untouched (verified by fingerprint, 13 Oct) |
+| Deployed | ❌ Not yet — waiting for the Claude GitHub App on `VanyaESBD` so the branch can be pushed and Vercel builds a preview. Vercel access confirmed 13 Oct |
+| Production database changed | ✅ Migration 0002 applied 13 Oct 09:12 SAST after a verified backup; every original value unchanged (fingerprints match), row counts unchanged |
+| 0002a security tidy-up | Tested on staging; awaiting approval for production |
 | Login activated | ❌ No — built, switched off (`REACT_APP_AUTH_ENABLED` unset) |
 | Data import applied | ❌ No — preview v4 only |
 
