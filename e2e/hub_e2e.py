@@ -401,6 +401,20 @@ def t20(page):
     expect(page.get_by_text("E2E send CIMC quote", exact=True)).to_be_visible()
 
 
+@check(21, "Andrea/Jason: work can be assigned to them (marked delegated) and is tracked under Delegated")
+def t21(page):
+    page.get_by_role("button", name="+ New Task").first.click()
+    d = page.get_by_role("dialog")
+    d.get_by_label("Subject").fill("E2E Andrea book courier")
+    d.get_by_label("Responsible").select_option(label="Andrea · delegated")
+    d.get_by_role("button", name="Create Task").click()
+    page.wait_for_timeout(900)
+    assert sql("select owner from tasks where subject='E2E Andrea book courier'") == "Andrea"
+    nav(page, "Today")
+    page.get_by_role("button", name=re.compile("^Delegated")).click()
+    expect(page.get_by_text("E2E Andrea book courier", exact=True)).to_be_visible()
+
+
 def mobile_checks(browser):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, timezone_id=TZ)
     m = ctx.new_page()
@@ -439,7 +453,7 @@ def main():
         page.on("dialog", lambda dlg: dlg.accept())
         page.goto(URL, wait_until="networkidle")
         page.wait_for_timeout(1000)
-        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20]:
+        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21]:
             # Fresh page for every check so one failure can't cascade into the next.
             page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(700)
             fn(page)

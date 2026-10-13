@@ -52,5 +52,8 @@ export const URGENT = { tag: "!", fill: "#420610", ink: "#d098a0" };
 // ---- People tags ----
 // Andrea (Dre) and Jason (J) no longer use the hub: their items show as Delegated.
 export const ACTIVE_USERS = ["Vanya", "Sean"];
+// They don't log in, but work is still assigned to and tracked for them.
+export const DELEGATES = ["Andrea", "Jason"];
+export const ASSIGNABLE = [...ACTIVE_USERS, ...DELEGATES, "Unassigned"];
 export const isDelegated = (owner) => !!owner && !["Vanya", "Sean", "Unassigned", "You"].includes(owner);
 export const ownerLabel = (owner) => (isDelegated(owner) ? `${owner} · delegated` : owner || "Unassigned");

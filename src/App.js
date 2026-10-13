@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, actionDate, dueBucket, isActiveLead, leadFollowUp, isDueNowTask, isDueNowLead } from "./lib/hub";
 import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord } from "./lib/data";
 import { useHubUser, Banner as HubBanner, Picker, Field as HubField } from "./hub/ui";
-import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, isPrivateCategory, normaliseCategory, ownerLabel, ACTIVE_USERS } from "./lib/categories";
+import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, isPrivateCategory, normaliseCategory, ownerLabel, ASSIGNABLE } from "./lib/categories";
 import { CategoryTag, DelegatedTag } from "./hub/tags";
 import HubDashboard from "./hub/HubDashboard";
 import Pipeline, { OpportunityModal } from "./hub/Pipeline";
@@ -338,7 +338,7 @@ function TaskForm({ initial, onSave, onClose, companies = [], opportunities = []
       {form.needs_review && <HubBanner kind="warn">Open question: {form.needs_review}</HubBanner>}
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14 }}>
         <div style={{ gridColumn:"1/-1" }}><Field label="Subject" required><input style={inp} value={form.subject} onChange={(e)=>set("subject",e.target.value)} placeholder="What needs to be done?" />{err("subject") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("subject")}</div>}</Field></div>
-        <Field label="Responsible" required><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{[...ACTIVE_USERS, "Unassigned", ...(form.owner && ![...ACTIVE_USERS,"Unassigned"].includes(form.owner) ? [form.owner] : [])].map(o=><option key={o} value={o}>{ownerLabel(o)}</option>)}</select></Field>
+        <Field label="Responsible" required><select style={inp} value={form.owner} onChange={(e)=>set("owner",e.target.value)}>{[...ASSIGNABLE, ...(form.owner && !ASSIGNABLE.includes(form.owner) ? [form.owner] : [])].map(o=><option key={o} value={o}>{ownerLabel(o)}</option>)}</select></Field>
         <Field label="State" required>
           <select style={{ ...inp, borderColor: STATE_COLOR[st] }} value={st} onChange={(e)=>set("action_state",e.target.value)}>{ACTION_STATES.map(s=><option key={s} value={s}>{STATE_STYLE[s]?.label || s}</option>)}</select>
         </Field>
