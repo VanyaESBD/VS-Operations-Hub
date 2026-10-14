@@ -100,6 +100,7 @@ create policy "members add notes" on public.activity_log for insert to authentic
   with check (public.hub_can_write() and action = 'note');
 
 -- 8. Profiles: everyone sees their own; admins see and manage all.
+drop policy if exists "read own profile (pre-0003)" on public.profiles;  -- temporary policy added at login activation (14 Oct)
 create policy "own profile" on public.profiles for select to authenticated using (id = auth.uid() or public.hub_role() = 'admin');
 create policy "admin manages profiles" on public.profiles for update to authenticated
   using (public.hub_role() = 'admin') with check (public.hub_role() = 'admin');

@@ -1,4 +1,8 @@
-# Proposed access control — FOR APPROVAL (not active)
+# Access control
+
+**14 Oct 2026 — APPROVED by Vanya:** Vanya (vanya@esbd.co.za) = Admin, Sean (sean@esbd.co.za) = Manager; Andrea and Jason = no login (tasks tracked as Delegated). Accounts created in Supabase by Vanya; profiles added; `REACT_APP_AUTH_ENABLED=true` set in Vercel; temporary policy "read own profile (pre-0003)" added. Migration 0003 (closes open access) to be applied after both have signed in.
+
+## Original proposal
 
 **Status (13 Oct 2026):** built, and tested on a staging copy of the live data (27 database access tests, rollback test, 11 browser login tests — all passing; see `docs/ROLLOUT.md`). **Nothing is switched on in production.** No accounts have been created, no invitations sent, no permissions granted. Test accounts existed only in the throwaway staging database (`@test.local`).
 
