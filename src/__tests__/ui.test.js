@@ -201,7 +201,7 @@ describe("Today view (Vanya's follow-up workflow)", () => {
   });
   test("'Everyone / Vanya / Sean' switch and category chips filter the list", () => {
     renderToday();
-    fireEvent.click(screen.getByRole("button", { name: "Sean" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Sean/ }));
     expect(screen.getByText("Very overdue")).toBeInTheDocument();
     expect(screen.queryByText("Chase Emily")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Everyone" }));
@@ -236,5 +236,91 @@ describe("Today view (Vanya's follow-up workflow)", () => {
     const upd = mock.calls.find((c) => c.table === "tasks");
     expect(upd.payload).toMatchObject({ action_state: "Our action" });
     expect(upd.payload.action_state).not.toBe("Completed");
+  });
+});
+
+describe("Tasks page — people tabs, Outlook tags, traffic lights", () => {
+  const FollowUps = require("../hub/FollowUps").default;
+  const rows = [
+    { id: 31, subject: "Andrea: send Medipost pack", owner: "Andrea", action_state: "Our action", status: "To Do", expected_date: addDays(T, 1) },
+    { id: 32, subject: "Siya: file invoices", owner: "Siya", action_state: "Our action", status: "To Do", expected_date: addDays(T, 6) },
+    { id: 33, subject: "Waiting on CIMC price", owner: "Vanya", action_state: "Awaiting response", status: "Follow Up", follow_up_date: addDays(T, 2) },
+    { id: 34, subject: "Untouched overdue", owner: "Sean", action_state: "Our action", status: "FYA", expected_date: addDays(T, -3), updated_by: "Import (Vanya-approved)", updated_at: addDays(T, -30) + "T08:00:00Z" },
+    { id: 35, subject: "Touched overdue", owner: "Sean", action_state: "Our action", status: "FYA", expected_date: addDays(T, -3), updated_by: "Vanya", updated_at: addDays(T, -1) + "T08:00:00Z" },
+  ];
+  const renderAll = () => render(<FollowUps initialView="all" tasks={rows} opportunities={[]} companies={[]} onOpenTask={() => {}} onOpenOpportunity={() => {}} onChanged={() => {}} />);
+
+  test("Andrea / Jason / Siya tabs show only their delegated work", () => {
+    renderAll();
+    fireEvent.click(screen.getByRole("button", { name: /^Andrea/ }));
+    expect(screen.getByText("Andrea: send Medipost pack")).toBeInTheDocument();
+    expect(screen.queryByText("Siya: file invoices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Siya/ }));
+    expect(screen.getByText("Siya: file invoices")).toBeInTheDocument();
+    expect(screen.queryByText("Andrea: send Medipost pack")).not.toBeInTheDocument();
+  });
+  test("FlwUP tag filters to waiting items; 'FYI' replaces 'For information'", () => {
+    renderAll();
+    fireEvent.click(screen.getByRole("button", { name: "FlwUP" }));
+    expect(screen.getByText("Waiting on CIMC price")).toBeInTheDocument();
+    expect(screen.queryByText("Siya: file invoices")).not.toBeInTheDocument();
+    expect(screen.queryByText(/For information/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^FYI/ })).toBeInTheDocument();
+  });
+  test("overdue and untouched glows; overdue but edited since does not", () => {
+    renderAll();
+    const glowing = document.querySelectorAll(".hub-glow");
+    expect(glowing).toHaveLength(1);
+    expect(within(glowing[0]).getByText("Untouched overdue")).toBeInTheDocument();
+  });
+});
+
+describe("Quick list (under-5-minute tasks)", () => {
+  const QuickList = require("../hub/QuickList").default;
+  const qt = [
+    { id: 41, subject: "Message Rajinder", owner: "Vanya", task_type: "Quick task", action_state: "Our action", status: "To Do", priority: "Medium", expected_date: T },
+    { id: 42, subject: "Book flight to JHB", owner: "Sean", task_type: "Quick task", action_state: "Our action", status: "To Do", priority: "Urgent", expected_date: T },
+    { id: 43, subject: "A normal big task", owner: "Vanya", task_type: "Quote", action_state: "Our action", status: "To Do", expected_date: T },
+  ];
+  const rem = [{ id: 1, title: "Renew licence", remind_date: T, owner: "Vanya", completed: false }];
+  const renderQL = () => render(<QuickList tasks={qt} reminders={rem} onChanged={() => {}} onReminders={() => {}} onOpenTask={() => {}} goTasks={() => {}} />);
+
+  test("shows only quick tasks, urgent first, plus diary reminders", () => {
+    renderQL();
+    expect(screen.queryByText("A normal big task")).not.toBeInTheDocument();
+    expect(screen.getByText("Book flight to JHB").compareDocumentPosition(screen.getByText("Message Rajinder")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Renew licence")).toBeInTheDocument();
+  });
+  test("typing + Enter adds a quick task due today; ticking completes it", async () => {
+    mock.calls.length = 0;
+    renderQL();
+    fireEvent.change(screen.getByLabelText("Quick task"), { target: { value: "Call Emily" } });
+    fireEvent.submit(screen.getByLabelText("Quick task").closest("form"));
+    await waitFor(() => expect(mock.calls.some((c) => c.table === "tasks" && c.op === "insert")).toBe(true));
+    expect(mock.calls.find((c) => c.table === "tasks" && c.op === "insert").payload[0]).toMatchObject({ subject: "Call Emily", task_type: "Quick task", action_state: "Our action", expected_date: T, owner: "Vanya" });
+    mock.calls.length = 0;
+    fireEvent.click(screen.getByLabelText("Done: Message Rajinder"));
+    await waitFor(() => expect(mock.calls.some((c) => c.table === "tasks" && c.op === "update")).toBe(true));
+    expect(mock.calls.find((c) => c.table === "tasks" && c.op === "update").payload).toMatchObject({ action_state: "Completed" });
+  });
+});
+
+describe("Projects live inside companies", () => {
+  const Companies = require("../hub/Companies").default;
+  const projects = [{ id: 7, name: "UPD", company_id: 1, owner: "Sean" }, { id: 8, name: "Old pilot", company_id: 1, archived_at: "2026-01-01T00:00:00Z" }];
+  const ptasks = [{ id: 51, subject: "UPD project task (no company link)", owner: "Sean", action_state: "Our action", status: "To Do", project_id: 7, expected_date: addDays(T, 2) }];
+  test("company shows its projects; a project's tasks count toward the company; + Project saves with company_id", async () => {
+    mock.calls.length = 0;
+    render(<Companies companies={companies} contacts={[]} opportunities={[]} tasks={ptasks} orders={[]} projects={projects} onChanged={() => {}} onOpenTask={() => {}} onOpenOpportunity={() => {}} onNewTask={() => {}} onLogComm={() => {}} />);
+    expect(screen.getByText("1 project")).toBeInTheDocument();
+    expect(screen.getByText("1 open tasks")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("UPD (Clicks Group)"));
+    fireEvent.click(screen.getByRole("button", { name: "Projects (1)" }));
+    expect(screen.queryByText(/Old pilot/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "+ Project" }));
+    fireEvent.change(screen.getByPlaceholderText("e.g. Cold-chain pilot 2027"), { target: { value: "Vaccine fridges" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add project" }));
+    await waitFor(() => expect(mock.calls.some((c) => c.table === "projects" && c.op === "insert")).toBe(true));
+    expect(mock.calls.find((c) => c.table === "projects").payload[0]).toMatchObject({ name: "Vaccine fridges", company_id: 1, status: "Active" });
   });
 });

@@ -89,7 +89,7 @@ export const linkContact = (companyId, contactId, role) =>
 
 const TASK_FIELDS = ["subject", "client", "company", "email", "date_received", "owner", "priority", "expected_date", "next_action", "notes",
   "outcome", "task_type", "project", "follow_up_date", "follow_up_note", "company_id", "contact_id", "opportunity_id", "order_id",
-  "action_state", "waiting_on", "expected_response_date", "category", "visibility", "needs_review"];
+  "action_state", "waiting_on", "expected_response_date", "category", "visibility", "needs_review", "project_id"];
 export function saveTask(form, actor) {
   const payload = {};
   for (const f of TASK_FIELDS) if (f in form) payload[f] = form[f];
@@ -216,3 +216,16 @@ export function summariseContacts(rows = []) {
   }
   return m;
 }
+
+// ---------- projects (live inside a company) ----------
+// The projects table has no updated_by column; archive instead of delete.
+const PROJECT_FIELDS = ["name", "description", "owner", "status", "company_id", "color", "needs_review"];
+export function saveProject(form) {
+  const body = { updated_at: new Date().toISOString() };
+  for (const f of PROJECT_FIELDS) if (f in form) body[f] = typeof form[f] === "string" ? form[f].trim() || null : form[f];
+  return (form.id
+    ? supabase.from("projects").update(body).eq("id", form.id).select().single()
+    : supabase.from("projects").insert([body]).select().single()).then(res);
+}
+export const archiveProject = (id, archived = true) =>
+  supabase.from("projects").update({ archived_at: archived ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", id).then(res);

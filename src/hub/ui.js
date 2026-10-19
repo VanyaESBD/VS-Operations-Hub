@@ -90,9 +90,9 @@ export function Empty({ icon = "◌", children }) {
   return <div style={{ textAlign: "center", padding: "28px 0", color: "#557080", fontSize: 13 }}><div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>{children}</div>;
 }
 
-export function Card({ children, onClick, accent, style }) {
+export function Card({ children, onClick, accent, style, className }) {
   return (
-    <div onClick={onClick} style={{ background: C.card, border: `1px solid ${C.line}`, borderLeft: accent ? `3px solid ${accent}` : undefined, borderRadius: 10, padding: "12px 14px", marginBottom: 8, cursor: onClick ? "pointer" : "default", ...style }}>
+    <div onClick={onClick} className={className} style={{ background: C.card, border: `1px solid ${C.line}`, borderLeft: accent ? `3px solid ${accent}` : undefined, borderRadius: 10, padding: "12px 14px", marginBottom: 8, cursor: onClick ? "pointer" : "default", ...style }}>
       {children}
     </div>
   );

@@ -1,24 +1,27 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { ACTION_STATES, PRIORITIES, stateOf, isOpenTask, actionDate, dueBucket, needsChasing, isActiveLead, leadFollowUp, stageOf, todayISO, addDays, ago } from "../lib/hub";
-import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, normaliseCategory, isDelegated, ownerLabel } from "../lib/categories";
+import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, normaliseCategory, ownerLabel, PEOPLE, rag, RAG } from "../lib/categories";
 import { setTaskState, scheduleFollowUp, replyReceived, loadTaskContacts, summariseContacts } from "../lib/data";
 import { C, inp, btn, Banner, Empty, Card, fmtDate, useHubUser } from "./ui";
 import { CategoryTag, StateTag, UrgentTag, DelegatedTag } from "./tags";
 
 // Order matters: the first tabs are the ones used every day.
-const VIEWS = [
-  ["today", "Today"], ["week", "This week"], ["awaiting", "Waiting for reply"], ["upcoming", "Later"],
-  ["monitoring", "For information"], ["onhold", "On hold"],
-  ["sean", "Sean's"], ["vanya", "Vanya's"], ["team", "Delegated"],
-  ["overdue", "Overdue"], ["mine", "My items"], ["completed", "Completed"],
-];
-const BUCKET_COLOR = { overdue: C.red, today: C.amber, week: C.accent, later: C.dim, none: C.faint };
+// Row 1 — when / what. Row 2 — who. Row 3 — tags (Outlook action tags + area categories).
+// Waiting (FlwUP) and FYI are tag chips (row 3), not tabs — one control per idea.
+const VIEWS = [["all", "All open"], ["today", "Today"], ["upcoming", "Upcoming"], ["onhold", "On hold"], ["completed", "Done"]];
+const ACTION_TAGS = [["Our action", "FYA"], ["Awaiting response", "FlwUP"], ["Monitoring", "FYI"]];
+// Old links (dashboard tiles, bookmarks) → new view + person
+const LEGACY = { overdue: ["today"], week: ["upcoming"], later: ["upcoming"], sean: ["all", "Sean"], vanya: ["all", "Vanya"], team: ["all"], mine: ["all", "ME"],
+  awaiting: ["all", null, "Awaiting response"], monitoring: ["all", null, "Monitoring"] };
+const GLOW_CSS = `@keyframes hubGlow{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.0),0 0 6px 1px rgba(239,68,68,.35)}50%{box-shadow:0 0 0 1px rgba(239,68,68,.55),0 0 16px 4px rgba(239,68,68,.45)}}.hub-glow{animation:hubGlow 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.hub-glow{animation:none;box-shadow:0 0 0 2px rgba(239,68,68,.6)}}@media (max-width:819px){.hub-chiprow{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none}.hub-chiprow>*{flex-shrink:0}}`;
 const CHASE_IN = [["2d", 2], ["3d", 3], ["1 wk", 7], ["2 wks", 14]];
 
-export default function FollowUps({ tasks, opportunities, companies, initialView = "today", onOpenTask, onOpenOpportunity, onChanged }) {
+export default function FollowUps({ tasks, opportunities, companies, initialView = "today", initialWho = "All", onOpenTask, onOpenOpportunity, onChanged }) {
   const { name: me } = useHubUser();
-  const [view, setView] = useState(initialView);
-  const [who, setWho] = useState("All");          // quick switch: everyone / Vanya / Sean
+  const legacy = LEGACY[initialView];
+  const [view, setView] = useState(legacy ? legacy[0] : initialView);
+  const [who, setWho] = useState(legacy && legacy[1] ? (legacy[1] === "ME" ? me : legacy[1]) : initialWho);
+  const [tag, setTag] = useState((legacy && legacy[2]) || "All");          // FYA / FlwUP / FYI
   const [owner, setOwner] = useState("All");
   const [company, setCompany] = useState("");
   const [opp, setOpp] = useState("");
@@ -57,16 +60,16 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
   function inViewFor(v, r) {
     const b = open(r) ? dueBucket(r.date, today) : "closed";
     return {
+      all: open(r),
       today: b === "today" || b === "overdue",
-      week: ["overdue", "today", "week"].includes(b), upcoming: b === "later", overdue: b === "overdue",
+      upcoming: open(r) && (b === "week" || b === "later" || b === "none"),
       awaiting: r.state === "Awaiting response", monitoring: r.state === "Monitoring", onhold: r.state === "On hold",
-      mine: open(r) && r.owner === me, sean: open(r) && r.owner === "Sean", vanya: open(r) && r.owner === "Vanya",
-      team: open(r) && isDelegated(r.owner),
       completed: r.state === "Completed" || r.state === "Cancelled",
     }[v];
   }
   const passes = (r) =>
     (who === "All" || r.owner === who) &&
+    (tag === "All" || r.state === tag) &&
     (owner === "All" || r.owner === owner) &&
     (!company || String(r.company_id) === company) &&
     (!opp || String(r.opportunity_id) === opp) &&
@@ -93,6 +96,7 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
 
   return (
     <div>
+      <style>{GLOW_CSS}</style>
       {error && <Banner onClose={() => setError(null)}>{error}</Banner>}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {VIEWS.map(([k, l]) => {
@@ -106,16 +110,29 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
         })}
       </div>
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Showing</span>
-        {["All", "Vanya", "Sean"].map((w) => (
-          <button key={w} onClick={() => setWho(w)} aria-pressed={who === w} style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: who === w ? C.accent : "none", color: who === w ? "#fff" : C.muted, borderColor: who === w ? C.accent : C.line }}>{w === "All" ? "Everyone" : w}</button>
-        ))}
+        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Who</span>
+        {["All", ...PEOPLE].map((w) => {
+          const n = w === "All" ? null : rows.filter((r) => r.owner === w && open(r)).length;
+          return <button key={w} onClick={() => setWho(w)} aria-pressed={who === w} style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: who === w ? C.accent : "none", color: who === w ? "#fff" : C.muted, borderColor: who === w ? C.accent : C.line }}>{w === "All" ? "Everyone" : w}{n ? ` · ${n}` : ""}{["Siya", "Jason", "Andrea"].includes(w) ? " ↗" : ""}</button>;
+        })}
+      </div>
+      <div className="hub-chiprow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Tags</span>
+        {ACTION_TAGS.map(([st, t]) => {
+          const S = STATE_STYLE[st];
+          return <button key={t} onClick={() => setTag(tag === st ? "All" : st)} aria-pressed={tag === st}
+            style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, fontWeight: 700, background: tag === st ? S.fill : "none", color: S.ink, borderColor: tag === st ? S.ink : S.ink + "66" }}>{t}</button>;
+        })}
         <span style={{ width: 1, height: 18, background: C.line, margin: "0 4px" }} />
         <button onClick={() => setCategory("All")} style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: category === "All" ? C.input : "none", color: C.muted }}>All areas</button>
-        {CATEGORY_NAMES.filter((c) => rows.some((r) => r.category === c)).map((c) => (
+        {CATEGORY_NAMES.map((c) => (
           <button key={c} onClick={() => setCategory(category === c ? "All" : c)} aria-pressed={category === c}
             style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: category === c ? CATEGORIES[c].fill : "none", color: CATEGORIES[c].ink, borderColor: category === c ? CATEGORIES[c].ink : CATEGORIES[c].ink + "66" }}>{c}</button>
         ))}
+      </div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: C.dim, marginBottom: 8 }}>
+        {["red", "amber", "yellow", "green"].map((l) => <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: RAG[l].ink, display: "inline-block" }} />{RAG[l].label}</span>)}
+        <span>· glowing = overdue and not touched yet</span>
       </div>
       <details style={{ marginBottom: 12 }}>
         <summary style={{ cursor: "pointer", fontSize: 12, color: C.dim }}>More filters{[owner !== "All", company, opp, state !== "All", priority !== "All", from, to].filter(Boolean).length ? " (active)" : ""}</summary>
@@ -132,12 +149,14 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
       </details>
 
       {shown.length === 0 ? <Empty icon="✅">{view === "today" ? "Nothing due today — nice." : "Nothing here"}</Empty> : shown.map((r) => {
-        const b = open(r) ? dueBucket(r.date, today) : "closed";
+        const light = rag(r.date, today, { done: !open(r), updatedAt: r.raw.updated_at, updatedBy: r.raw.updated_by });
         const chase = r.kind === "task" && needsChasing(r.raw, today);
         const ct = r.kind === "task" ? contacts[r.id] : null;
         const k = r.kind + r.id;
         return (
           <Card key={k} onClick={() => (r.kind === "task" ? onOpenTask(r.raw) : onOpenOpportunity(r.raw))}
+            className={light.glow ? "hub-glow" : undefined}
+            style={light.level === "red" ? { borderColor: RAG.red.ink + (light.glow ? "" : "88") } : undefined}
             accent={r.category ? CATEGORIES[r.category].ink : (STATE_STYLE[r.state]?.ink || C.line)}>
             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 260px", minWidth: 0 }}>
@@ -157,7 +176,8 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
               </div>
               <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "auto" }} onClick={(e) => e.stopPropagation()}>
                 <div style={{ fontSize: 12, color: C.muted }}>{r.owner || "—"}</div>
-                {r.date && <div style={{ fontSize: 12, color: BUCKET_COLOR[b] || C.dim, fontWeight: b === "overdue" ? 700 : 400 }}>{r.state === "Awaiting response" ? "follow up " : ""}{fmtDate(r.date)}</div>}
+                {r.date && <div title={RAG[light.level].label + (light.glow ? " — not touched since it went overdue" : "")} style={{ fontSize: 12, color: RAG[light.level].ink, fontWeight: light.level === "red" || light.level === "amber" ? 700 : 400, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><span aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: RAG[light.level].ink, display: "inline-block" }} />{r.state === "Awaiting response" ? "follow up " : ""}{fmtDate(r.date)}</div>}
+                {!r.date && open(r) && <div style={{ fontSize: 11, color: C.faint }}>no date</div>}
                 {r.kind === "task" && isOpenTask(r.raw) && (
                   <div style={{ display: "flex", gap: 4, marginTop: 6, justifyContent: "flex-end", flexWrap: "wrap", maxWidth: 300 }}>
                     {r.state === "Awaiting response" ? <>

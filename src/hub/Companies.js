@@ -1,13 +1,14 @@
 import { useState, useMemo } from "react";
 import { RELATIONSHIPS, OWNERS, validateCompany, isOpenTask, isActiveLead, stateOf, actionDate, dueBucket } from "../lib/hub";
-import { saveCompany, saveContact, linkContact, archive } from "../lib/data";
+import { saveCompany, saveContact, linkContact, archive, saveProject, archiveProject } from "../lib/data";
+import { PEOPLE } from "../lib/categories";
 import { C, inp, btn, Modal, ModalHeader, Field, Grid, Pill, Banner, SectionTitle, Empty, Card, Picker, fmtDate, useHubUser } from "./ui";
 import { OpportunityCard, CommsList, HistoryList } from "./Pipeline";
 
 const REL_LABEL = { client: "Client", prospect: "Prospect", supplier: "Supplier", partner: "Partner", bank_finance: "Bank / finance", intermediary: "Intermediary", property: "Property", other: "Other", needs_review: "Needs review" };
 const REL_COLOR = { client: C.green, prospect: C.accent, supplier: C.amber, partner: C.violet, bank_finance: "#64748b", intermediary: "#14b8a6", property: "#6366f1", other: C.dim, needs_review: C.red };
 
-export default function Companies({ companies, contacts, opportunities, tasks, orders, onChanged, onOpenTask, onOpenOpportunity, onNewTask, onLogComm }) {
+export default function Companies({ companies, contacts, opportunities, tasks, orders, projects = [], onChanged, onOpenTask, onOpenOpportunity, onNewTask, onLogComm }) {
   const [q, setQ] = useState("");
   const [rel, setRel] = useState("all");
   const [open, setOpen] = useState(null);
@@ -16,25 +17,28 @@ export default function Companies({ companies, contacts, opportunities, tasks, o
   const counts = useMemo(() => {
     const m = {};
     for (const c of companies) {
+      const projIds = new Set(projects.filter((p) => p.company_id === c.id && !p.archived_at).map((p) => p.id));
+      const mine = tasks.filter((t) => (t.company_id === c.id || projIds.has(t.project_id)) && isOpenTask(t));
       m[c.id] = {
         opps: opportunities.filter((o) => o.company_id === c.id && isActiveLead(o)).length,
-        tasks: tasks.filter((t) => t.company_id === c.id && isOpenTask(t)).length,
-        overdue: tasks.filter((t) => t.company_id === c.id && isOpenTask(t) && dueBucket(actionDate(t)) === "overdue").length,
+        projects: projIds.size,
+        tasks: mine.length,
+        overdue: mine.filter((t) => dueBucket(actionDate(t)) === "overdue").length,
       };
     }
     return m;
-  }, [companies, opportunities, tasks]);
+  }, [companies, opportunities, tasks, projects]);
 
   const ql = q.trim().toLowerCase();
   const list = companies.filter((c) =>
     (rel === "all" || (c.relationship_types || []).includes(rel)) &&
-    (!ql || [c.name, c.legal_name, c.industry, c.email, ...(c.aliases || [])].some((f) => (f || "").toLowerCase().includes(ql)) ||
+    (!ql || [c.name, c.legal_name, c.industry, c.email, ...(c.aliases || []), ...projects.filter((p) => p.company_id === c.id && !p.archived_at).map((p) => p.name)].some((f) => (f || "").toLowerCase().includes(ql)) ||
       contacts.some((p) => (p.company_contacts || []).some((cc) => cc.company_id === c.id) && [p.full_name, p.email].some((f) => (f || "").toLowerCase().includes(ql)))));
 
   return (
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        <input style={{ ...inp, maxWidth: 320 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search company, alias, contact or email…" aria-label="Search companies" />
+        <input style={{ ...inp, maxWidth: 320 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search company, project, contact or email…" aria-label="Search companies" />
         <select style={{ ...inp, width: "auto" }} value={rel} onChange={(e) => setRel(e.target.value)} aria-label="Relationship filter">
           <option value="all">All relationships</option>
           {RELATIONSHIPS.map((r) => <option key={r} value={r}>{REL_LABEL[r]}</option>)}
@@ -54,6 +58,7 @@ export default function Companies({ companies, contacts, opportunities, tasks, o
                 {c.needs_review && <Pill color={C.amber} title={c.needs_review}>check</Pill>}
               </div>
               <div style={{ fontSize: 11, color: C.muted, display: "flex", gap: 10 }}>
+                {counts[c.id]?.projects > 0 && <span>{counts[c.id].projects} project{counts[c.id].projects > 1 ? "s" : ""}</span>}
                 <span>{counts[c.id]?.opps || 0} active opps</span>
                 <span>{counts[c.id]?.tasks || 0} open tasks</span>
                 {counts[c.id]?.overdue > 0 && <span style={{ color: "#fca5a5" }}>⚠ {counts[c.id].overdue} overdue</span>}
@@ -64,7 +69,7 @@ export default function Companies({ companies, contacts, opportunities, tasks, o
       )}
 
       {open && !edit && (
-        <CompanyOverview company={open} contacts={contacts} companies={companies} opportunities={opportunities} tasks={tasks} orders={orders}
+        <CompanyOverview company={open} contacts={contacts} companies={companies} opportunities={opportunities} tasks={tasks} orders={orders} projects={projects}
           onClose={() => setOpen(null)} onEdit={() => setEdit(open)} onChanged={onChanged}
           onOpenTask={onOpenTask} onOpenOpportunity={onOpenOpportunity} onNewTask={onNewTask} onLogComm={onLogComm} />
       )}
@@ -73,14 +78,16 @@ export default function Companies({ companies, contacts, opportunities, tasks, o
   );
 }
 
-function CompanyOverview({ company: c, contacts, companies = [], opportunities, tasks, orders, onClose, onEdit, onChanged, onOpenTask, onOpenOpportunity, onNewTask, onLogComm }) {
+function CompanyOverview({ company: c, contacts, companies = [], opportunities, tasks, orders, projects = [], onClose, onEdit, onChanged, onOpenTask, onOpenOpportunity, onNewTask, onLogComm }) {
   const [tab, setTab] = useState("overview");
   const [addContact, setAddContact] = useState(false);
   const [linking, setLinking] = useState(false);
   const otherCompanies = (p) => (p.company_contacts || []).filter((cc) => cc.company_id !== c.id).map((cc) => companies.find((x) => x.id === cc.company_id)?.name).filter(Boolean);
   const people = contacts.filter((p) => (p.company_contacts || []).some((cc) => cc.company_id === c.id));
   const opps = opportunities.filter((o) => o.company_id === c.id);
-  const openTasks = tasks.filter((t) => t.company_id === c.id && isOpenTask(t));
+  const coProjects = projects.filter((p) => p.company_id === c.id);
+  const projIds = new Set(coProjects.map((p) => p.id));
+  const openTasks = tasks.filter((t) => (t.company_id === c.id || projIds.has(t.project_id)) && isOpenTask(t));
   const coOrders = orders.filter((o) => o.customer_company_id === c.id || o.supplier_company_id === c.id);
   return (
     <Modal onClose={onClose} wide>
@@ -97,7 +104,7 @@ function CompanyOverview({ company: c, contacts, companies = [], opportunities, 
       </div>
       {c.needs_review && <Banner kind="warn">Open question: {c.needs_review}</Banner>}
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {[["overview", "Overview"], ["comms", "Communications"], ["history", "History"]].map(([k, l]) => (
+        {[["overview", "Overview"], ["projects", `Projects (${coProjects.filter((p) => !p.archived_at).length})`], ["comms", "Communications"], ["history", "History"]].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{ ...btn("small"), background: tab === k ? C.accent + "33" : C.input, color: tab === k ? C.accent : C.muted, borderColor: tab === k ? C.accent : C.line }}>{l}</button>
         ))}
       </div>
@@ -156,6 +163,7 @@ function CompanyOverview({ company: c, contacts, companies = [], opportunities, 
           </div>
         </div>
       )}
+      {tab === "projects" && <ProjectsTab company={c} projects={coProjects} tasks={tasks} onChanged={onChanged} onOpenTask={onOpenTask} onNewTask={onNewTask} />}
       {tab === "comms" && <CommsList filter={{ companyId: c.id }} />}
       {tab === "history" && <HistoryList entityType="company" id={c.id} />}
       {addContact && <ContactForm companyId={c.id} onClose={() => setAddContact(false)} onSaved={() => { setAddContact(false); onChanged(); }} />}
@@ -275,5 +283,86 @@ function ContactForm({ companyId, onClose, onSaved }) {
         <button style={btn("primary")} onClick={save}>Save contact</button>
       </div>
     </Modal>
+  );
+}
+
+// Projects live inside a company. A project groups that company's tasks; "+ Task" pre-fills company and project.
+function ProjectsTab({ company: c, projects, tasks, onChanged, onOpenTask, onNewTask }) {
+  const [form, setForm] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const live = projects.filter((p) => showArchived || !p.archived_at).sort((a, b) => a.name.localeCompare(b.name));
+  const save = async () => {
+    if (!form.name?.trim()) return setError("Give the project a name.");
+    setBusy(true); setError(null);
+    const { error: e } = await saveProject({ ...form, company_id: c.id, status: form.status || "Active" });
+    setBusy(false);
+    if (e) setError(e); else { setForm(null); onChanged(); }
+  };
+  const toggleArchive = async (p) => {
+    const { error: e } = await archiveProject(p.id, !p.archived_at);
+    if (e) setError(e); else onChanged();
+  };
+  return (
+    <div>
+      {error && <Banner onClose={() => setError(null)}>{error}</Banner>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+        <button style={btn("primary")} onClick={() => setForm({ name: "", description: "", owner: "Sean" })}>+ Project</button>
+        <label style={{ fontSize: 12, color: C.muted, display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived</label>
+      </div>
+      {form && (
+        <Card>
+          <Grid>
+            <Field label="Project name" required><input style={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Cold-chain pilot 2027" autoFocus /></Field>
+            <Field label="Owner"><select style={inp} value={form.owner || ""} onChange={(e) => setForm({ ...form, owner: e.target.value })}>{PEOPLE.map((o) => <option key={o}>{o}</option>)}</select></Field>
+          </Grid>
+          <Field label="What is it?"><input style={inp} value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="One line" /></Field>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+            <button style={btn("ghost")} onClick={() => setForm(null)}>Cancel</button>
+            <button style={btn("primary")} disabled={busy} onClick={save}>{busy ? "Saving…" : form.id ? "Save" : "Add project"}</button>
+          </div>
+        </Card>
+      )}
+      {live.length === 0 && !form && <Empty icon="📋">No projects for {c.name} yet</Empty>}
+      {live.map((p) => {
+        const pt = tasks.filter((t) => t.project_id === p.id && !t.archived_at);
+        const openT = pt.filter(isOpenTask);
+        const overdue = openT.filter((t) => dueBucket(actionDate(t)) === "overdue").length;
+        const expanded = openId === p.id;
+        return (
+          <Card key={p.id} accent={p.archived_at ? C.line : C.accent}>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap", cursor: "pointer" }} onClick={() => setOpenId(expanded ? null : p.id)}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: p.archived_at ? C.faint : C.text }}>{expanded ? "▾" : "▸"} {p.name}{p.archived_at ? " (archived)" : ""}</div>
+                <div style={{ fontSize: 12, color: C.dim }}>{[p.owner, p.description].filter(Boolean).join(" · ")}</div>
+                {p.needs_review && <div style={{ fontSize: 11, color: "#fde68a" }}>Check: {p.needs_review}</div>}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, display: "flex", gap: 10, alignItems: "center" }}>
+                <span>{openT.length} open</span>
+                {overdue > 0 && <span style={{ color: "#fca5a5" }}>⚠ {overdue} overdue</span>}
+                <span>{pt.length - openT.length} done</span>
+              </div>
+            </div>
+            {expanded && (
+              <div style={{ marginTop: 10, borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10 }}>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                  {!p.archived_at && <button style={btn("small")} onClick={() => onNewTask({ company_id: c.id, company: c.name, project_id: p.id, project: p.name })}>+ Task</button>}
+                  {!p.archived_at && <button style={btn("small")} onClick={() => setForm({ id: p.id, name: p.name, description: p.description || "", owner: p.owner || "Sean" })}>Edit</button>}
+                  <button style={btn("small")} onClick={() => toggleArchive(p)}>{p.archived_at ? "Restore" : "Archive"}</button>
+                </div>
+                {openT.length === 0 ? <div style={{ fontSize: 12, color: C.faint }}>No open tasks.</div> : openT.map((t) => (
+                  <div key={t.id} onClick={() => onOpenTask(t)} style={{ display: "flex", gap: 8, padding: "6px 4px", borderBottom: `1px solid ${C.lineSoft}`, cursor: "pointer", fontSize: 13 }}>
+                    <span style={{ flex: 1, color: C.text }}>{t.subject}</span>
+                    <span style={{ color: dueBucket(actionDate(t)) === "overdue" ? "#fca5a5" : C.dim, fontSize: 12 }}>{t.owner} · {actionDate(t) ? fmtDate(actionDate(t)) : "no date"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
   );
 }

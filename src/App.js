@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
-import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, actionDate, dueBucket, isActiveLead, leadFollowUp, isDueNowTask, isDueNowLead } from "./lib/hub";
+import QuickList from "./hub/QuickList";
+import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, isDueNowTask, isDueNowLead } from "./lib/hub";
 import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord } from "./lib/data";
 import { useHubUser, Banner as HubBanner, Picker, Field as HubField } from "./hub/ui";
 import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, isPrivateCategory, normaliseCategory, ownerLabel, ASSIGNABLE } from "./lib/categories";
-import { CategoryTag, DelegatedTag } from "./hub/tags";
 import HubDashboard from "./hub/HubDashboard";
 import Pipeline, { OpportunityModal } from "./hub/Pipeline";
 import Companies from "./hub/Companies";
@@ -30,74 +30,17 @@ const normaliseName = (s) => {
   return s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 };
 
-const PRIORITY_ORDER = { "Urgent": 0, "High": 1, "Medium": 2, "Low": 3 };
-const sortTasks = (tasks, sortBy) => {
-  const arr = [...tasks];
-  if (sortBy === "urgency") {
-    return arr.sort((a, b) => {
-      const aOver = isOverdue(a) ? 0 : 1;
-      const bOver = isOverdue(b) ? 0 : 1;
-      if (aOver !== bOver) return aOver - bOver;
-      const aPri = PRIORITY_ORDER[a.priority] ?? 2;
-      const bPri = PRIORITY_ORDER[b.priority] ?? 2;
-      if (aPri !== bPri) return aPri - bPri;
-      return (a.expected_date || "9999") > (b.expected_date || "9999") ? 1 : -1;
-    });
-  }
-  if (sortBy === "duedate") {
-    // The date that needs attention: the follow-up date when waiting on a reply, otherwise the due date.
-    // Earliest first (overdue at the top); undated last; urgency breaks ties.
-    return arr.sort((a, b) => {
-      const da = actionDate(a) || "9999-12-31", db = actionDate(b) || "9999-12-31";
-      if (da !== db) return da < db ? -1 : 1;
-      return (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2);
-    });
-  }
-  return arr.sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
-};
 
-const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
-const TASK_TYPES = ["Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
+const TASK_TYPES = ["Quick task", "Quote", "Order Request", "Information Request", "Complaint", "Follow-up", "Internal Admin", "FYI"];
 const OWNERS = ["Vanya", "Sean", "Jason", "Andrea", "Unassigned"];
-const PRIORITY_COLOR = { Low: "#7f93a1", Medium: "#118fb5", High: "#f59e0b", Urgent: "#ef4444" };
 const STATUS_COLOR = { "To Do": "#c57f58", "FYA": "#c57f58", "Follow Up": "#a8a8a8", "FYI": "#b39ecc", "Done": "#5ccee8" }; // Outlook FYA / FlwUP / FYI
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
-const URGENCY_COLOR = { Low: "#7f93a1", Medium: "#118fb5", High: "#f59e0b", Urgent: "#ef4444" };
 const WEEK_CATEGORIES = ["✈️ Flight", "🚗 Car Booking", "📄 Document to Sign", "📊 Slides", "🎫 Ticket", "🔗 Link", "📅 Meeting Prep", "📦 Other"];
 const WEEK_CAT_COLOR = { "✈️ Flight":"#3b82f6","🚗 Car Booking":"#f59e0b","📄 Document to Sign":"#8b5cf6","📊 Slides":"#118fb5","🎫 Ticket":"#10b981","🔗 Link":"#7f93a1","📅 Meeting Prep":"#f97316","📦 Other":"#6a8090" };
 
 // Special pinned accounts — keys are lowercase for normalised matching
-// ── Strategic Project Workstreams ──────────────────────────
-// STRATEGIC_PROJECTS now loaded dynamically from Supabase projects table
-// Fallback used until data loads
-const STRATEGIC_PROJECTS_FALLBACK = [
-  { name: "Discovery Medical", color: "#10b981" },
-  { name: "Adcock Ingram", color: "#8b5cf6" },
-  { name: "Aspen PLZ / Solaris Cargo", color: "#118fb5" },
-  { name: "CJ Distribution", color: "#f97316" },
-  { name: "UPD", color: "#14b8a6" },
-  { name: "Strategnos", color: "#ef4444" },
-  { name: "Medipost", color: "#f59e0b" },
-  { name: "Lumière Global", color: "#ec4899" },
-  { name: "CIMC", color: "#3b82f6" },
-  { name: "2nd Level Solutions / Solaris", color: "#6366f1" },
-  { name: "Bayworld PE", color: "#10b981" },
-  { name: "Paris / International Sales", color: "#d97706" },
-  { name: "Acino / DSV", color: "#0ea5e9" },
-  { name: "Pfizer / Adriaan Fourie", color: "#a78bfa" },
-  { name: "ESBD Africa", color: "#f97316" },
-  { name: "Canterbury Square", color: "#6366f1" },
-  { name: "Financial & Admin", color: "#10b981" },
-  { name: "James / Systems Development", color: "#ec4899" },
-];
 
-const SPECIAL_ACCOUNTS = [
-  { key: "finance", label: "💰 Finance", color: "#10b981" },
-  { key: "personal", label: "👤 Personal", color: "#8b5cf6" },
-  { key: "esbd_africa", label: "🏢 ESBD Africa", color: "#f97316" },
-  { key: "property", label: "🏠 Property", color: "#6366f1" },
-];
 
 const newTask = (overrides = {}) => ({
   subject: "", client: "", company: "", email: "",
@@ -273,45 +216,7 @@ function CompanyDropdown({ value, onChange }) {
   );
 }
 
-// Global projects ref — updated by App when Supabase data loads
-let _projectsCache = STRATEGIC_PROJECTS_FALLBACK;
-
-// ── Project Dropdown ───────────────────────────────────────
-function ProjectDropdown({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const selected = _projectsCache.find(p => p.name === value);
-  return (
-    <div style={{ position:"relative" }}>
-      <div onClick={() => setOpen(!open)} style={{ ...inp, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ color: selected ? selected.color : "#7f93a1" }}>
-          {selected ? "📋 " + selected.name : "No project"}
-        </span>
-        <span style={{ color:"#7f93a1", fontSize:12 }}>▾</span>
-      </div>
-      {open && (
-        <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, zIndex:200, maxHeight:220, overflowY:"auto", marginTop:4, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
-          <div onMouseDown={() => { onChange(""); setOpen(false); }}
-            style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:"#7f93a1", borderBottom:"1px solid #1b4a60" }}
-            onMouseEnter={e => e.currentTarget.style.background="#1b4a60"}
-            onMouseLeave={e => e.currentTarget.style.background="none"}>
-            — No project
-          </div>
-          {_projectsCache.map(p => (
-            <div key={p.name} onMouseDown={() => { onChange(p.name); setOpen(false); }}
-              style={{ padding:"8px 12px", cursor:"pointer", fontSize:13, color:p.color, borderBottom:"1px solid #1b4a6022", display:"flex", alignItems:"center", gap:8 }}
-              onMouseEnter={e => e.currentTarget.style.background="#1b4a60"}
-              onMouseLeave={e => e.currentTarget.style.background="none"}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:p.color, flexShrink:0 }} />
-              {p.name}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TaskForm({ initial, onSave, onClose, companies = [], opportunities = [] }) {
+function TaskForm({ initial, onSave, onClose, companies = [], opportunities = [], projects = [] }) {
   const [form, setForm] = useState({ ...newTask(), ...initial, action_state: stateOf({ ...newTask(), ...initial }) });
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -357,11 +262,11 @@ function TaskForm({ initial, onSave, onClose, companies = [], opportunities = []
           <Field label="Waiting on"><input style={inp} value={form.waiting_on||""} onChange={(e)=>set("waiting_on",e.target.value)} placeholder="Who must respond? e.g. Emily (CIMC)" /></Field>
           <Field label="Expected response by"><input type="date" style={inp} value={form.expected_response_date||""} onChange={(e)=>set("expected_response_date",e.target.value)} /></Field>
         </>}
-        <Field label="Company (record)"><Picker value={form.company_id} onChange={(id)=>{ set("company_id",id); const c=companies.find(x=>x.id===id); if(c) set("company",c.name); }} noneLabel="— Not linked" options={companies.map(c=>({ value:c.id, label:c.name }))} /></Field>
+        <Field label="Company"><Picker value={form.company_id} onChange={(id)=>{ set("company_id",id); const c=companies.find(x=>x.id===id); if(c) set("company",c.name); const pr=projects.find(x=>x.id===form.project_id); if (pr && id && pr.company_id && pr.company_id!==id) { set("project_id",null); set("project",""); } }} noneLabel="— Not linked" options={companies.map(c=>({ value:c.id, label:c.name }))} /></Field>
+        <Field label="Project"><Picker value={form.project_id} onChange={(id)=>{ set("project_id",id); const pr=projects.find(x=>x.id===id); set("project", pr ? pr.name : ""); if (pr && pr.company_id && !form.company_id) { set("company_id",pr.company_id); const c=companies.find(x=>x.id===pr.company_id); if (c) set("company",c.name); } }} noneLabel={form.project && !form.project_id ? `— ${form.project} (not linked)` : "— None"} options={projects.filter(p=>!p.archived_at && (!form.company_id || p.company_id===form.company_id || p.id===form.project_id)).map(p=>({ value:p.id, label:p.name }))} /></Field>
         <Field label="Opportunity"><Picker value={form.opportunity_id} onChange={(id)=>set("opportunity_id",id)} noneLabel="— None" options={opportunities.filter(o=>!form.company_id||o.company_id===form.company_id).map(o=>({ value:o.id, label:o.name||o.company }))} /></Field>
         <Field label="Client / contact"><input style={inp} value={form.client||""} onChange={(e)=>set("client",e.target.value)} /></Field>
-        <Field label="Company (text)"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>
-        <Field label="Project"><ProjectDropdown value={form.project||""} onChange={v=>set("project",v)} /></Field>
+        {!form.company_id && <Field label="Company (text, if no record)"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>}
         <Field label="Email"><input style={inp} value={form.email||""} onChange={(e)=>set("email",e.target.value)} /></Field>
         <Field label="Date Received"><input type="date" style={inp} value={form.date_received||""} onChange={(e)=>set("date_received",e.target.value)} /></Field>
         <Field label="Visibility"><select style={inp} value={form.visibility||"team"} onChange={(e)=>set("visibility",e.target.value)}><option value="team">Team</option><option value="private">Private (Sean & Vanya only, once login is on)</option></select></Field>
@@ -381,120 +286,8 @@ function TaskForm({ initial, onSave, onClose, companies = [], opportunities = []
   );
 }
 
-function TaskCard({ task, onClick, compact, onComplete }) {
-  const over = isOverdue(task);
-  const [completing, setCompleting] = useState(false);
-  const handleComplete = async (e) => {
-    e.stopPropagation();
-    setCompleting(true);
-    setTimeout(() => onComplete && onComplete(task.id), 600);
-  };
-  if (completing) return (
-    <div style={{ borderRadius:10,marginBottom:compact?6:10,overflow:"hidden",animation:"completeFlash 0.6s ease-out forwards" }}>
-      <style>{`@keyframes completeFlash { 0%{background:#118fb5;transform:scale(1);opacity:1} 50%{background:#10b981;transform:scale(1.02);opacity:1} 100%{background:#10b981;transform:scale(0.95);opacity:0;height:0;padding:0;margin:0} }`}</style>
-      <div style={{ padding:compact?"10px 12px":"14px 16px",display:"flex",alignItems:"center",gap:10 }}>
-        <div style={{ width:22,height:22,borderRadius:"50%",background:"#10b981",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14 }}>✓</div>
-        <span style={{ fontSize:14,fontWeight:600,color:"#fff",textDecoration:"line-through" }}>{task.subject}</span>
-        <span style={{ marginLeft:"auto",fontSize:12,color:"#a7f3d0" }}>Done! 🎉</span>
-      </div>
-    </div>
-  );
-  return (
-    <div onClick={()=>onClick(task)}
-      style={{ background:"#0e2d3e",border:`1px solid ${over?"#7f1d1d":"#1b4a60"}`,borderLeft:`3px solid ${STATUS_COLOR[task.status]}`,borderRadius:10,padding:compact?"10px 12px":"14px 16px",cursor:"pointer",transition:"transform 0.15s,box-shadow 0.15s",marginBottom:compact?6:10 }}
-      onMouseEnter={(e)=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
-      onMouseLeave={(e)=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
-        {task.status !== "Done" && (
-          <div onClick={handleComplete} style={{ flexShrink:0,width:22,height:22,borderRadius:"50%",border:"2px solid #1b4a60",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,transition:"all 0.2s" }}
-            onMouseEnter={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#10b981"; e.currentTarget.style.background="#10b98122"; }}
-            onMouseLeave={(e)=>{ e.stopPropagation(); e.currentTarget.style.borderColor="#1b4a60"; e.currentTarget.style.background="none"; }} />
-        )}
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap" }}>
-            <span style={{ fontSize:10,color:"#7f93a1",fontFamily:"monospace" }}>#{task.id?.toString().slice(-4)}</span>
-            <span style={{ fontSize:11,padding:"2px 8px",borderRadius:99,background:STATUS_COLOR[task.status]+"33",color:STATUS_COLOR[task.status],fontWeight:700 }}>{STATUS_EMOJI[task.status]} {task.status}</span>
-            <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:PRIORITY_COLOR[task.priority]+"22",color:PRIORITY_COLOR[task.priority],fontWeight:600 }}>{task.priority}</span>
-            <CategoryTag category={task.category} small /><DelegatedTag owner={task.owner} small />
-            {over && <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:"#7f1d1d",color:"#fca5a5",fontWeight:600 }}>OVERDUE</span>}
-            {task.project && !compact && _projectsCache.find(x=>x.name===task.project) && (
-              <span style={{ fontSize:10,padding:"2px 7px",borderRadius:99,background:(_projectsCache.find(x=>x.name===task.project).color)+"22",color:_projectsCache.find(x=>x.name===task.project).color,fontWeight:600 }}>📋 {task.project}</span>
-            )}
-          </div>
-          <div style={{ fontSize:14,fontWeight:600,color:"#e2e8f0",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{task.subject||"Untitled"}</div>
-          {!compact && <div style={{ fontSize:12,color:"#7f93a1" }}>{[task.client,task.company].filter(Boolean).join(" · ")||"No client"}</div>}
-        </div>
-        <div style={{ textAlign:"right",flexShrink:0 }}>
-          <div style={{ fontSize:11,color:"#7f93a1",marginBottom:3 }}>{task.owner}</div>
-          <div style={{ fontSize:11,color:over?"#fca5a5":"#7f93a1" }}>{fmtDate(task.expected_date)}</div>
-        </div>
-      </div>
-      {!compact && task.next_action && <div style={{ marginTop:8,fontSize:12,color:"#118fb5",borderTop:"1px solid #1b4a60",paddingTop:8 }}>→ {task.next_action}</div>}
-      {!compact && task.notes && <div style={{ marginTop:6,fontSize:12,color:"#7f93a1",fontStyle:"italic",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>💬 {task.notes.length > 80 ? task.notes.substring(0,80)+"..." : task.notes}</div>}
-    </div>
-  );
-}
 
-function KanbanCol({ status, tasks, onClick, onDrop, onComplete }) {
-  const [over, setOver] = useState(false);
-  return (
-    <div onDragOver={(e)=>{ e.preventDefault(); setOver(true); }} onDragLeave={()=>setOver(false)}
-      onDrop={(e)=>{ e.preventDefault(); setOver(false); onDrop(e.dataTransfer.getData("taskId"), status); }}
-      style={{ flex:1,minWidth:220,background:over?"#123a4f":"#0b2735",border:`1px solid ${over?STATUS_COLOR[status]:"#1b4a60"}`,borderRadius:12,padding:14 }}>
-      <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:14 }}>
-        <span>{STATUS_EMOJI[status]}</span>
-        <span style={{ fontWeight:700,color:"#e2e8f0",fontSize:13 }}>{status}</span>
-        <span style={{ marginLeft:"auto",background:"#1b4a60",borderRadius:99,padding:"2px 8px",fontSize:11,color:"#9ca3af" }}>{tasks.length}</span>
-      </div>
-      {tasks.map(t=>(
-        <div key={t.id} draggable onDragStart={(e)=>e.dataTransfer.setData("taskId",String(t.id))}>
-          <TaskCard task={t} onClick={onClick} onComplete={onComplete} compact />
-        </div>
-      ))}
-      {tasks.length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"#557080",fontSize:12 }}>Drop tasks here</div>}
-    </div>
-  );
-}
 
-function TeamCard({ name, tasks }) {
-  const active = tasks.filter(t=>t.status!=="Done");
-  const done = tasks.filter(t=>t.status==="Done"&&t.actual_date===TODAY());
-  const overdue = tasks.filter(isOverdue);
-  const fya = tasks.filter(t=>t.status==="FYA");
-  const followUp = tasks.filter(t=>t.status==="Follow Up");
-  const [notes, setNotes] = useState("");
-  const [showNotes, setShowNotes] = useState(false);
-  return (
-    <div style={{ background:"#0e2d3e",border:"1px solid #1b4a60",borderRadius:12,padding:20,marginBottom:16 }}>
-      <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:16 }}>
-        <div style={{ width:40,height:40,borderRadius:"50%",background:"#118fb5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"#fff" }}>{name[0]}</div>
-        <div>
-          <div style={{ fontSize:16,fontWeight:700,color:"#e2e8f0" }}>{name}</div>
-          <div style={{ fontSize:11,color:"#7f93a1" }}>{active.length} active tasks</div>
-        </div>
-        {overdue.length>0 && <span style={{ marginLeft:"auto",background:"#7f1d1d",color:"#fca5a5",borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:700 }}>⚠️ {overdue.length} overdue</span>}
-      </div>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16 }}>
-        {[{label:"Active",value:active.length,color:"#118fb5"},{label:"FYA",value:fya.length,color:"#f97316"},{label:"Follow Up",value:followUp.length,color:"#10b981"},{label:"Done Today",value:done.length,color:"#10b981"}].map(function(stat){return(
-          <div key={stat.label} style={{ background:"#0b2735",borderRadius:8,padding:10,textAlign:"center",border:"1px solid #1b4a60" }}>
-            <div style={{ fontSize:22,fontWeight:800,color:stat.color }}>{stat.value}</div>
-            <div style={{ fontSize:10,color:"#7f93a1",marginTop:2 }}>{stat.label}</div>
-          </div>
-        );})}
-      </div>
-      {active.slice(0,3).map(t=>(
-        <div key={t.id} style={{ fontSize:12,color:"#9ca3af",padding:"4px 0",borderBottom:"1px solid #10364a",display:"flex",justifyContent:"space-between" }}>
-          <span>{STATUS_EMOJI[t.status]} {t.subject}</span>
-          <span style={{ color:isOverdue(t)?"#fca5a5":"#6a8090" }}>{fmtDate(t.expected_date)}</span>
-        </div>
-      ))}
-      <button onClick={()=>setShowNotes(!showNotes)} style={{ marginTop:12,background:"none",border:"1px solid #1b4a60",borderRadius:6,color:"#7f93a1",cursor:"pointer",fontSize:12,padding:"6px 12px" }}>
-        {showNotes?"Hide Notes":"📝 Performance Notes"}
-      </button>
-      {showNotes && <textarea value={notes} onChange={(e)=>setNotes(e.target.value)} placeholder={`Private notes about ${name}...`} style={{ ...inp,marginTop:8,minHeight:80,resize:"vertical" }} />}
-    </div>
-  );
-}
 
 function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
   const [history, setHistory] = useState([]);
@@ -581,122 +374,7 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
   );
 }
 
-function FlagsView({ flags, onMarkSeen, onMarkAllSeen, onViewReports }) {
-  const unseen = flags.filter(f => !f.seen && f.task_subject !== "Weekly Customer Report");
-  const seen = flags.filter(f => f.seen && f.task_subject !== "Weekly Customer Report");
-  const reports = flags.filter(f => f.task_subject === "Weekly Customer Report");
-  const unreadReports = reports.filter(f => !f.seen).length;
-  return (
-    <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-        <div>
-          <div style={{ fontSize:12,fontWeight:700,color:"#7f93a1",letterSpacing:"0.06em",textTransform:"uppercase" }}>🚨 Flags from Team</div>
-          <div style={{ fontSize:11,color:"#6a8090",marginTop:2 }}>Jason & Andrea flagging Sean for attention</div>
-        </div>
-        {unseen.length > 0 && (
-          <button onClick={onMarkAllSeen} style={{ padding:"8px 16px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
-            ✓ Mark all seen
-          </button>
-        )}
-      </div>
-      {unseen.length === 0 && seen.length === 0 && (
-        <div style={{ textAlign:"center",padding:"60px 0",color:"#557080" }}>
-          <div style={{ fontSize:40,marginBottom:12 }}>✅</div>
-          <div>No flags from the team</div>
-        </div>
-      )}
-      {unseen.length > 0 && (
-        <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:11,color:"#ef4444",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>⚠️ Needs Attention</div>
-          {unseen.map(f => (
-            <div key={f.id} style={{ background:"#0e2d3e",border:`1px solid ${URGENCY_COLOR[f.urgency]}44`,borderLeft:`3px solid ${URGENCY_COLOR[f.urgency]}`,borderRadius:12,padding:"16px 20px",marginBottom:12 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <span style={{ fontSize:11,padding:"3px 10px",borderRadius:99,background:URGENCY_COLOR[f.urgency]+"33",color:URGENCY_COLOR[f.urgency],fontWeight:700 }}>{f.urgency}</span>
-                  <span style={{ fontSize:13,color:"#9ca3af",fontWeight:600 }}>from {f.from_name}</span>
-                </div>
-                <div style={{ fontSize:11,color:"#6a8090" }}>{fmtDateTime(f.created_at)}</div>
-              </div>
-              {f.task_subject && f.task_subject !== "General flag" && (
-                <div style={{ fontSize:12,color:"#7f93a1",marginBottom:8 }}>Re: {f.task_subject}</div>
-              )}
-              <div style={{ fontSize:14,color:"#e2e8f0",lineHeight:1.6,marginBottom:14 }}>{f.note}</div>
-              <button onClick={()=>onMarkSeen(f.id)} style={{ padding:"8px 20px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
-                ✓ Got it — Mark as Seen
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {seen.length > 0 && (
-        <div>
-          <div style={{ fontSize:11,color:"#557080",fontWeight:700,marginBottom:12,letterSpacing:"0.06em",textTransform:"uppercase" }}>Previously Seen</div>
-          {seen.slice(0,10).map(f => (
-            <div key={f.id} style={{ background:"#0b2735",border:"1px solid #10364a",borderLeft:`3px solid #557080`,borderRadius:12,padding:"12px 16px",marginBottom:8,opacity:0.6 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <span style={{ fontSize:11,color:"#6a8090",fontWeight:600 }}>{f.urgency}</span>
-                  <span style={{ fontSize:11,color:"#6a8090" }}>from {f.from_name}</span>
-                  <span style={{ fontSize:11,color:"#10b981" }}>✅ Seen</span>
-                </div>
-                <div style={{ fontSize:10,color:"#557080" }}>{fmtDateTime(f.created_at)}</div>
-              </div>
-              {f.task_subject && f.task_subject !== "General flag" && (
-                <div style={{ fontSize:11,color:"#6a8090",marginBottom:4 }}>Re: {f.task_subject}</div>
-              )}
-              <div style={{ fontSize:13,color:"#7f93a1",lineHeight:1.4 }}>{f.note}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
-function WeeklyReportView({ flags, onMarkSeen, onDeleteReport, onBack }) {
-  const reports = flags.filter(f => f.task_subject === "Weekly Customer Report");
-  const unread = reports.filter(f => !f.seen);
-  return (
-    <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-        <div>
-          <div style={{ fontSize:12,fontWeight:700,color:"#7f93a1",letterSpacing:"0.06em",textTransform:"uppercase" }}>📊 Weekly Customer Reports</div>
-          <div style={{ fontSize:11,color:"#6a8090",marginTop:2 }}>Sent by Andrea & Jason from the team view</div>
-        </div>
-        {unread.length > 0 && <span style={{ background:"#f97316",color:"#fff",borderRadius:99,padding:"3px 10px",fontSize:12,fontWeight:700 }}>{unread.length} new</span>}
-      </div>
-      {reports.length === 0
-        ? <div style={{ textAlign:"center",padding:"60px 0",color:"#557080" }}>
-            <div style={{ fontSize:40,marginBottom:12 }}>📊</div>
-            <div>No weekly reports yet</div>
-          </div>
-        : reports.map(r => (
-          <div key={r.id} style={{ background:"#0e2d3e",border:`1px solid ${r.seen?"#1b4a60":"#3b82f6"}`,borderLeft:`3px solid ${r.seen?"#557080":"#3b82f6"}`,borderRadius:12,padding:"20px 24px",marginBottom:16 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-              <div>
-                <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0" }}>📊 Weekly Report</div>
-                <div style={{ fontSize:11,color:"#7f93a1",marginTop:2 }}>from {r.from_name} · {fmtDateTime(r.created_at)}</div>
-              </div>
-              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                {!r.seen && <span style={{ fontSize:11,background:"#f97316",color:"#fff",borderRadius:99,padding:"2px 10px",fontWeight:700 }}>New</span>}
-                <button onClick={()=>{ if(window.confirm("Delete this report?")) onDeleteReport(r.id); }}
-                  style={{ padding:"4px 10px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:11 }}>
-                  🗑️
-                </button>
-              </div>
-            </div>
-            <pre style={{ background:"#08202c",border:"1px solid #1b4a60",borderRadius:8,padding:16,color:"#e2e8f0",fontSize:13,whiteSpace:"pre-wrap",fontFamily:"system-ui",lineHeight:1.6,margin:0 }}>{r.note}</pre>
-            {!r.seen && (
-              <button onClick={()=>onMarkSeen(r.id)} style={{ marginTop:12,padding:"8px 20px",background:"#10b98122",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:13,fontWeight:600 }}>
-                ✓ Mark as Read
-              </button>
-            )}
-          </div>
-        ))
-      }
-    </div>
-  );
-}
 
 function SummaryModal({ tasks, onClose }) {
   const summary = generateSummary(tasks);
@@ -915,241 +593,10 @@ function InboxTriageView({ items, onAdd, onClear, onLog }) {
 
 
 // ── Projects View ──────────────────────────────────────────
-function ProjectsView({ tasks, onTaskClick, onTaskComplete, onNewTask, sortBy }) {
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("All");
-
-  const getProjectTasks = (name) => tasks.filter(t => t.project === name);
-
-  if (selectedProject) {
-    const proj = _projectsCache.find(p => p.name === selectedProject);
-    const allTasks = getProjectTasks(selectedProject);
-    const filtered = statusFilter === "All" ? allTasks : allTasks.filter(t => t.status === statusFilter);
-    const sorted = sortTasks(filtered, sortBy);
-    const done = allTasks.filter(t => t.status === "Done").length;
-    const total = allTasks.length;
-    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-    const statusCounts = STATUSES.reduce((acc, s) => { acc[s] = allTasks.filter(t => t.status === s).length; return acc; }, {});
-
-    return (
-      <div>
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
-          <button onClick={()=>{ setSelectedProject(null); setStatusFilter("All"); }} style={{ padding:"8px 14px", background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, color:"#9ca3af", cursor:"pointer", fontSize:13 }}>← Back</button>
-          <div style={{ flex:1 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
-              <div style={{ width:12, height:12, borderRadius:"50%", background:proj.color, flexShrink:0 }} />
-              <div style={{ fontSize:20, fontWeight:800, color:"#e2e8f0" }}>{proj.name}</div>
-            </div>
-            <div style={{ fontSize:12, color:"#7f93a1" }}>{allTasks.filter(t=>t.status!=="Done").length} active · {done}/{total} done · {allTasks.filter(isOverdue).length} overdue</div>
-          </div>
-          <button onClick={()=>onNewTask(selectedProject)} style={{ padding:"8px 14px", background:proj.color, border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>+ Task</button>
-        </div>
-        <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:10, padding:"14px 16px", marginBottom:20 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <span style={{ fontSize:12, color:"#9ca3af" }}>Progress</span>
-            <span style={{ fontSize:13, fontWeight:700, color:proj.color }}>{progress}%</span>
-          </div>
-          <div style={{ height:8, background:"#1b4a60", borderRadius:99, overflow:"hidden" }}>
-            <div style={{ height:"100%", width:progress+"%", background:proj.color, borderRadius:99, transition:"width 0.3s" }} />
-          </div>
-          <div style={{ display:"flex", gap:12, marginTop:12, flexWrap:"wrap" }}>
-            {STATUSES.map(s => statusCounts[s] > 0 && <span key={s} style={{ fontSize:11, color:STATUS_COLOR[s] }}>{STATUS_EMOJI[s]} {statusCounts[s]} {s}</span>)}
-          </div>
-        </div>
-        <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-          {["All", ...STATUSES].map(s => (
-            <button key={s} onClick={()=>setStatusFilter(s)} style={{ padding:"6px 12px", borderRadius:99, border:"1px solid "+(statusFilter===s?(s==="All"?"#118fb5":STATUS_COLOR[s]):"#1b4a60"), background:statusFilter===s?(s==="All"?"#118fb533":STATUS_COLOR[s]+"33"):"none", color:statusFilter===s?(s==="All"?"#118fb5":STATUS_COLOR[s]):"#7f93a1", cursor:"pointer", fontSize:12, fontWeight:statusFilter===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
-              {s !== "All" && STATUS_EMOJI[s]} {s}
-              {(s === "All" ? allTasks.length : statusCounts[s]) > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 5px", fontSize:10 }}>{s === "All" ? allTasks.length : statusCounts[s]}</span>}
-            </button>
-          ))}
-        </div>
-        {sorted.length === 0
-          ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}><div style={{ fontSize:32, marginBottom:8 }}>📋</div><div>No tasks yet — add one to get started</div></div>
-          : sorted.map(t => <TaskCard key={t.id} task={t} onClick={onTaskClick} onComplete={onTaskComplete} />)
-        }
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <div>
-          <div style={{ fontSize:12, fontWeight:700, color:"#7f93a1", letterSpacing:"0.06em", textTransform:"uppercase" }}>📋 Strategic Projects</div>
-          <div style={{ fontSize:11, color:"#6a8090", marginTop:2 }}>12 workstreams from the ESBD strategic plan</div>
-        </div>
-        <div style={{ fontSize:12, color:"#7f93a1" }}>{tasks.filter(t=>t.project&&t.status!=="Done").length} active project tasks</div>
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
-        {_projectsCache.map(proj => (
-            <div key={proj.name} onClick={()=>setSelectedProject(proj.name)}
-              style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderTop:"3px solid "+proj.color, borderRadius:12, padding:"16px 18px", cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
-              onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
-                  <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", marginBottom:4, lineHeight:1.3 }}>{proj.name}</div>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                    {getProjectTasks(proj.name).filter(t=>t.status!=="Done").length > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{getProjectTasks(proj.name).filter(t=>t.status!=="Done").length} active</span>}
-                    {getProjectTasks(proj.name).filter(isOverdue).length > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {getProjectTasks(proj.name).filter(isOverdue).length} overdue</span>}
-                    {getProjectTasks(proj.name).filter(t=>t.priority==="Urgent"&&t.status!=="Done").length > 0 && <span style={{ fontSize:11, color:"#f59e0b" }}>🔴 {getProjectTasks(proj.name).filter(t=>t.priority==="Urgent"&&t.status!=="Done").length} urgent</span>}
-                    {getProjectTasks(proj.name).length === 0 && <span style={{ fontSize:11, color:"#557080" }}>No tasks yet</span>}
-                    {getProjectTasks(proj.name).filter(t=>t.status!=="Done").length === 0 && getProjectTasks(proj.name).length > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Complete</span>}
-                  </div>
-                </div>
-                <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{getProjectTasks(proj.name).length > 0 ? Math.round((getProjectTasks(proj.name).filter(t=>t.status==="Done").length/getProjectTasks(proj.name).length)*100) : 0}%</span>
-              </div>
-              <div style={{ height:4, background:"#1b4a60", borderRadius:99, overflow:"hidden", marginBottom:8 }}>
-                <div style={{ height:"100%", width:(getProjectTasks(proj.name).length > 0 ? Math.round((getProjectTasks(proj.name).filter(t=>t.status==="Done").length/getProjectTasks(proj.name).length)*100) : 0)+"%", background:proj.color, borderRadius:99 }} />
-              </div>
-              <div style={{ fontSize:10, color:"#6a8090" }}>{getProjectTasks(proj.name).filter(t=>t.status==="Done").length}/{getProjectTasks(proj.name).length} tasks done</div>
-            </div>
-          ))}
-      </div>
-    </div>
-  );
-}
 
 // ============================================================
 // ACCOUNTS VIEW — normalised to eliminate duplicates
 // ============================================================
-function AccountsView({ tasks, onTaskClick, onTaskComplete, sortBy, onNewTask }) {
-  const [search, setSearch] = useState("");
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [activeStatus, setActiveStatus] = useState("All");
-
-  // Normalise key for comparison
-  const normKey = (s) => (s || "").trim().toLowerCase();
-  const specialKeys = ["finance", "personal"];
-
-  // Get canonical display name from first task with this normalised key
-  const getDisplayName = (key) => {
-    const found = tasks.find(t => normKey(t.company) === key && t.company?.trim());
-    return found?.company?.trim() || key;
-  };
-
-  // Build unique normalised company keys
-  const companyKeys = [...new Set(
-    tasks.map(t => normKey(t.company)).filter(k => k && !specialKeys.includes(k))
-  )].sort();
-
-  const getTasksForAccount = (normalisedKey) => {
-    if (normalisedKey === "__uncategorised__") return tasks.filter(t => !t.company?.trim());
-    return tasks.filter(t => normKey(t.company) === normalisedKey);
-  };
-
-  const allAccounts = [
-    ...SPECIAL_ACCOUNTS,
-    ...companyKeys.map(k => ({ key: k, label: getDisplayName(k), color: "#118fb5" })),
-    { key: "__uncategorised__", label: "Uncategorised", color: "#6a8090" },
-  ];
-
-  const filteredAccounts = allAccounts.filter(a =>
-    !search.trim() || a.label.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const activeCounts = (key) => getTasksForAccount(key).filter(x => x.status !== "Done").length;
-  const urgentCounts = (key) => getTasksForAccount(key).filter(x => x.priority === "Urgent" && x.status !== "Done").length;
-
-  // Account detail view
-  if (selectedAccount) {
-    const accountTasks = getTasksForAccount(selectedAccount.key);
-    const statusFilter = activeStatus === "All" ? accountTasks : accountTasks.filter(t => t.status === activeStatus);
-    const sorted = sortTasks(statusFilter, sortBy);
-
-    const statusCounts = STATUSES.reduce((acc, s) => {
-      acc[s] = accountTasks.filter(t => t.status === s).length;
-      return acc;
-    }, {});
-
-    return (
-      <div>
-        {/* Back button + account header */}
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
-          <button onClick={()=>setSelectedAccount(null)} style={{ padding:"8px 14px", background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:8, color:"#9ca3af", cursor:"pointer", fontSize:13, display:"flex", alignItems:"center", gap:6 }}>
-            ← Back
-          </button>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:20, fontWeight:800, color:"#e2e8f0" }}>{selectedAccount.label}</div>
-            <div style={{ fontSize:12, color:"#7f93a1", marginTop:2 }}>{accountTasks.filter(t=>t.status!=="Done").length} active · {accountTasks.filter(isOverdue).length} overdue · {accountTasks.filter(t=>t.status==="Done").length} done</div>
-          </div>
-          <button onClick={()=>onNewTask(selectedAccount.key === "__uncategorised__" ? "" : selectedAccount.label)} style={{ padding:"8px 14px", background:"#118fb5", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
-            + Task
-          </button>
-        </div>
-
-        {/* Status filter pills */}
-        <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-          {["All", ...STATUSES].map(s => (
-            <button key={s} onClick={()=>setActiveStatus(s)} style={{ padding:"6px 12px", borderRadius:99, border:`1px solid ${activeStatus===s?(s==="All"?"#118fb5":STATUS_COLOR[s]):"#1b4a60"}`, background:activeStatus===s?(s==="All"?"#118fb533":STATUS_COLOR[s]+"33"):"none", color:activeStatus===s?(s==="All"?"#118fb5":STATUS_COLOR[s]):"#7f93a1", cursor:"pointer", fontSize:12, fontWeight:activeStatus===s?700:400, display:"flex", alignItems:"center", gap:5 }}>
-              {s !== "All" && STATUS_EMOJI[s]} {s}
-              {(s==="All"?accountTasks.length:statusCounts[s]) > 0 && <span style={{ background:activeStatus===s?"rgba(255,255,255,0.2)":"#1b4a60", borderRadius:99, padding:"0px 6px", fontSize:10, color:activeStatus===s?"#fff":"#9ca3af" }}>{s==="All"?accountTasks.length:statusCounts[s]}</span>}
-            </button>
-          ))}
-        </div>
-
-        {sorted.length === 0
-          ? <div style={{ textAlign:"center", padding:"40px 0", color:"#557080" }}>
-              <div style={{ fontSize:32, marginBottom:8 }}>📂</div>
-              <div>No tasks {activeStatus !== "All" ? `with status "${activeStatus}"` : ""} for this account</div>
-            </div>
-          : sorted.map(t => <TaskCard key={t.id} task={t} onClick={onTaskClick} onComplete={onTaskComplete} />)
-        }
-      </div>
-    );
-  }
-
-  // Account list view
-  return (
-    <div>
-      <div style={{ marginBottom:16 }}>
-        <div style={{ position:"relative" }}>
-          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#6a8090", fontSize:14 }}>🔍</span>
-          <input
-            value={search}
-            onChange={e=>setSearch(e.target.value)}
-            placeholder="Search accounts..."
-            style={{ ...inp, paddingLeft:36, background:"#0e2d3e" }}
-          />
-          {search && <button onClick={()=>setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#7f93a1", cursor:"pointer", fontSize:16 }}>✕</button>}
-        </div>
-      </div>
-
-      <div style={{ fontSize:11, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>
-        {filteredAccounts.length} Accounts
-      </div>
-
-      {filteredAccounts.filter(account => getTasksForAccount(account.key).length > 0 || specialKeys.includes(account.key)).map(account => (
-          <div key={account.key} onClick={()=>setSelectedAccount(account)}
-            style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderLeft:`3px solid ${account.color}`, borderRadius:12, padding:"14px 16px", marginBottom:10, cursor:"pointer", transition:"transform 0.15s, box-shadow 0.15s" }}
-            onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.4)"; }}
-            onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:15, fontWeight:700, color:"#e2e8f0", marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{account.label}</div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {activeCounts(account.key) > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{activeCounts(account.key)} active</span>}
-                  {urgentCounts(account.key) > 0 && <span style={{ fontSize:11, background:"#7f1d1d", color:"#fca5a5", borderRadius:99, padding:"1px 7px", fontWeight:700 }}>🔴 {urgentCounts(account.key)} urgent</span>}
-                  {activeCounts(account.key) === 0 && getTasksForAccount(account.key).length > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ All done</span>}
-                  {getTasksForAccount(account.key).length === 0 && <span style={{ fontSize:11, color:"#557080" }}>No tasks yet</span>}
-                </div>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-                {/* Mini status dots */}
-                <div style={{ display:"flex", gap:4 }}>
-                  {STATUSES.filter(s=>s!=="Done").filter(s=>getTasksForAccount(account.key).filter(t=>t.status===s).length>0).map(s => (
-                    <div key={s} style={{ width:8, height:8, borderRadius:"50%", background:STATUS_COLOR[s] }} title={s} />
-                  ))}
-                </div>
-                <span style={{ color:"#6a8090", fontSize:18 }}>→</span>
-              </div>
-            </div>
-          </div>
-      ))}
-    </div>
-  );
-}
 
 export default function App() {
   const { name: me, signOut } = useHubUser();
@@ -1164,16 +611,13 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [seanWeek, setSeanWeek] = useState([]);
   const [inboxTriage, setInboxTriage] = useState([]);
-  const [flags, setFlags] = useState([]);
-  const [projects, setProjects] = useState(STRATEGIC_PROJECTS_FALLBACK);
+  const [projects, setProjects] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [view, setView] = useState("dashboard");
   const [modalTask, setModalTask] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("duedate");
   const [status, setStatus] = useState("Connecting…");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Phone layout: below 820px the menu lives behind ☰ instead of taking a third of the screen.
@@ -1210,14 +654,10 @@ export default function App() {
     if (data) setInboxTriage(data);
   }, []);
 
-  const loadFlags = useCallback(async () => {
-    const { data } = await supabase.from("flags").select("*").order("created_at", { ascending: false });
-    if (data) setFlags(data);
-  }, []);
 
   const loadProjects = useCallback(async () => {
     const { data } = await supabase.from("projects").select("*").order("name", { ascending: true });
-    if (data && data.length > 0) { setProjects(data); _projectsCache = data; }
+    if (data) setProjects(data);
   }, []);
 
   const loadCrm = useCallback(async () => {
@@ -1235,21 +675,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadProjects(); loadReminders(); loadCrm();
+    loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadProjects(); loadReminders(); loadCrm();
     const taskCh = supabase.channel("tasks-ch").on("postgres_changes",{event:"*",schema:"public",table:"tasks"},loadTasks).subscribe();
     const leadCh = supabase.channel("leads-ch").on("postgres_changes",{event:"*",schema:"public",table:"leads"},loadLeads).subscribe();
     const weekCh = supabase.channel("week-ch").on("postgres_changes",{event:"*",schema:"public",table:"sean_week"},loadSeanWeek).subscribe();
     const inboxCh = supabase.channel("inbox-ch").on("postgres_changes",{event:"*",schema:"public",table:"inbox_triage"},loadInboxTriage).subscribe();
-    const flagsCh = supabase.channel("flags-ch").on("postgres_changes",{event:"*",schema:"public",table:"flags"},loadFlags).subscribe();
     const projCh = supabase.channel("projects-ch").on("postgres_changes",{event:"*",schema:"public",table:"projects"},loadProjects).subscribe();
     const remCh = supabase.channel("reminders-ch").on("postgres_changes",{event:"*",schema:"public",table:"reminders"},loadReminders).subscribe();
     const crmCh = supabase.channel("crm-ch")
       .on("postgres_changes",{event:"*",schema:"public",table:"companies"},loadCrm)
       .on("postgres_changes",{event:"*",schema:"public",table:"orders"},loadCrm)
       .subscribe();
-    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadFlags(); loadReminders(); }, 30000);
-    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(flagsCh); supabase.removeChannel(projCh); supabase.removeChannel(remCh); supabase.removeChannel(crmCh); clearInterval(interval); };
-  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadFlags, loadProjects, loadReminders, loadCrm]);
+    const interval = setInterval(() => { loadTasks(); loadLeads(); loadSeanWeek(); loadInboxTriage(); loadReminders(); }, 30000);
+    return () => { supabase.removeChannel(taskCh); supabase.removeChannel(leadCh); supabase.removeChannel(weekCh); supabase.removeChannel(inboxCh); supabase.removeChannel(projCh); supabase.removeChannel(remCh); supabase.removeChannel(crmCh); clearInterval(interval); };
+  }, [loadTasks, loadLeads, loadSeanWeek, loadInboxTriage, loadProjects, loadReminders, loadCrm]);
   const reloadAll = () => { loadTasks(); loadLeads(); loadCrm(); };
 
   const upsertTask = async (form) => {
@@ -1289,24 +728,8 @@ export default function App() {
   };
   // Records are archived, never deleted: history, links and follow-ups are kept and can be restored.
   const archiveTask = async (id) => { const { error } = await archiveRecord("tasks", id, me); if (error) setAppError(error); else loadTasks(); };
-  const markFlagSeen = async (id) => { await supabase.from("flags").update({seen:true}).eq("id",id); loadFlags(); };
-  const markAllFlagsSeen = async () => {
-    const unseen = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
-    for (const f of unseen) { await supabase.from("flags").update({seen:true}).eq("id",f.id); }
-    loadFlags();
-  };
 
-  const deleteFlag = async (id) => { await supabase.from("flags").delete().eq("id",id); loadFlags(); };
 
-  const moveTask = async (id, newStatus) => {
-    const original = tasks.find(t => t.id === parseInt(id));
-    const extra = newStatus==="Done"?{actual_date:TODAY()}:{};
-    const { error } = await supabase.from("tasks").update({status:newStatus,...extra,updated_by:me}).eq("id",id);
-    if (error) { setAppError(friendlyError(error)); return; }
-    if (original && original.status !== newStatus) {
-      await supabase.from("task_history").insert([{ task_id:parseInt(id), changed_by:me, entry_type:"status_change", old_status:original.status, new_status:newStatus, note:null }]);
-    }
-  };
 
   const markAllSeen = () => {
     const allIds = [...seenTaskIds, ...newTasks.map(t=>t.id)];
@@ -1315,64 +738,30 @@ export default function App() {
     setShowNotifications(false);
   };
 
-  const q = search.toLowerCase();
-  const filtered = tasks.filter(t=>!q||[t.subject,t.client,t.company,t.owner,t.status,t.next_action].some(f=>(f||"").toLowerCase().includes(q)));
-  const byStatus = (s) => sortTasks(filtered.filter(t=>t.status===s), sortBy);
-  const overdue = sortTasks(filtered.filter(isOverdue), sortBy);
-  const myTasks = sortTasks(filtered.filter(t=>t.owner===me), sortBy);
-  const seanTasks = sortTasks(filtered.filter(t=>t.owner==="Sean"), sortBy);
-  const jasonTasks = tasks.filter(t=>t.owner==="Jason");
-  const andreaTasks = tasks.filter(t=>t.owner==="Andrea");
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
-  const fyiTasks = sortTasks(filtered.filter(t=>t.status==="FYI"), sortBy);
-  const unseenFlags = flags.filter(f=>!f.seen && f.task_subject !== "Weekly Customer Report");
-  const weeklyReports = flags.filter(f=>f.task_subject === "Weekly Customer Report");
-  const unreadReports = weeklyReports.filter(f=>!f.seen);
-  const totalAccounts = [...new Set(tasks.map(t=>t.company?.trim().toLowerCase()).filter(Boolean))].length;
 
-  // ── Due Today & This Week ────────────────────────────────
+  // Quick list badge = open quick tasks + diary reminders due today or overdue.
   const todayStr = TODAY();
-  const dueToday = sortTasks(tasks.filter(t => t.status !== "Done" && t.expected_date === todayStr), sortBy);
-  const activeProjectTasks = tasks.filter(t=>t.project&&t.status!=="Done").length;
-
-  // ── Follow-up & Reminder Notifications ──────────────────
-  const followUpTasksToday = tasks.filter(t => t.status !== "Done" && t.follow_up_date === todayStr);
-  const followUpTasksOverdue = tasks.filter(t => t.status !== "Done" && t.follow_up_date && t.follow_up_date < todayStr);
-  const remindersToday = reminders.filter(r => !r.completed && r.remind_date === todayStr);
-  const remindersOverdue = reminders.filter(r => !r.completed && r.remind_date < todayStr);
-  const todayAlertCount = followUpTasksToday.length + followUpTasksOverdue.length + remindersToday.length + remindersOverdue.length + dueToday.length;
+  const quickCount = tasks.filter(t => t.task_type === "Quick task" && isOpenTask(t)).length
+    + reminders.filter(r => !r.completed && r.remind_date <= todayStr).length;
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },
-    // "Today" = overdue + due today: tasks, scheduled follow-ups and opportunity follow-ups (same rule as the Today tab).
-    { id:"followups", label:"Today", icon:"⏱", count: tasks.filter(t=>isDueNowTask(t)).length + leads.filter(l=>isDueNowLead(l)).length },
+    // "Tasks" opens on Today = overdue + due today: tasks, scheduled follow-ups and opportunity follow-ups.
+    { id:"followups", label:"Tasks", icon:"⏱", count: tasks.filter(t=>isDueNowTask(t)).length + leads.filter(l=>isDueNowLead(l)).length },
+    { id:"today", label:"Quick list", icon:"⚡", count: quickCount },
+    { id:"companies", label:"Companies & projects", icon:"🏢", count: companies.length },
     { id:"pipeline", label:"Sales Pipeline", icon:"🎯", count: leads.length },
-    { id:"companies", label:"Companies", icon:"🏢", count: companies.length },
     { id:"orders", label:"Orders", icon:"📦", count: orders.filter(o=>!o.actual_date).length },
-    { id:"search", label:"Search", icon:"🔍" },
     { id:"quality", label:"Data Quality", icon:"🧹" },
-    { id:"today", label:"Reminders", icon:"🔔", count: todayAlertCount },
-    { id:"projects", label:"Projects", icon:"📋", count: activeProjectTasks },
-    { id:"accounts", label:"Accounts (by task text)", icon:"🗂", count: totalAccounts },
-    { id:"todo", label:"To Do", icon:"🔴", count:byStatus("To Do").length, group:"tasks" },
-    { id:"fya", label:"FYA", icon:"🟠", count:byStatus("FYA").length, group:"tasks" },
-    { id:"followup", label:"Follow Up", icon:"🏌️", count:byStatus("Follow Up").length, group:"tasks" },
-    { id:"fyi", label:"FYI", icon:"🟣", count:byStatus("FYI").length, group:"tasks" },
-    { id:"done", label:"Done", icon:"✅", count:byStatus("Done").length, group:"tasks" },
-    { id:"overdue", label:"Overdue", icon:"⚠", count:overdue.length, group:"tasks" },
-    { id:"mine", label:"My Tasks", icon:"◉", count:myTasks.length, group:"tasks" },
-    { id:"sean", label:"Sean's Tasks", icon:"◈", count:seanTasks.length, group:"tasks" },
-    { id:"flags", label:"Flags", icon:"🚨", count:unseenFlags.length },
+    // Kept until the Outlook connection is live (Vanya, 19 Oct 2026).
     { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
     { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
-    { id:"team", label:"Delegated", icon:"👥" },
-    { id:"all", label:"All Tasks", icon:"≡", group:"tasks" },
+    { id:"search", label:"Search", icon:"🔍", hidden:true },
   ];
 
-  const viewTasks = { todo:byStatus("To Do"), fya:byStatus("FYA"), followup:byStatus("Follow Up"), fyi:fyiTasks, done:byStatus("Done"), overdue, mine:myTasks, sean:seanTasks, all:sortTasks(filtered, sortBy) };
 
-  const [tasksExpanded, setTasksExpanded] = useState(false);
 
   const Sidebar = (
     <div style={{ width:isMobile?"100%":220,background:"#08202c",borderRight:"1px solid #10364a",padding:isMobile?"16px 10px":"24px 12px",display:"flex",flexDirection:"column",minHeight:"100%" }}>
@@ -1381,7 +770,7 @@ export default function App() {
         <div style={{ fontSize:11,color:"#6a8090",marginTop:2 }}>Operations Tracker</div>
       </div>
       <div style={{ marginTop:16,flex:1,overflowY:"auto" }}>
-        {VIEWS.filter(v => !v.group).map(v=>(
+        {VIEWS.filter(v => !v.hidden).map(v=>(
           <button key={v.id} onClick={()=>{ setView(v.id); setSidebarOpen(false); }}
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#123a4f":"none",color:view===v.id?"#118fb5":"#7f93a1",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
@@ -1389,25 +778,6 @@ export default function App() {
             {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="today"?"#7f1d1d":v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="projects"?"#d97706":v.id==="accounts"?"#118fb533":"#1b4a60",color:v.id==="today"?"#fca5a5":v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="projects"?"#fff":v.id==="accounts"?"#118fb5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:v.id==="today"?700:400 }}>{v.count}</span>}
           </button>
         ))}
-        {/* Tasks collapsible group */}
-        <button onClick={()=>setTasksExpanded(e=>!e)}
-          style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:VIEWS.filter(v=>v.group==="tasks").some(v=>v.id===view)?"#123a4f":"none",color:VIEWS.filter(v=>v.group==="tasks").some(v=>v.id===view)?"#118fb5":"#7f93a1",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:400,marginBottom:2 }}>
-          <span style={{ fontSize:14,width:16,textAlign:"center" }}>☰</span>
-          <span style={{ flex:1 }}>Tasks</span>
-          <span style={{ fontSize:10,color:"#6a8090" }}>{tasksExpanded ? "▲" : "▼"}</span>
-        </button>
-        {tasksExpanded && (
-          <div style={{ marginLeft:12, borderLeft:"1px solid #1b4a60", paddingLeft:8, marginBottom:4 }}>
-            {VIEWS.filter(v=>v.group==="tasks").map(v=>(
-              <button key={v.id} onClick={()=>{ setView(v.id); setSidebarOpen(false); }}
-                style={{ width:"100%",textAlign:"left",padding:"7px 10px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#123a4f":"none",color:view===v.id?"#118fb5":"#7f93a1",display:"flex",alignItems:"center",gap:10,fontSize:12,fontWeight:view===v.id?600:400,marginBottom:1 }}>
-                <span style={{ fontSize:13,width:14,textAlign:"center" }}>{v.icon}</span>
-                <span style={{ flex:1 }}>{v.label}</span>
-                {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="overdue"?"#7f1d1d":"#1b4a60",color:v.id==="overdue"?"#fca5a5":"#9ca3af",borderRadius:99,padding:"1px 6px",fontSize:10 }}>{v.count}</span>}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
       <div style={{ paddingTop:16,borderTop:"1px solid #10364a" }}>
         <div style={{ fontSize:10,color:"#557080",textAlign:"center",marginBottom:8 }}>
@@ -1430,6 +800,7 @@ export default function App() {
       <div style={{ display:"flex",alignItems:"center",padding:isMobile?"10px 10px":"14px 16px",borderBottom:"1px solid #10364a",background:"#08202c",gap:isMobile?6:12 }}>
         <button aria-label="Menu" onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"6px 10px",fontSize:16,display:isMobile?"block":"none" }}>☰</button>
         <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{VIEWS.find(v=>v.id===view)?.label}</span>
+        <button aria-label="Search" onClick={()=>{ setView("search"); setSidebarOpen(false); }} style={{ padding:isMobile?"7px 8px":"7px 12px",background:view==="search"?"#123a4f":"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",fontSize:12,fontWeight:600 }}>🔍{isMobile?"":" Search"}</button>
         <button aria-label="Quick notes" onClick={()=>setShowNotes(!showNotes)} style={{ padding:isMobile?"7px 8px":"7px 12px",background:"none",border:"1px solid #1e3a8a",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600 }}>📝</button>
         <button aria-label="Summary" onClick={()=>setShowSummary(true)} style={{ display:isMobile?"none":"block",padding:"7px 12px",background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#118fb5",cursor:"pointer",fontSize:12,fontWeight:600 }}>📋</button>
         <div style={{ position:"relative" }}>
@@ -1462,16 +833,6 @@ export default function App() {
             </div>
           )}
         </div>
-        {unseenFlags.length > 0 && (
-          <button onClick={()=>setView("flags")} style={{ position:"relative",padding:"7px 12px",background:"#7f1d1d33",border:"1px solid #ef4444",borderRadius:7,color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700 }}>
-            🚨 {unseenFlags.length}
-          </button>
-        )}
-        {unreadReports.length > 0 && (
-          <button onClick={()=>setView("flags")} style={{ padding:"7px 12px",background:"#1e3a8a33",border:"1px solid #3b82f6",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:700 }}>
-            📊 {unreadReports.length}
-          </button>
-        )}
         <button onClick={()=>setModalTask({})} style={{ padding:isMobile?"7px 10px":"7px 14px",background:"#118fb5",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>+ New</button>
       </div>
 
@@ -1484,184 +845,21 @@ export default function App() {
           </div>
         )}
         <div style={{ flex:1,minWidth:0,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-          <div style={{ padding:isMobile?"10px 12px":"14px 20px",borderBottom:"1px solid #10364a",background:"#08202c",display:"flex",alignItems:"center",gap:isMobile?8:12,flexWrap:isMobile?"wrap":"nowrap" }}>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...inp,maxWidth:isMobile?"none":280,flex:isMobile?"1 1 100%":"0 1 auto",padding:"8px 14px" }} />
-            <div style={{ display:"flex",gap:6,marginLeft:isMobile?0:"auto",overflowX:"auto",maxWidth:"100%" }}>
-              {[{id:"urgency",label:"🔥 Urgency"},{id:"duedate",label:"📅 Due Date"},{id:"recent",label:"🕐 Recent"}].map(s=>(
-                <button key={s.id} onClick={()=>setSortBy(s.id)} style={{ padding:"7px 12px",background:sortBy===s.id?"#118fb522":"none",border:`1px solid ${sortBy===s.id?"#118fb5":"#1b4a60"}`,borderRadius:7,color:sortBy===s.id?"#118fb5":"#7f93a1",cursor:"pointer",fontSize:12,fontWeight:sortBy===s.id?700:400,whiteSpace:"nowrap" }}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
           <div style={{ flex:1,overflowY:"auto",overflowX:"hidden",padding:isMobile?"14px 12px":28 }}>
 
-            {view==="today" && (
-              <div>
-                <div style={{ marginBottom:24 }}>
-                  <h1 style={{ margin:0,fontSize:24,fontWeight:800,color:"#e2e8f0" }}>🔔 Reminders</h1>
-                  <div style={{ fontSize:13,color:"#7f93a1",marginTop:4 }}>{new Date().toLocaleDateString("en-ZA",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
-                </div>
-
-                {todayAlertCount === 0 && (
-                  <div style={{ textAlign:"center",padding:"60px 0",color:"#557080" }}>
-                    <div style={{ fontSize:48,marginBottom:16 }}>✅</div>
-                    <div style={{ fontSize:18,fontWeight:700,color:"#e2e8f0" }}>All clear!</div>
-                    <div style={{ fontSize:14,color:"#7f93a1",marginTop:8 }}>Nothing due or overdue today.</div>
-                  </div>
-                )}
-
-                {(remindersOverdue.length > 0 || remindersToday.length > 0) && (
-                  <div style={{ marginBottom:24 }}>
-                    <div style={{ fontSize:13,fontWeight:700,color:"#ef4444",marginBottom:12,textTransform:"uppercase",letterSpacing:1 }}>
-                      📅 Reminders {remindersOverdue.length > 0 ? `(${remindersOverdue.length} overdue)` : ""}
-                    </div>
-                    {[...remindersOverdue, ...remindersToday].map(r => (
-                      <div key={r.id} style={{ background:r.remind_date < todayStr ? "#7f1d1d22" : "#0c1a0c", border:`1px solid ${r.remind_date < todayStr ? "#ef444466" : "#10b98166"}`, borderRadius:10, padding:"14px 16px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4 }}>{r.title}</div>
-                          {r.description && <div style={{ fontSize:12,color:"#9ca3af" }}>{r.description}</div>}
-                          <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
-                            <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>👤 {r.owner}</span>
-                            <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>🏷 {r.category}</span>
-                            <span style={{ fontSize:11,borderRadius:99,padding:"2px 8px",background:r.remind_date < todayStr?"#7f1d1d":"#14532d",color:r.remind_date < todayStr?"#fca5a5":"#86efac",fontWeight:700 }}>
-                              {r.remind_date < todayStr ? "⚠ Overdue" : "📅 Today"}
-                            </span>
-                          </div>
-                        </div>
-                        <button onClick={async () => { await supabase.from("reminders").update({completed:true}).eq("id",r.id); loadReminders(); }}
-                          style={{ background:"#10b981",border:"none",borderRadius:8,color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0 }}>
-                          ✓ Done
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {(followUpTasksOverdue.length > 0 || followUpTasksToday.length > 0) && (
-                  <div style={{ marginBottom:24 }}>
-                    <div style={{ fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:12,textTransform:"uppercase",letterSpacing:1 }}>
-                      🔔 Task Follow-ups {followUpTasksOverdue.length > 0 ? `(${followUpTasksOverdue.length} overdue)` : ""}
-                    </div>
-                    {[...followUpTasksOverdue,...followUpTasksToday].map(t => (
-                      <div key={t.id} onClick={() => setModalTask(t)}
-                        style={{ background:t.follow_up_date < todayStr?"#7f1d1d22":"#0e2d3e", border:`1px solid ${t.follow_up_date < todayStr?"#ef444466":"#f59e0b66"}`, borderRadius:10, padding:"14px 16px", marginBottom:10, cursor:"pointer" }}
-                        onMouseEnter={e=>e.currentTarget.style.background=t.follow_up_date<todayStr?"#7f1d1d33":"#1b4a60"}
-                        onMouseLeave={e=>e.currentTarget.style.background=t.follow_up_date<todayStr?"#7f1d1d22":"#0e2d3e"}>
-                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4 }}>{t.subject}</div>
-                            {t.follow_up_note && <div style={{ fontSize:12,color:"#f59e0b",marginBottom:6,fontStyle:"italic" }}>💬 {t.follow_up_note}</div>}
-                            {t.next_action && <div style={{ fontSize:12,color:"#9ca3af" }}>→ {t.next_action}</div>}
-                            <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
-                              <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>👤 {t.owner}</span>
-                              {t.client && <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>{t.client}</span>}
-                              {t.company && <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>{t.company}</span>}
-                            </div>
-                          </div>
-                          <span style={{ fontSize:11,borderRadius:99,padding:"2px 8px",background:t.follow_up_date<todayStr?"#7f1d1d":"#78350f",color:t.follow_up_date<todayStr?"#fca5a5":"#fde68a",fontWeight:700,flexShrink:0,marginLeft:8 }}>
-                            {t.follow_up_date < todayStr ? "⚠ Overdue" : "🔔 Today"}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {dueToday.length > 0 && (
-                  <div style={{ marginBottom:24 }}>
-                    <div style={{ fontSize:13,fontWeight:700,color:"#118fb5",marginBottom:12,textTransform:"uppercase",letterSpacing:1 }}>
-                      📋 Tasks Due Today ({dueToday.length})
-                    </div>
-                    {dueToday.map(t => (
-                      <div key={t.id} onClick={() => setModalTask(t)}
-                        style={{ background:"#0e2d3e",border:"1px solid #118fb566",borderRadius:10,padding:"14px 16px",marginBottom:10,cursor:"pointer" }}
-                        onMouseEnter={e=>e.currentTarget.style.background="#1b4a60"}
-                        onMouseLeave={e=>e.currentTarget.style.background="#0e2d3e"}>
-                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4 }}>{t.subject}</div>
-                            {t.next_action && <div style={{ fontSize:12,color:"#9ca3af" }}>→ {t.next_action}</div>}
-                            <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
-                              <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>👤 {t.owner}</span>
-                              {t.client && <span style={{ fontSize:11,background:"#1b4a60",borderRadius:99,padding:"2px 8px",color:"#9ca3af" }}>{t.client}</span>}
-                              <span style={{ fontSize:11,borderRadius:99,padding:"2px 8px",background:STATUS_COLOR[t.status]+"33",color:STATUS_COLOR[t.status],fontWeight:600 }}>{t.status}</span>
-                            </div>
-                          </div>
-                          <span style={{ fontSize:11,background:PRIORITY_COLOR[t.priority]+"33",color:PRIORITY_COLOR[t.priority],borderRadius:99,padding:"2px 8px",fontWeight:700,flexShrink:0,marginLeft:8 }}>{t.priority}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {view==="today" && <QuickList tasks={tasks} reminders={reminders} onChanged={loadTasks} onReminders={loadReminders} onOpenTask={t=>setModalTask(t)} goTasks={()=>{ setFollowView("today"); setView("followups"); }} />}
 
             {view==="dashboard" && (
               <div>
-                {unseenFlags.length > 0 && (
-                  <div onClick={()=>setView("flags")} style={{ marginBottom:16,background:"#7f1d1d22",border:"1px solid #ef444466",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
-                    <span style={{ fontSize:24 }}>🚨</span>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:700,color:"#ef4444" }}>{unseenFlags.length} new flag{unseenFlags.length>1?"s":""} from your team</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{unseenFlags.map(f=>f.from_name).filter((v,i,a)=>a.indexOf(v)===i).join(" & ")} flagged Sean — click to view</div>
-                    </div>
-                    <span style={{ marginLeft:"auto",color:"#ef4444",fontSize:18 }}>→</span>
-                  </div>
-                )}
-                {unreadReports.length > 0 && (
-                  <div onClick={()=>setView("flags")} style={{ marginBottom:20,background:"#1e3a8a22",border:"1px solid #3b82f666",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
-                    <span style={{ fontSize:24 }}>📊</span>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:700,color:"#60a5fa" }}>{unreadReports.length} new weekly report{unreadReports.length>1?"s":""}</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>from {unreadReports.map(f=>f.from_name).filter((v,i,a)=>a.indexOf(v)===i).join(" & ")} — click to view</div>
-                    </div>
-                    <span style={{ marginLeft:"auto",color:"#60a5fa",fontSize:18 }}>→</span>
-                  </div>
-                )}
-                {activeProjectTasks > 0 && (
-                  <div onClick={()=>setView("projects")} style={{ marginBottom:20,background:"#d9780622",border:"1px solid #d9780666",borderRadius:12,padding:"14px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12 }}>
-                    <span style={{ fontSize:24 }}>📋</span>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:700,color:"#d97806" }}>{activeProjectTasks} active strategic project tasks</div>
-                      <div style={{ fontSize:12,color:"#9ca3af",marginTop:2 }}>{projects.filter(p=>tasks.some(t=>t.project===p.name&&t.status!=="Done")).length} of {projects.length} workstreams in progress — click to view</div>
-                    </div>
-                    <span style={{ marginLeft:"auto",color:"#d97806",fontSize:18 }}>→</span>
-                  </div>
-                )}
-
                 <HubDashboard tasks={tasks} opportunities={leads} companies={companies} orders={orders}
                   go={(v, sub)=>{ if (sub) setFollowView(sub); setView(v); }}
                   openTask={t=>setModalTask(t)} openOpp={o=>setModalOpp(o)} openOrder={()=>setView("orders")} />
               </div>
             )}
 
-            {view==="projects" && (
-              <ProjectsView
-                tasks={tasks}
-                onTaskClick={t=>setModalTask(t)}
-                onTaskComplete={(id)=>moveTask(id,"Done")}
-                onNewTask={(project)=>setModalTask(newTask({ project }))}
-                sortBy={sortBy}
-              />
-            )}
-
-            {view==="accounts" && (
-              <AccountsView
-                tasks={tasks}
-                onTaskClick={t=>setModalTask(t)}
-                onTaskComplete={(id)=>moveTask(id,"Done")}
-                sortBy={sortBy}
-                onNewTask={(company)=>setModalTask(newTask({ company }))}
-              />
-            )}
-
-            {view==="flags" && <FlagsView flags={flags} onMarkSeen={markFlagSeen} onMarkAllSeen={markAllFlagsSeen} onViewReports={()=>setView("weeklyreport_inline")} />}
-            {view==="weeklyreport_inline" && <WeeklyReportView flags={flags} onMarkSeen={markFlagSeen} onDeleteReport={deleteFlag} onBack={()=>setView("flags")} />}
-
             {appError && <HubBanner onClose={()=>setAppError(null)}>{appError}</HubBanner>}
             {view==="pipeline" && <Pipeline opportunities={leads} companies={companies} contacts={contacts} tasks={tasks} onChanged={reloadAll} onOpenTask={t=>setModalTask(t)} onNewTask={(init)=>setModalTask(newTask(init))} />}
-            {view==="companies" && <Companies companies={companies} contacts={contacts} opportunities={leads} tasks={tasks} orders={orders} onChanged={reloadAll} onOpenTask={t=>setModalTask(t)} onOpenOpportunity={o=>setModalOpp(o)} onNewTask={(init)=>setModalTask(newTask(init))} onLogComm={(init)=>setCommDraft(init)} />}
+            {view==="companies" && <Companies companies={companies} contacts={contacts} opportunities={leads} tasks={tasks} orders={orders} projects={projects} onChanged={()=>{ reloadAll(); loadProjects(); }} onOpenTask={t=>setModalTask(t)} onOpenOpportunity={o=>setModalOpp(o)} onNewTask={(init)=>setModalTask(newTask(init))} onLogComm={(init)=>setCommDraft(init)} />}
             {view==="followups" && <FollowUps key={followView} initialView={followView} tasks={tasks} opportunities={leads} companies={companies} onOpenTask={t=>setModalTask(t)} onOpenOpportunity={o=>setModalOpp(o)} onChanged={reloadAll} />}
             {view==="orders" && <Orders orders={orders} companies={companies} opportunities={leads} onChanged={loadCrm} />}
             {view==="search" && <Search autoFocus onPick={(kind,id)=>{
@@ -1680,23 +878,6 @@ export default function App() {
             {view==="seanweek" && <SeanWeekView items={seanWeek} onAdd={addSeanWeekItem} onDelete={deleteSeanWeekItem} />}
             {view==="inbox" && <InboxTriageView items={inboxTriage} onAdd={addInboxItem} onClear={clearInboxItem} onLog={(item)=>setCommDraft({ type:"Email", direction:"Inbound", subject:item.subject, notes:item.next_action||"" })} />}
 
-            {view==="team" && (
-              <div>
-                <div style={{ fontSize:12,fontWeight:700,color:"#7f93a1",marginBottom:4,letterSpacing:"0.06em",textTransform:"uppercase" }}>Delegated work</div>
-                <div style={{ fontSize:12,color:"#7f93a1",marginBottom:16 }}>Andrea and Jason don't use the hub — Vanya tracks these on their behalf. Their history is kept.</div>
-                <TeamCard name="Jason" tasks={jasonTasks} />
-                <TeamCard name="Andrea" tasks={andreaTasks} />
-              </div>
-            )}
-
-            {!["dashboard","projects","accounts","pipeline","companies","followups","orders","search","quality","seanweek","inbox","team","flags","weeklyreport_inline"].includes(view) && (
-              <div>
-                {(viewTasks[view]||[]).length===0
-                  ? <div style={{ textAlign:"center",padding:"60px 0",color:"#557080" }}><div style={{ fontSize:40,marginBottom:12 }}>◌</div><div style={{ fontSize:15 }}>No tasks here</div></div>
-                  : (viewTasks[view]||[]).map(t=><TaskCard key={t.id} task={t} onClick={t=>setModalTask(t)} onComplete={(id)=>moveTask(id,"Done")} />)
-                }
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1705,7 +886,7 @@ export default function App() {
         <Modal onClose={()=>setModalTask(null)}>
           {modalTask.id
             ? <div>
-                <TaskForm initial={modalTask} onSave={upsertTask} onClose={()=>setModalTask(null)} companies={companies} opportunities={leads} />
+                <TaskForm initial={modalTask} onSave={upsertTask} onClose={()=>setModalTask(null)} companies={companies} opportunities={leads} projects={projects} />
                 <TaskActivityFeed taskId={modalTask.id} taskNotes={modalTask.notes} onNoteAdded={loadTasks} />
                 <div style={{ marginTop:16,borderTop:"1px solid #1b4a60",paddingTop:16,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
                   <div style={{ fontSize:12,color:"#6a8090" }}>Received {fmtDate(modalTask.date_received)}</div>
@@ -1715,7 +896,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            : <TaskForm initial={{ ...newTask(), ...modalTask }} onSave={upsertTask} onClose={()=>setModalTask(null)} companies={companies} opportunities={leads} />
+            : <TaskForm initial={{ ...newTask(), ...modalTask }} onSave={upsertTask} onClose={()=>setModalTask(null)} companies={companies} opportunities={leads} projects={projects} />
           }
         </Modal>
       )}

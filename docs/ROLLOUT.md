@@ -49,3 +49,10 @@ Not testable here: Supabase Realtime (live updates between open browsers) — th
 - App: redeploy the previous Vercel deployment (one click in Vercel).
 - 0002: additive; the old app runs against it. To fully revert, restore from the step-2 backup (not expected to be needed).
 - 0003: `supabase/rollback/restore_open_access.sql` + unset the flag (tested).
+
+## 19 Oct 2026 — streamlining (migration 0004 + app)
+- 0004 applied to production 19 Oct: projects now belong to a company (`projects.company_id`); tasks link to projects (`tasks.project_id`); Outlook-ready columns `tasks.email_thread_id` / `email_message_id`. New companies: "ESBD (internal)", "Sean — personal". 24 of 25 projects placed; Biovac / Vac Bureau left unassigned and flagged.
+- Menu is now: Dashboard · Tasks · Quick list · Companies & projects · Sales Pipeline · Orders · Data Quality · Sean's Week · Inbox Triage (last two kept until Outlook is live). Search is the header button.
+- Removed (data untouched): Projects, Accounts (by task text), Flags, Delegated page, the old task sub-menu, `/team` route.
+- Tasks: tabs All open / Today / Upcoming / On hold / Done; Who = Everyone, Vanya, Sean, Siya, Jason, Andrea; Tags = FYA / FlwUP / FYI + every Outlook area category. Traffic lights; overdue items glow until someone edits or completes them.
+- Quick list: one-line "under 5 minutes" tasks (`task_type = 'Quick task'`) + diary reminders.

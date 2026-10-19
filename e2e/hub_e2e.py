@@ -44,6 +44,11 @@ def nav(page, label):
     page.wait_for_timeout(500)
 
 
+def open_search(page):
+    page.get_by_role("button", name="Search").first.click()
+    page.wait_for_timeout(400)
+
+
 def close_modal(page):
     page.get_by_role("dialog").get_by_label("Close").first.click()
     page.wait_for_timeout(200)
@@ -52,23 +57,28 @@ def close_modal(page):
 TODAY = None
 
 
-@check(1, "Existing client records remain accessible")
+@check(1, "Existing client records remain accessible — projects now live inside their company")
 def t1(page):
-    nav(page, "Accounts (by task text)")
-    expect(page.get_by_text("Upd", exact=True).first).to_be_visible()
-    expect(page.get_by_text("Adcock", exact=True).first).to_be_visible()
+    nav(page, "Companies & projects")
+    page.get_by_label("Search companies").fill("UPD")
+    page.get_by_text("UPD (Clicks Group)", exact=True).first.click()
+    d = page.get_by_role("dialog")
+    d.get_by_role("button", name=re.compile(r"^Projects \(")).click()
+    expect(d.get_by_text(re.compile(r"^▸ UPD$")).first).to_be_visible()
+    close_modal(page)
+    page.get_by_label("Search companies").fill("")
 
 
 @check(2, "Existing tasks remain accessible")
 def t2(page):
-    nav(page, "Search")
+    open_search(page)
     page.get_by_label("Search the hub").fill("Solaris Cargo trial")
     expect(page.get_by_text("Re: Solaris Cargo trial - Urvina").first).to_be_visible(timeout=5000)
 
 
 @check(3, "Creating a company works; an exact duplicate is refused")
 def t3(page):
-    nav(page, "Companies")
+    nav(page, "Companies & projects")
     page.get_by_role("button", name="+ Company").click()
     d = page.get_by_role("dialog")
     d.get_by_label("Company name").fill("E2E Pharma Distribution")
@@ -89,7 +99,7 @@ def t3(page):
 
 @check(4, "Contacts: add a contact; link the same person to a second company (no duplicate contact)")
 def t4(page):
-    nav(page, "Companies")
+    nav(page, "Companies & projects")
     page.get_by_label("Search companies").fill("E2E Pharma")
     page.get_by_text("E2E Pharma Distribution", exact=True).click()
     d = page.get_by_role("dialog")
@@ -168,7 +178,7 @@ def t7(page):
 
 @check(8, "Log an email against company + opportunity → follow-up created as 'Awaiting response' (nothing marked done)")
 def t8(page):
-    nav(page, "Companies")
+    nav(page, "Companies & projects")
     page.get_by_label("Search companies").fill("E2E Pharma")
     page.get_by_text("E2E Pharma Distribution", exact=True).click()
     page.get_by_role("dialog").get_by_role("button", name="+ Log communication").click()
@@ -213,23 +223,22 @@ def t10(page):
     d.get_by_role("button", name="Create Task").click()
     page.wait_for_timeout(900)
     assert sql("select action_state||'|'||waiting_on from tasks where subject='E2E supplier delivery update'") == "Awaiting response|CIMC"
-    nav(page, "Today")
-    page.get_by_role("button", name=re.compile("^Waiting for reply")).click()
+    nav(page, "Tasks")
+    page.get_by_role("button", name="FlwUP").click()
     page.get_by_text("E2E supplier delivery update").first.click()
     d = page.get_by_role("dialog")
     d.get_by_label("🔔 Follow-up Date").fill("2026-12-01")
     d.get_by_role("button", name="Save Changes").click()
     page.wait_for_timeout(900)
     assert sql("select follow_up_date from tasks where subject='E2E supplier delivery update'") == "2026-12-01"
-    assert sql("select count(*) from activity_log where entity_type='task' and field='follow_up_date' and new_value='2026-12-01'") == "1"
+    assert sql("select count(*) from activity_log where entity_type='task' and field='follow_up_date' and new_value='2026-12-01' and entity_id=(select id from tasks where subject='E2E supplier delivery update')") == "1"
 
 
 @check(11, "Filtering tasks by owner works")
 def t11(page):
-    nav(page, "Today")
-    page.get_by_role("button", name=re.compile("^Delegated")).click()
-    page.get_by_text("Filters").click()
-    page.get_by_label("Owner", exact=True).select_option("Andrea")
+    nav(page, "Tasks")
+    page.get_by_role("button", name=re.compile("^All open")).click()
+    page.get_by_role("button", name=re.compile("^Andrea")).click()
     page.wait_for_timeout(300)
     owners = page.locator("div[style*='text-align: right'] >> div").all_inner_texts()
     shown = [o for o in owners if o in ("Vanya", "Sean", "Andrea", "Jason", "Unassigned")]
@@ -238,7 +247,7 @@ def t11(page):
 
 @check(12, "Searching for companies, contacts, opportunities and products works; empty state shown")
 def t12(page):
-    nav(page, "Search")
+    open_search(page)
     box = page.get_by_label("Search the hub")
     box.fill("E2E Pharma")
     expect(page.get_by_text("E2E Pharma Distribution").first).to_be_visible(timeout=5000)
@@ -340,19 +349,19 @@ def t17(page):
     close_modal(page)
 
 
-@check(18, "Archiving (Team page) keeps the task and its history; nothing is deleted")
+@check(18, "Archiving (from Tasks → Jason) keeps the task and its history; nothing is deleted")
 def t18(page):
     tid = sql("insert into tasks(subject, owner, status, next_action, expected_date) values ('E2E Jason archive me','Jason','To Do','x',current_date) returning id")
     tid = tid.splitlines()[0]
     sql(f"insert into task_history(task_id, changed_by, entry_type, note) values ({tid}, 'Jason', 'note', 'keep me')")
-    page.goto(URL + "/team", wait_until="networkidle")
-    page.get_by_role("button", name=re.compile(r"\bJason$")).first.click()
+    page.reload(wait_until="networkidle"); page.wait_for_timeout(600)
+    nav(page, "Tasks")
+    page.get_by_role("button", name=re.compile(r"^Jason")).first.click()
     page.wait_for_timeout(600)
     page.get_by_text("E2E Jason archive me").first.click()
-    page.get_by_role("button", name="🗄️ Archive Task").click()
-    page.get_by_role("button", name="Yes, Archive").click()
+    page.get_by_role("button", name="Archive Task").click()   # confirm() is auto-accepted
     page.wait_for_timeout(800)
-    assert sql(f"select (archived_at is not null)::text||'|'||archive_reason from tasks where id={tid}") == "true|Archived by Jason"
+    assert sql(f"select (archived_at is not null)::text||'|'||archive_reason||'|'||updated_by from tasks where id={tid}") == "true|Archived|Vanya"
     assert sql(f"select count(*) from task_history where task_id={tid}") == "1"
     page.goto(URL, wait_until="networkidle")
 
@@ -366,7 +375,7 @@ def t20(page):
     late = sql("insert into tasks(subject, owner, status, action_state, next_action, expected_date, category) values ('E2E overdue finance item','Sean','To Do','Our action','Pay CIMC deposit',current_date - 2,'Finance') returning id").splitlines()[0]
     tid = sql("insert into tasks(subject, owner, status, action_state, next_action, expected_date, client, category) values ('E2E send CIMC quote','Vanya','To Do','Our action','Email quote',current_date,'CIMC','Sales') returning id").splitlines()[0]
     page.reload(wait_until="networkidle"); page.wait_for_timeout(600)
-    nav(page, "Today")
+    nav(page, "Tasks")
     page.wait_for_timeout(600)
     titles = page.locator("text=/^E2E (overdue finance item|send CIMC quote)$/").all_inner_texts()
     assert titles[:2] == ["E2E overdue finance item", "E2E send CIMC quote"], titles
@@ -379,9 +388,10 @@ def t20(page):
     row = sql(f"select action_state||'|'||status||'|'||(follow_up_date - (now() at time zone '{TZ}')::date)||'|'||waiting_on from tasks where id={tid}")
     assert row == "Awaiting response|Follow Up|3|CIMC", row
     assert sql(f"select count(*) from interactions where task_id={tid} and direction='Outbound' and type='Email'") == "1"
-    # no longer due today → gone from Today; now under Waiting for reply
+    # no longer due today → gone from Today; now under All open + FlwUP
     expect(page.get_by_text("E2E send CIMC quote", exact=True)).to_have_count(0)
-    page.get_by_role("button", name=re.compile("^Waiting for reply")).click()
+    page.get_by_role("button", name=re.compile("^All open")).click()
+    page.get_by_role("button", name="FlwUP").click()
     c = card_of(page, "E2E send CIMC quote")
     expect(c.get_by_text(re.compile("Last contacted"))).to_be_visible()
     # 2) No reply → chased, follow up again in a week
@@ -397,11 +407,12 @@ def t20(page):
     row = sql(f"select action_state||'|'||status||'|'||coalesce(follow_up_date::text,'none')||'|'||(expected_date = (now() at time zone '{TZ}')::date)::text from tasks where id={tid}")
     assert row == "Our action|To Do|none|true", row
     assert sql(f"select count(*) from interactions where task_id={tid} and direction='Inbound'") == "1"
+    page.get_by_role("button", name="FlwUP").click()   # tag off
     page.get_by_role("button", name=re.compile("^Today")).first.click()
     expect(page.get_by_text("E2E send CIMC quote", exact=True)).to_be_visible()
 
 
-@check(21, "Andrea/Jason: work can be assigned to them (marked delegated) and is tracked under Delegated")
+@check(21, "Andrea/Jason/Siya: work can be assigned to them (marked delegated) and shows under their own tab")
 def t21(page):
     page.get_by_role("button", name="+ New Task").first.click()
     d = page.get_by_role("dialog")
@@ -410,16 +421,88 @@ def t21(page):
     d.get_by_role("button", name="Create Task").click()
     page.wait_for_timeout(900)
     assert sql("select owner from tasks where subject='E2E Andrea book courier'") == "Andrea"
-    nav(page, "Today")
-    page.get_by_role("button", name=re.compile("^Delegated")).click()
+    nav(page, "Tasks")
+    page.get_by_role("button", name=re.compile("^All open")).click()
+    page.get_by_role("button", name=re.compile("^Andrea")).click()
     expect(page.get_by_text("E2E Andrea book courier", exact=True)).to_be_visible()
+    page.get_by_role("button", name=re.compile("^Siya")).click()
+    expect(page.get_by_text("E2E Andrea book courier", exact=True)).to_have_count(0)
+
+
+@check(22, "Quick list: type + Enter adds a 5-minute task due today; urgent goes on top; ticking completes it")
+def t22(page):
+    nav(page, "Quick list")
+    box = page.get_by_label("Quick task")
+    box.fill("E2E message Rajinder")
+    box.press("Enter")
+    page.wait_for_timeout(900)
+    box.fill("E2E book flight JHB")
+    page.get_by_role("button", name="! Urgent").click()
+    box.press("Enter")
+    page.wait_for_timeout(900)
+    row = sql("select task_type||'|'||action_state||'|'||(expected_date = (now() at time zone 'Africa/Johannesburg')::date)::text||'|'||priority from tasks where subject='E2E book flight JHB'")
+    assert row == "Quick task|Our action|true|Urgent", row
+    titles = page.locator("text=/^(! )?E2E (message Rajinder|book flight JHB)$/").all_inner_texts()
+    assert titles and "book flight" in titles[0], titles
+    page.get_by_label("Done: E2E message Rajinder").click()
+    page.wait_for_timeout(900)
+    assert sql("select action_state from tasks where subject='E2E message Rajinder'") == "Completed"
+    # quick tasks also show in Tasks → Today
+    nav(page, "Tasks")
+    expect(page.get_by_text("E2E book flight JHB", exact=True).first).to_be_visible()
+
+
+@check(23, "Projects inside a company: add a project, add a task from it (company + project pre-filled), archive it — nothing deleted")
+def t23(page):
+    nav(page, "Companies & projects")
+    page.get_by_label("Search companies").fill("Medipost")
+    page.get_by_text("Medipost", exact=True).first.click()
+    d = page.get_by_role("dialog")
+    d.get_by_role("button", name=re.compile(r"^Projects \(")).click()
+    d.get_by_role("button", name="+ Project").click()
+    d.get_by_placeholder("e.g. Cold-chain pilot 2027").fill("E2E fridge rollout")
+    d.get_by_role("button", name="Add project").click()
+    page.wait_for_timeout(900)
+    cid = sql("select id from companies where name='Medipost' and archived_at is null")
+    pid = sql(f"select id from projects where name='E2E fridge rollout' and company_id={cid}")
+    assert pid, "project not saved under Medipost"
+    d.get_by_text("▸ E2E fridge rollout").click()
+    d.get_by_role("button", name="+ Task").last.click()
+    t = page.get_by_role("dialog").last
+    t.get_by_label("Subject").fill("E2E fridge site survey")
+    t.get_by_role("button", name="Create Task").click()
+    page.wait_for_timeout(900)
+    assert sql("select company_id||'|'||project_id||'|'||project from tasks where subject='E2E fridge site survey'") == f"{cid}|{pid}|E2E fridge rollout"
+    d = page.get_by_role("dialog").first
+    d.get_by_role("button", name="Archive").click()
+    page.wait_for_timeout(800)
+    assert sql(f"select (archived_at is not null)::text from projects where id={pid}") == "true"
+    assert sql("select count(*) from tasks where subject='E2E fridge site survey'") == "1"
+    close_modal(page)
+    page.get_by_label("Search companies").fill("")
+
+
+@check(24, "Overdue tasks nobody has touched glow; once edited the glow stops")
+def t24(page):
+    tid = sql("insert into tasks(subject, owner, status, action_state, expected_date, updated_by) values ('E2E untouched overdue','Sean','FYA','Our action',current_date - 3,'Import (Vanya-approved)') returning id").splitlines()[0]
+    page.reload(wait_until="networkidle"); page.wait_for_timeout(600)
+    nav(page, "Tasks")
+    card = page.locator(".hub-glow", has_text="E2E untouched overdue")
+    expect(card).to_have_count(1)
+    page.get_by_text("E2E untouched overdue", exact=True).first.click()
+    d = page.get_by_role("dialog")
+    d.get_by_label("Next Action").fill("Call Sean")
+    d.get_by_role("button", name="Save Changes").click()
+    page.wait_for_timeout(1000)
+    assert sql(f"select updated_by from tasks where id={tid}") == "Vanya"
+    expect(page.locator(".hub-glow", has_text="E2E untouched overdue")).to_have_count(0)
 
 
 def mobile_checks(browser):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, timezone_id=TZ)
     m = ctx.new_page()
     try:
-        for path in ("/sean", "/", "/team"):
+        for path in ("/sean", "/"):
             m.goto(URL + path, wait_until="networkidle")
             m.wait_for_timeout(800)
             sw, iw = m.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")
@@ -434,7 +517,7 @@ def mobile_checks(browser):
         btn.tap()
         m.wait_for_timeout(1000)
         assert sql(f"select action_state||'|'||status from tasks where id={tid}") == "Completed|Done"
-        results.append((19, "Mobile: no sideways scrolling on /, /sean, /team; Sean completes a task with a ≥40px tap target", "PASS", ""))
+        results.append((19, "Mobile: no sideways scrolling on / and /sean; Sean completes a task with a ≥40px tap target", "PASS", ""))
     except Exception as e:  # noqa
         m.screenshot(path="/home/claude/staging/shots/fail_19.png", full_page=True)
         results.append((19, "Mobile layouts", "FAIL", f"{type(e).__name__}: {str(e)[:300]}"))
@@ -445,7 +528,7 @@ def main():
     global TODAY
     TODAY = sql(f"select (now() at time zone '{TZ}')::date")
     # clean up anything from a previous run (staging only)
-    sql("set session_replication_role=replica; delete from activity_log where entity_id in (select id from leads where name like 'E2E%') and entity_type='opportunity'; delete from interactions where subject like 'E2E%'; delete from inbox_triage where subject like 'E2E%'; delete from task_history where task_id in (select id from tasks where subject like 'E2E%' or subject like 'Follow up: E2E%'); delete from tasks where subject like 'E2E%' or subject like 'Follow up: E2E%'; delete from leads where name like 'E2E%'; delete from company_contacts where contact_id in (select id from contacts where email like '%e2e-pharma%'); delete from contacts where email like '%e2e-pharma%'; delete from companies where name like 'E2E%'")
+    sql("set session_replication_role=replica; delete from activity_log where entity_id in (select id from leads where name like 'E2E%') and entity_type='opportunity'; delete from activity_log where entity_type='task' and entity_id in (select id from tasks where subject like 'E2E%'); delete from interactions where subject like 'E2E%'; delete from inbox_triage where subject like 'E2E%'; delete from task_history where task_id in (select id from tasks where subject like 'E2E%' or subject like 'Follow up: E2E%'); delete from tasks where subject like 'E2E%' or subject like 'Follow up: E2E%'; delete from leads where name like 'E2E%'; delete from company_contacts where contact_id in (select id from contacts where email like '%e2e-pharma%'); delete from contacts where email like '%e2e-pharma%'; delete from projects where name like 'E2E%'; delete from companies where name like 'E2E%'")
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx = b.new_context(viewport={"width": 1440, "height": 900}, timezone_id=TZ)
@@ -453,7 +536,7 @@ def main():
         page.on("dialog", lambda dlg: dlg.accept())
         page.goto(URL, wait_until="networkidle")
         page.wait_for_timeout(1000)
-        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21]:
+        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24]:
             # Fresh page for every check so one failure can't cascade into the next.
             page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(700)
             fn(page)
