@@ -85,7 +85,8 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
     const P = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
     return (P[a.priority] ?? 2) - (P[b.priority] ?? 2);
   });
-  const shown = view === "completed" ? list.slice(0, 100) : list;
+  const shown = list;
+  const [doneLimit, setDoneLimit] = useState(30);
 
   const run = async (key, fn) => {
     setBusy(key); setError(null);
@@ -132,7 +133,7 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
       </div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: C.dim, marginBottom: 8 }}>
         {["red", "amber", "yellow", "green"].map((l) => <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: RAG[l].ink, display: "inline-block" }} />{RAG[l].label}</span>)}
-        <span>· glowing = overdue and not touched yet</span>
+        <span>· glowing = 3+ days overdue and nobody has touched it</span>
       </div>
       <details style={{ marginBottom: 12 }}>
         <summary style={{ cursor: "pointer", fontSize: 12, color: C.dim }}>More filters{[owner !== "All", company, opp, state !== "All", priority !== "All", from, to].filter(Boolean).length ? " (active)" : ""}</summary>
@@ -148,7 +149,25 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
         </div>
       </details>
 
-      {shown.length === 0 ? <Empty icon="✅">{view === "today" ? "Nothing due today — nice." : "Nothing here"}</Empty> : shown.map((r) => {
+      {view === "completed" && shown.length > 0 && (
+        // Done items are one compact line each — they're history, not work.
+        <div style={{ border: `1px solid ${C.lineSoft}`, borderRadius: 10, overflow: "hidden" }}>
+          {shown.slice(0, doneLimit).map((r) => {
+            const when = String(r.raw.completed_at || r.raw.actual_date || "").slice(0, 10);
+            return (
+              <div key={r.kind + r.id} onClick={() => (r.kind === "task" ? onOpenTask(r.raw) : onOpenOpportunity(r.raw))}
+                style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", borderBottom: `1px solid ${C.lineSoft}`, fontSize: 12, cursor: "pointer", color: C.faint }}>
+                <span style={{ color: r.state === "Cancelled" ? C.faint : C.green }}>{r.state === "Cancelled" ? "✕" : "✓"}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.muted }}>{r.title}{r.company ? <span style={{ color: C.faint }}> · {r.company}</span> : null}</span>
+                <span style={{ flexShrink: 0 }}>{r.owner || "—"}</span>
+                <span style={{ flexShrink: 0, width: 82, textAlign: "right" }}>{when ? fmtDate(when) : ""}</span>
+              </div>
+            );
+          })}
+          {shown.length > doneLimit && <button onClick={() => setDoneLimit((n) => n + 50)} style={{ ...btn("small"), width: "100%", border: "none", borderRadius: 0 }}>Show 50 more ({shown.length - doneLimit} left)</button>}
+        </div>
+      )}
+      {shown.length === 0 ? <Empty icon="✅">{view === "today" ? "Nothing due today — nice." : "Nothing here"}</Empty> : view === "completed" ? null : shown.map((r) => {
         const light = rag(r.date, today, { done: !open(r), updatedAt: r.raw.updated_at, updatedBy: r.raw.updated_by });
         const chase = r.kind === "task" && needsChasing(r.raw, today);
         const ct = r.kind === "task" ? contacts[r.id] : null;
@@ -194,7 +213,6 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
           </Card>
         );
       })}
-      {view === "completed" && list.length > 100 && <div style={{ fontSize: 12, color: C.dim, textAlign: "center" }}>Showing the latest 100 of {list.length}</div>}
     </div>
   );
 }

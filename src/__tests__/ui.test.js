@@ -324,3 +324,15 @@ describe("Projects live inside companies", () => {
     expect(mock.calls.find((c) => c.table === "projects").payload[0]).toMatchObject({ name: "Vaccine fridges", company_id: 1, status: "Active" });
   });
 });
+
+describe("Done list is compact", () => {
+  const FollowUps = require("../hub/FollowUps").default;
+  test("completed items render as one-line rows, 30 at a time", () => {
+    const many = Array.from({ length: 45 }, (_, i) => ({ id: 600 + i, subject: `Finished ${i}`, owner: "Vanya", action_state: "Completed", status: "Done", completed_at: "2026-10-01T08:00:00Z" }));
+    render(<FollowUps initialView="completed" tasks={many} opportunities={[]} companies={[]} onOpenTask={() => {}} onOpenOpportunity={() => {}} onChanged={() => {}} />);
+    expect(screen.getAllByText(/^Finished \d+$/)).toHaveLength(30);
+    fireEvent.click(screen.getByRole("button", { name: /Show 50 more/ }));
+    expect(screen.getAllByText(/^Finished \d+$/)).toHaveLength(45);
+    expect(screen.queryByRole("button", { name: "✓ Done" })).toBeNull();
+  });
+});

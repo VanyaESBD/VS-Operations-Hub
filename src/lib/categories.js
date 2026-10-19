@@ -102,14 +102,18 @@ export const RAG = {
   green:  { ink: "#22c55e", fill: "#22c55e22", label: "On track" },
   none:   { ink: "#557080", fill: "transparent", label: "No date" },
 };
-const addDaysISO = (iso, n) => { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+// Pure calendar maths in UTC — local midnight + toISOString() shifted a day in South Africa (UTC+2).
+const addDaysISO = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+// Glow = 3+ days overdue and nobody has edited it since it fell due (Vanya, 20 Oct 2026).
+export const GLOW_AFTER_DAYS = 3;
 export function rag(date, today, { done = false, updatedAt = null, updatedBy = null } = {}) {
   if (done) return { level: "none", glow: false };
   if (!date) return { level: "none", glow: false };
   if (date < today) {
     const touchedBy = updatedBy && !/^Import/i.test(updatedBy);
     const touchedAfter = updatedAt && String(updatedAt).slice(0, 10) > date;
-    return { level: "red", glow: !(touchedBy && touchedAfter) };
+    const longOverdue = date <= addDaysISO(today, -GLOW_AFTER_DAYS);
+    return { level: "red", glow: longOverdue && !(touchedBy && touchedAfter) };
   }
   if (date === today) return { level: "amber", glow: false };
   if (date <= addDaysISO(today, 2)) return { level: "yellow", glow: false };

@@ -59,3 +59,25 @@ test("'ago' reads naturally", () => {
   expect(ago(addDays(T, -1))).toBe("yesterday");
   expect(ago(addDays(T, -3))).toBe("3 days ago");
 });
+
+describe("traffic lights + glow (3+ days overdue, untouched)", () => {
+  const { rag } = require("./categories");
+  const T = "2026-10-20";
+  test("1–2 days overdue is red but does not glow", () => {
+    expect(rag("2026-10-19", T)).toEqual({ level: "red", glow: false });
+    expect(rag("2026-10-18", T)).toEqual({ level: "red", glow: false });
+  });
+  test("3+ days overdue and untouched glows; imports don't count as touching", () => {
+    expect(rag("2026-10-17", T).glow).toBe(true);
+    expect(rag("2026-10-01", T, { updatedBy: "Import (Vanya-approved)", updatedAt: "2026-10-19T08:00:00Z" }).glow).toBe(true);
+  });
+  test("edited after it fell due → no glow; done → no light", () => {
+    expect(rag("2026-10-01", T, { updatedBy: "Vanya", updatedAt: "2026-10-19T08:00:00Z" }).glow).toBe(false);
+    expect(rag("2026-10-01", T, { done: true }).level).toBe("none");
+  });
+  test("today amber, within 2 days yellow, later green", () => {
+    expect(rag(T, T).level).toBe("amber");
+    expect(rag("2026-10-22", T).level).toBe("yellow");
+    expect(rag("2026-10-30", T).level).toBe("green");
+  });
+});

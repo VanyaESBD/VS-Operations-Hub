@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 import QuickList from "./hub/QuickList";
 import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, isDueNowTask, isDueNowLead } from "./lib/hub";
-import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord } from "./lib/data";
+import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord, deleteTaskForever } from "./lib/data";
 import { useHubUser, Banner as HubBanner, Picker, Field as HubField } from "./hub/ui";
 import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, isPrivateCategory, normaliseCategory, ownerLabel, ASSIGNABLE } from "./lib/categories";
 import HubDashboard from "./hub/HubDashboard";
@@ -599,7 +599,7 @@ function InboxTriageView({ items, onAdd, onClear, onLog }) {
 // ============================================================
 
 export default function App() {
-  const { name: me, signOut } = useHubUser();
+  const { name: me, role, signOut } = useHubUser();
   const [tasks, setTasks] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -740,6 +740,8 @@ export default function App() {
 
   const newTasks = tasks.filter(t=>t.date_received===TODAY()&&!seenTaskIds.includes(t.id));
   const pendingInbox = inboxTriage.filter(i=>!i.cleared);
+  // Permanent delete is for Vanya (admin) and Sean (manager); the database checks this again.
+  const canDelete = role === "admin" || role === "manager";
 
   // Quick list badge = open quick tasks + diary reminders due today or overdue.
   const todayStr = TODAY();
@@ -893,6 +895,7 @@ export default function App() {
                   <div style={{ display:"flex",gap:8 }}>
                     <button onClick={()=>setCommDraft({ task_id: modalTask.id, company_id: modalTask.company_id, opportunity_id: modalTask.opportunity_id })} style={{ padding:"6px 14px",background:"none",border:"1px solid #10b981",borderRadius:6,color:"#10b981",cursor:"pointer",fontSize:12 }}>✉️ Log communication</button>
                     <button onClick={()=>{ if(window.confirm("Archive this task? Its history is kept and it can be restored.")){ archiveTask(modalTask.id); setModalTask(null); }}} style={{ padding:"6px 14px",background:"none",border:"1px solid #7f1d1d",borderRadius:6,color:"#ef4444",cursor:"pointer",fontSize:12 }}>Archive Task</button>
+                    {canDelete && <button onClick={async()=>{ if(window.confirm(`Delete "${modalTask.subject}" permanently?\n\nThis cannot be undone. Its notes and history go too (emails logged against it are kept). Use Archive if you might need it again.`)){ const { error } = await deleteTaskForever(modalTask.id); if (error) setAppError("Couldn't delete: " + error); else { setModalTask(null); loadTasks(); } }}} style={{ padding:"6px 14px",background:"#7f1d1d",border:"1px solid #ef4444",borderRadius:6,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700 }}>🗑 Delete permanently</button>}
                   </div>
                 </div>
               </div>

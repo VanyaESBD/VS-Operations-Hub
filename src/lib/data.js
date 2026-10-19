@@ -229,3 +229,7 @@ export function saveProject(form) {
 }
 export const archiveProject = (id, archived = true) =>
   supabase.from("projects").update({ archived_at: archived ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("id", id).then(res);
+
+// Permanent delete (admin/manager only, enforced in the database by hub_delete_task).
+// Leaves a one-line trace in activity_log; communications are kept, just unlinked.
+export const deleteTaskForever = (id) => supabase.rpc("hub_delete_task", { p_id: id }).then(res);
