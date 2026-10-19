@@ -1,6 +1,6 @@
 # Access control
 
-**14 Oct 2026 — APPROVED by Vanya:** Vanya (vanya@esbd.co.za) = Admin, Sean (sean@esbd.co.za) = Manager; Andrea and Jason = no login (tasks tracked as Delegated). Accounts created in Supabase by Vanya; profiles added; `REACT_APP_AUTH_ENABLED=true` set in Vercel; temporary policy "read own profile (pre-0003)" added. Migration 0003 (closes open access) to be applied after both have signed in.
+**14 Oct 2026 — APPROVED by Vanya:** Vanya (vanya@esbd.co.za) = Admin, Sean (sean@esbd.co.za) = Manager; Andrea and Jason = no login (tasks tracked as Delegated). Accounts created in Supabase by Vanya; profiles added; `REACT_APP_AUTH_ENABLED=true` set in Vercel; temporary policy "read own profile (pre-0003)" added. Both signed in (Vanya 15 Oct, Sean 19 Oct). **19 Oct 2026: 0003 applied to production** (run by Vanya in the SQL Editor) and verified: anonymous access revoked, 56 policies, admin and manager see all 298 tasks incl. private, a signed-in non-member sees nothing. 27 held-back finance/personal tasks + 3 reminders imported afterwards.
 
 ## Original proposal
 
