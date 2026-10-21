@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
-import { CATEGORIES, normaliseCategory } from "./lib/categories";
+import { CATEGORIES, normaliseCategory, rag, RAG, questionType } from "./lib/categories";
 import { CategoryTag } from "./hub/tags";
 import { HubLogo } from "./hub/ui";
 import { todayISO, addDays, stageOf, isActiveLead, leadFollowUp, dueBucket, formatMoney, PIPELINE_STAGES, STAGE_COLOR, stateOf, isOpenTask, actionDate } from "./lib/hub";
@@ -8,40 +8,12 @@ import { saveOpportunity, addActivityNote } from "./lib/data";
 
 const TODAY = () => todayISO(); // local date (was UTC)
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—";
-const fmtDateTime = (ts) => {
-  if (!ts) return "—";
-  const d = new Date(ts);
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-};
 const isOverdue = (t) => isOpenTask(t) && stateOf(t) === "Our action" && t.expected_date && t.expected_date < TODAY();
 
 const STATUS_COLOR = { "To Do": "#c57f58", "FYA": "#c57f58", "Follow Up": "#a8a8a8", "FYI": "#b39ecc", "Done": "#5ccee8" }; // Outlook FYA / FlwUP / FYI
 const STATUS_EMOJI = { "To Do": "🔴", "FYA": "🟠", "Follow Up": "🏌️", "FYI": "🟣", "Done": "✅" };
 const STATUSES = ["To Do", "FYA", "Follow Up", "FYI", "Done"];
-const URGENCY_COLOR = { Low: "#7f93a1", Medium: "#118fb5", High: "#f59e0b", Urgent: "#ef4444" };
 const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
-
-const STRATEGIC_PROJECTS = [
-  { name: "UPD", color: "#118fb5" },
-  { name: "CJ Distribution", color: "#f97316" },
-  { name: "Adcock Ingram", color: "#8b5cf6" },
-  { name: "Strategnos", color: "#10b981" },
-  { name: "Financial & Management Structure", color: "#f59e0b" },
-  { name: "EuroPOS", color: "#3b82f6" },
-  { name: "James / Systems Development", color: "#ec4899" },
-  { name: "Tower Cold Chain / TBB", color: "#14b8a6" },
-  { name: "Andrea & Jason – Operational Leadership Transition", color: "#a78bfa" },
-  { name: "Opportunity Mapping / Sales Pipeline", color: "#ef4444" },
-  { name: "Second Level Solutions", color: "#6366f1" },
-  { name: "Leadership Transition", color: "#d97706" },
-];
-
-const SPECIAL_ACCOUNTS = [
-  { key: "finance", label: "💰 Finance", color: "#10b981" },
-  { key: "personal", label: "👤 Personal", color: "#8b5cf6" },
-];
-const specialKeys = ["finance", "personal"];
-const normKey = (s) => (s || "").trim().toLowerCase();
 
 const inp = { background:"#10364a", border:"1px solid #1b4a60", borderRadius:8, padding:"8px 12px", color:"#e2e8f0", fontSize:14, outline:"none", width:"100%", boxSizing:"border-box" };
 
@@ -56,19 +28,22 @@ function sortByUrgency(arr) {
   });
 }
 
-function TaskCard({ task, onEdit, onDone }) {
+function TaskCard({ task, onEdit, onDone, showOwner }) {
   var over = isOverdue(task);
+  var light = rag(actionDate(task), TODAY(), { done: !isOpenTask(task), updatedAt: task.updated_at, updatedBy: task.updated_by });
+  var q = task.needs_review ? questionType(task.needs_review) : null;
   var cat = normaliseCategory(task.category);
   var borderColor = cat ? CATEGORIES[cat].ink : (STATUS_COLOR[task.status] || "#1b4a60");
   var when = actionDate(task);
   var waiting = stateOf(task) === "Awaiting response";
   return (
-    <div style={{ background:"#0e2d3e", border:"1px solid " + (over ? "#7f1d1d" : "#1b4a60"), borderLeft:"3px solid " + borderColor, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
+    <div className={light.glow ? "hub-glow" : undefined} style={{ background:"#0e2d3e", border:"1px solid " + (over ? "#7f1d1d" : "#1b4a60"), borderLeft:"3px solid " + borderColor, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:4 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", lineHeight:1.3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{task.subject}</div>
           <div style={{ fontSize:11, color: over ? "#fca5a5" : "#7f93a1", marginTop:2 }}>
-            {task.company ? task.company + " · " : ""}{over ? "⚠ " : ""}{waiting ? "Follow up " : "Due "}{fmtDate(when)}
+            {when && <span aria-hidden style={{ display:"inline-block", width:7, height:7, borderRadius:99, background:RAG[light.level].ink, marginRight:5, verticalAlign:"middle" }} />}
+            {showOwner && task.owner !== "Sean" ? task.owner + " · " : ""}{task.company ? task.company + " · " : ""}{over ? "⚠ " : ""}{when ? (waiting ? "Follow up " : "Due ") + fmtDate(when) : "no date"}
             {cat && <span style={{ marginLeft:6 }}><CategoryTag category={cat} small /></span>}
             {task.priority === "Urgent" && <span style={{ marginLeft:6, background:"#ef444422", color:"#ef4444", borderRadius:99, padding:"1px 6px", fontSize:10, fontWeight:700 }}>URGENT</span>}
           </div>
@@ -79,6 +54,7 @@ function TaskCard({ task, onEdit, onDone }) {
         </div>
       </div>
       {task.next_action && <div style={{ fontSize:12, color:"#118fb5", marginTop:2 }}>→ {task.next_action}</div>}
+      {q && <div style={{ fontSize:12, color:q.ink, marginTop:3 }}>❓ {task.needs_review.slice(q.prefix.length).trim() || task.needs_review}</div>}
     </div>
   );
 }
@@ -119,89 +95,6 @@ function EditSheet({ task, onSave, onClose }) {
           Save
         </button>
       </div>
-    </div>
-  );
-}
-
-function ProjectList({ tasks, onSelect }) {
-  return (
-    <div>
-      <div style={{ fontSize:10, fontWeight:700, color:"#7f93a1", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>📋 Strategic Workstreams</div>
-      {STRATEGIC_PROJECTS.map(function(proj) {
-        var pt = tasks.filter(function(t) { return t.project === proj.name; });
-        var ptActive = pt.filter(function(t) { return t.status !== "Done"; }).length;
-        var ptDone = pt.filter(function(t) { return t.status === "Done"; }).length;
-        var ptTotal = pt.length;
-        var ptOverdue = pt.filter(isOverdue).length;
-        var ptProgress = ptTotal > 0 ? Math.round((ptDone / ptTotal) * 100) : 0;
-        return (
-          <div key={proj.name} onClick={function() { onSelect(proj.name); }}
-            style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderTop:"2px solid "+proj.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-              <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0", lineHeight:1.3, marginBottom:3 }}>{proj.name}</div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {ptActive > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{ptActive} active</span>}
-                  {ptOverdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {ptOverdue} overdue</span>}
-                  {ptTotal === 0 && <span style={{ fontSize:11, color:"#557080" }}>No tasks yet</span>}
-                  {ptActive === 0 && ptTotal > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ Done</span>}
-                </div>
-              </div>
-              <span style={{ fontSize:12, fontWeight:700, color:proj.color, flexShrink:0 }}>{ptProgress}%</span>
-            </div>
-            <div style={{ height:3, background:"#1b4a60", borderRadius:99, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:ptProgress+"%", background:proj.color, borderRadius:99 }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ProjectDetail({ projectName, tasks, statusFilter, onFilterChange, onBack, onEdit, onDone }) {
-  var proj = STRATEGIC_PROJECTS.find(function(p) { return p.name === projectName; }) || { name: projectName, color: "#118fb5" };
-  var projTasks = tasks.filter(function(t) { return t.project === projectName; });
-  var PROJ_FILTERS = ["All", "To Do", "FYA", "Follow Up", "FYI", "Overdue"];
-  var filtered = sortByUrgency(projTasks.filter(function(t) {
-    if (statusFilter === "All") return t.status !== "Done";
-    if (statusFilter === "Overdue") return isOverdue(t);
-    return t.status === statusFilter;
-  }));
-  var projDone = projTasks.filter(function(t) { return t.status === "Done"; }).length;
-  var projTotal = projTasks.length;
-  var projProgress = projTotal > 0 ? Math.round((projDone / projTotal) * 100) : 0;
-  return (
-    <div>
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-        <button onClick={onBack} style={{ background:"none", border:"none", color:"#9ca3af", cursor:"pointer", fontSize:20, padding:"4px 8px 4px 0" }}>←</button>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:15, fontWeight:800, color:"#e2e8f0", lineHeight:1.2 }}>{proj.name}</div>
-          <div style={{ fontSize:11, color:"#7f93a1" }}>{projDone}/{projTotal} done · {projProgress}%</div>
-        </div>
-      </div>
-      <div style={{ height:4, background:"#1b4a60", borderRadius:99, overflow:"hidden", marginBottom:12 }}>
-        <div style={{ height:"100%", width:projProgress+"%", background:proj.color, borderRadius:99 }} />
-      </div>
-      <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:2 }}>
-        {PROJ_FILTERS.map(function(f) {
-          var cnt = f === "All" ? projTasks.filter(function(t) { return t.status !== "Done"; }).length
-            : f === "Overdue" ? projTasks.filter(isOverdue).length
-            : projTasks.filter(function(t) { return t.status === f; }).length;
-          var isAct = statusFilter === f;
-          var col = f === "Overdue" ? "#ef4444" : f === "All" ? proj.color : (STATUS_COLOR[f] || proj.color);
-          return (
-            <button key={f} onClick={function() { onFilterChange(f); }}
-              style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid "+(isAct ? col : "#1b4a60"), background:isAct ? col+"33" : "none", color:isAct ? col : "#7f93a1", cursor:"pointer", fontSize:11, fontWeight:isAct ? 700 : 400 }}>
-              {f} {cnt > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 4px", fontSize:10 }}>{cnt}</span>}
-            </button>
-          );
-        })}
-      </div>
-      {filtered.length === 0
-        ? <div style={{ textAlign:"center", padding:"48px 0", color:"#557080" }}><div style={{ fontSize:28, marginBottom:8 }}>📋</div><div style={{ fontSize:13 }}>No tasks here</div></div>
-        : filtered.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={onEdit} onDone={onDone} />; })
-      }
     </div>
   );
 }
@@ -291,18 +184,12 @@ function NoteSheet({ onClose }) {
 
 export default function Sean() {
   var [tasks, setTasks] = useState([]);
-  var [flags, setFlags] = useState([]);
   var [loading, setLoading] = useState(true);
   var [activeTab, setActiveTab] = useState("today");
   var [leads, setLeads] = useState([]);
   var [openOpp, setOpenOpp] = useState(null);
   var [showNote, setShowNote] = useState(false);
   var [editingTask, setEditingTask] = useState(null);
-  var [selectedAccount, setSelectedAccount] = useState(null);
-  var [accountFilter, setAccountFilter] = useState("All");
-  var [accountSearch, setAccountSearch] = useState("");
-  var [selectedProject, setSelectedProject] = useState(null);
-  var [projectStatusFilter, setProjectStatusFilter] = useState("All");
 
   function load() {
     supabase.from("tasks").select("*").is("archived_at", null).order("created_at", { ascending: false }).then(function(res) {
@@ -310,9 +197,6 @@ export default function Sean() {
     });
     supabase.from("leads").select("*").is("archived_at", null).then(function(res) {
       if (res.data) setLeads(res.data);
-    });
-    supabase.from("flags").select("*").order("created_at", { ascending: false }).then(function(res) {
-      if (res.data) setFlags(res.data);
       setLoading(false);
     });
   }
@@ -322,7 +206,6 @@ export default function Sean() {
     var interval = setInterval(load, 30000);
     var ch = supabase.channel("sean-rt")
       .on("postgres_changes", { event:"*", schema:"public", table:"tasks" }, load)
-      .on("postgres_changes", { event:"*", schema:"public", table:"flags" }, load)
       .on("postgres_changes", { event:"*", schema:"public", table:"leads" }, load)
       .subscribe();
     return function() { clearInterval(interval); supabase.removeChannel(ch); };
@@ -363,58 +246,30 @@ export default function Sean() {
     });
   }
 
-  function markFlagSeen(id) {
-    supabase.from("flags").update({ seen:true }).eq("id", id).then(load);
-  }
-
-  function markAllFlagsSeen() {
-    var unseen = regularFlags.filter(function(f) { return !f.seen; });
-    Promise.all(unseen.map(function(f) { return supabase.from("flags").update({ seen:true }).eq("id", f.id); })).then(load);
-  }
-
-  function deleteReport(id) {
-    supabase.from("flags").delete().eq("id", id).then(load);
-  }
-
   var seanActive = tasks.filter(function(t) { return t.owner === "Sean" && isOpenTask(t); });
   // "Today": only what needs Sean personally — delegated and monitored work stays off this list.
   var today = TODAY();
   var seanAction = seanActive.filter(function(t) { return stateOf(t) === "Our action"; });
   var tOverdue = sortByUrgency(seanAction.filter(isOverdue));
   var tToday = sortByUrgency(seanAction.filter(function(t) { return t.expected_date === today; }));
-  var tDecide = sortByUrgency(seanAction.filter(function(t) { return t.status === "FYA" && !isOverdue(t) && t.expected_date !== today; }));
   var tFollow = sortByUrgency(seanActive.filter(function(t) { return stateOf(t) === "Awaiting response" && ["overdue","today"].includes(dueBucket(actionDate(t), today)); }));
   var oppsForSean = leads.filter(function(o) { return isActiveLead(o) && (o.next_action_owner === "Sean" || (!o.next_action_owner && o.owner === "Sean")) && stageOf(o) !== "On Hold / Nurture"; })
     .sort(function(a, b) { return (leadFollowUp(a) || "9999") > (leadFollowUp(b) || "9999") ? 1 : -1; });
   var oppsDue = oppsForSean.filter(function(o) { return ["overdue","today","week"].includes(dueBucket(leadFollowUp(o), today)); });
-  var todoTab = sortByUrgency(seanActive.filter(function(t) { return t.status === "FYA" || t.status === "To Do"; }));
-  var followTab = sortByUrgency(seanActive.filter(function(t) { return t.status === "Follow Up"; }));
-  var regularFlags = flags.filter(function(f) { return f.task_subject !== "Weekly Customer Report"; });
-  var weeklyReports = flags.filter(function(f) { return f.task_subject === "Weekly Customer Report"; });
-  var unseenFlags = regularFlags.filter(function(f) { return !f.seen; });
-  var unreadReports = weeklyReports.filter(function(f) { return !f.seen; });
-  var activeProjectTasks = tasks.filter(function(t) { return t.project && t.status !== "Done"; }).length;
+  var followTab = sortByUrgency(seanActive.filter(function(t) { return stateOf(t) === "Awaiting response"; }));
+  var decide = sortByUrgency(tasks.filter(function(t) { return isOpenTask(t) && (t.needs_review || "").indexOf("Sean to decide:") === 0; }));
+  var mine = sortByUrgency(seanAction.filter(function(t) { return !isOverdue(t) && t.expected_date !== today; }));
+  var doneRecent = tasks.filter(function(t) { return t.owner === "Sean" && stateOf(t) === "Completed"; })
+    .sort(function(a, b) { return String(b.completed_at || b.actual_date || "").localeCompare(String(a.completed_at || a.actual_date || "")); }).slice(0, 40);
 
-  var getDisplayName = function(key) {
-    var found = tasks.find(function(t) { return normKey(t.company) === key && t.company && t.company.trim(); });
-    return found ? found.company.trim() : key;
-  };
-  var companyKeys = Array.from(new Set(tasks.map(function(t) { return normKey(t.company); }).filter(function(k) { return k && !specialKeys.includes(k); }))).sort();
-  var allAccounts = SPECIAL_ACCOUNTS.concat(companyKeys.map(function(k) { return { key: k, label: getDisplayName(k), color: "#118fb5" }; }));
-
-  function getAccountTasks(key) {
-    return tasks.filter(function(t) { return normKey(t.company) === key; });
-  }
-
+  // Same idea as the main hub: Today · Decide · Mine · Waiting · Deals · Done
   var TABS = [
     { id:"today", emoji:"☀️", label:"Today", count: tOverdue.length + tToday.length + tFollow.length },
+    { id:"decide", emoji:"❓", label:"Decide", count: decide.length },
+    { id:"mine", emoji:"🟠", label:"Mine", count: mine.length },
+    { id:"follow", emoji:"⏳", label:"Waiting", count: followTab.length },
     { id:"deals", emoji:"🎯", label:"Deals", count: oppsDue.length },
-    { id:"todo", emoji:"🔴", label:"To Do", count: todoTab.length },
-    { id:"follow", emoji:"🏌️", label:"Follow", count: followTab.length },
-    { id:"accounts", emoji:"🏢", label:"Accounts", count: 0 },
-    { id:"projects", emoji:"📋", label:"Projects", count: activeProjectTasks },
-    { id:"flags", emoji:"🚨", label:"Flags", count: unseenFlags.length },
-    { id:"reports", emoji:"📊", label:"Reports", count: unreadReports.length },
+    { id:"done", emoji:"✅", label:"Done", count: 0 },
   ];
 
   var s = {
@@ -431,9 +286,8 @@ export default function Sean() {
   }
 
   function badgeColor(id) {
-    if (id === "reports") return "#3b82f6";
-    if (id === "accounts") return "#118fb5";
-    if (id === "projects") return "#d97806";
+    if (id === "decide") return "#f97316";
+    if (id === "mine" || id === "follow") return "#1b4a60";
     return "#ef4444";
   }
 
@@ -441,6 +295,7 @@ export default function Sean() {
 
   return (
     <div style={s.page}>
+      <style>{"@keyframes hubGlow{0%,100%{box-shadow:0 0 6px 1px rgba(239,68,68,.35)}50%{box-shadow:0 0 16px 4px rgba(239,68,68,.45)}}.hub-glow{animation:hubGlow 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.hub-glow{animation:none;box-shadow:0 0 0 2px rgba(239,68,68,.6)}}"}</style>
       <div style={s.header}>
         <HubLogo size={0.7} sub={null} />
         <div style={{ textAlign:"right" }}>
@@ -468,14 +323,14 @@ export default function Sean() {
         {activeTab === "today" && (
           <div>
             <div style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderRadius:12, padding:"12px 14px", marginBottom:14, fontSize:14, color:"#e2e8f0", lineHeight:1.5 }}>
-              {tOverdue.length + tToday.length + tDecide.length + tFollow.length + oppsDue.length === 0
+              {tOverdue.length + tToday.length + decide.length + tFollow.length + oppsDue.length === 0
                 ? "Nothing needs you right now. 🎉"
-                : <span><b style={{ color: tOverdue.length ? "#fca5a5" : "#e2e8f0" }}>{tOverdue.length} overdue</b> · {tToday.length} due today · {tDecide.length} for your decision · {tFollow.length} follow-ups due · {oppsDue.length} deals to move</span>}
+                : <span><b style={{ color: tOverdue.length ? "#fca5a5" : "#e2e8f0" }}>{tOverdue.length} overdue</b> · {tToday.length} due today · {decide.length} for your decision · {tFollow.length} follow-ups due · {oppsDue.length} deals to move</span>}
             </div>
             <button onClick={function() { setShowNote(true); }} style={{ width:"100%", minHeight:46, background:"#1e3a8a33", border:"1px solid #1e3a8a", borderRadius:10, color:"#93c5fd", fontSize:14, fontWeight:600, marginBottom:16 }}>📝 Quick note to Vanya</button>
             {tOverdue.length > 0 && <div><div style={Object.assign({}, s.sectionLabel, { color:"#fca5a5" })}>⚠ Overdue</div>{tOverdue.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
             {tToday.length > 0 && <div><div style={s.sectionLabel}>📅 Due today</div>{tToday.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
-            {tDecide.length > 0 && <div><div style={s.sectionLabel}>🟠 For your decision / approval</div>{tDecide.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
+            {decide.length > 0 && <button onClick={function() { setActiveTab("decide"); }} style={{ width:"100%", minHeight:46, background:"#f9731622", border:"1px solid #f97316", borderRadius:10, color:"#fdba74", fontSize:14, fontWeight:700, marginBottom:14 }}>❓ {decide.length} question{decide.length === 1 ? "" : "s"} waiting for your decision →</button>}
             {tFollow.length > 0 && <div><div style={s.sectionLabel}>🏌️ Follow-ups due — no reply yet</div>{tFollow.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
             {oppsDue.length > 0 && <div><div style={s.sectionLabel}>🎯 Deals needing you this week</div>{oppsDue.map(function(o) { return <OppRow key={o.id} o={o} onOpen={setOpenOpp} />; })}</div>}
           </div>
@@ -488,25 +343,21 @@ export default function Sean() {
           </div>
         )}
 
-        {activeTab === "todo" && (
+        {activeTab === "decide" && (
           <div>
-            {todoTab.length === 0
+            <div style={s.sectionLabel}>❓ Questions only you can answer ({decide.length})</div>
+            {decide.length === 0
+              ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div style={{ fontSize:13 }}>Nothing waiting on your decision</div></div>
+              : decide.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} showOwner />; })}
+          </div>
+        )}
+
+        {activeTab === "mine" && (
+          <div>
+            <div style={s.sectionLabel}>🟠 Your other open actions ({mine.length})</div>
+            {mine.length === 0
               ? <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>🎉</div><div style={{ fontSize:13 }}>All clear!</div></div>
-              : <div>
-                  {todoTab.filter(function(t) { return t.status === "FYA"; }).length > 0 && (
-                    <div>
-                      <div style={s.sectionLabel}>🟠 For Your Attention</div>
-                      {todoTab.filter(function(t) { return t.status === "FYA"; }).map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}
-                    </div>
-                  )}
-                  {todoTab.filter(function(t) { return t.status === "To Do"; }).length > 0 && (
-                    <div>
-                      <div style={Object.assign({}, s.sectionLabel, { marginTop: todoTab.filter(function(t) { return t.status === "FYA"; }).length > 0 ? 12 : 4 })}>🔴 To Do</div>
-                      {todoTab.filter(function(t) { return t.status === "To Do"; }).map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}
-                    </div>
-                  )}
-                </div>
-            }
+              : mine.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}
           </div>
         )}
 
@@ -520,183 +371,21 @@ export default function Sean() {
           </div>
         )}
 
-        {activeTab === "accounts" && !selectedAccount && (
+        {activeTab === "done" && (
           <div>
-            <div style={{ position:"relative", marginBottom:10 }}>
-              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#6a8090", fontSize:13 }}>🔍</span>
-              <input value={accountSearch} onChange={function(e) { setAccountSearch(e.target.value); }} placeholder="Search accounts..."
-                style={Object.assign({}, inp, { paddingLeft:32, fontSize:13, padding:"7px 10px 7px 32px" })} />
-            </div>
-            {allAccounts.filter(function(a) { return !accountSearch.trim() || a.label.toLowerCase().includes(accountSearch.toLowerCase()); }).map(function(account) {
-              var total = getAccountTasks(account.key).length;
-              var active = getAccountTasks(account.key).filter(function(t) { return t.status !== "Done"; }).length;
-              var overdue = getAccountTasks(account.key).filter(isOverdue).length;
-              var urgent = getAccountTasks(account.key).filter(function(t) { return t.priority === "Urgent" && t.status !== "Done"; }).length;
-              if (total === 0 && !specialKeys.includes(account.key)) return null;
-              return (
-                <div key={account.key} onClick={function() { setSelectedAccount(account); setAccountFilter("All"); }}
-                  style={{ background:"#0e2d3e", border:"1px solid #1b4a60", borderLeft:"3px solid " + account.color, borderRadius:10, padding:"12px 14px", marginBottom:8, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:14, fontWeight:700, color:"#e2e8f0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginBottom:3 }}>{account.label}</div>
-                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                      {active > 0 && <span style={{ fontSize:11, color:"#9ca3af" }}>{active} active</span>}
-                      {overdue > 0 && <span style={{ fontSize:11, color:"#fca5a5" }}>⚠ {overdue} overdue</span>}
-                      {urgent > 0 && <span style={{ fontSize:11, color:"#f59e0b" }}>🔴 {urgent} urgent</span>}
-                      {active === 0 && total > 0 && <span style={{ fontSize:11, color:"#10b981" }}>✅ All done</span>}
-                      {total === 0 && <span style={{ fontSize:11, color:"#557080" }}>No tasks yet</span>}
-                    </div>
-                  </div>
-                  <span style={{ color:"#6a8090", fontSize:16, marginLeft:8 }}>›</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {activeTab === "accounts" && selectedAccount && (
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-              <button onClick={function() { setSelectedAccount(null); setAccountFilter("All"); }}
-                style={{ background:"none", border:"none", color:"#9ca3af", cursor:"pointer", fontSize:20, padding:"4px 8px 4px 0" }}>←</button>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:16, fontWeight:800, color:"#e2e8f0" }}>{selectedAccount.label}</div>
-                <div style={{ fontSize:11, color:"#7f93a1" }}>
-                  {getAccountTasks(selectedAccount.key).filter(function(t) { return t.status !== "Done"; }).length} active · {getAccountTasks(selectedAccount.key).filter(isOverdue).length} overdue
-                </div>
-              </div>
-            </div>
-            <div style={{ display:"flex", gap:5, overflowX:"auto", marginBottom:12, paddingBottom:4 }}>
-              {["All", "To Do", "FYA", "Follow Up", "FYI", "Overdue", "Urgent"].map(function(f) {
-                var acctTasks = getAccountTasks(selectedAccount.key);
-                var count = f === "All" ? acctTasks.filter(function(t) { return t.status !== "Done"; }).length
-                  : f === "Overdue" ? acctTasks.filter(isOverdue).length
-                  : f === "Urgent" ? acctTasks.filter(function(t) { return t.priority === "Urgent" && t.status !== "Done"; }).length
-                  : acctTasks.filter(function(t) { return t.status === f; }).length;
-                var active = accountFilter === f;
-                var color = f === "Overdue" ? "#ef4444" : f === "Urgent" ? "#f59e0b" : f === "All" ? "#118fb5" : (STATUS_COLOR[f] || "#118fb5");
+            <div style={s.sectionLabel}>✅ Recently completed</div>
+            {doneRecent.length === 0 && <div style={s.empty}><div style={{ fontSize:13 }}>Nothing completed yet</div></div>}
+            <div style={{ border:"1px solid #10364a", borderRadius:10, overflow:"hidden" }}>
+              {doneRecent.map(function(t) {
                 return (
-                  <button key={f} onClick={function() { setAccountFilter(f); }}
-                    style={{ flexShrink:0, padding:"5px 10px", borderRadius:99, border:"1px solid " + (active ? color : "#1b4a60"), background:active ? color+"33" : "none", color:active ? color : "#7f93a1", cursor:"pointer", fontSize:11, fontWeight:active ? 700 : 400, display:"flex", alignItems:"center", gap:4 }}>
-                    {f}
-                    {count > 0 && <span style={{ background:"rgba(255,255,255,0.15)", borderRadius:99, padding:"0 5px", fontSize:10 }}>{count}</span>}
-                  </button>
+                  <div key={t.id} style={{ display:"flex", gap:8, alignItems:"center", padding:"8px 12px", borderBottom:"1px solid #10364a", fontSize:12, color:"#6a8090" }}>
+                    <span style={{ color:"#10b981" }}>✓</span>
+                    <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#9ca3af" }}>{t.subject}</span>
+                    <span style={{ flexShrink:0 }}>{fmtDate(String(t.completed_at || t.actual_date || "").slice(0, 10))}</span>
+                  </div>
                 );
               })}
             </div>
-            {sortByUrgency(getAccountTasks(selectedAccount.key).filter(function(t) {
-              if (accountFilter === "All") return t.status !== "Done";
-              if (accountFilter === "Overdue") return isOverdue(t);
-              if (accountFilter === "Urgent") return t.priority === "Urgent" && t.status !== "Done";
-              return t.status === accountFilter;
-            })).map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}
-          </div>
-        )}
-
-        {activeTab === "projects" && !selectedProject && (
-          <ProjectList tasks={tasks} onSelect={function(name) { setSelectedProject(name); setProjectStatusFilter("All"); }} />
-        )}
-
-        {activeTab === "projects" && selectedProject && (
-          <ProjectDetail
-            projectName={selectedProject}
-            tasks={tasks}
-            statusFilter={projectStatusFilter}
-            onFilterChange={setProjectStatusFilter}
-            onBack={function() { setSelectedProject(null); }}
-            onEdit={setEditingTask}
-            onDone={markDone}
-          />
-        )}
-
-        {activeTab === "flags" && (
-          <div>
-            {unseenFlags.length > 0 && (
-              <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
-                <button onClick={markAllFlagsSeen} style={{ padding:"5px 12px", background:"#10b98122", border:"1px solid #10b981", borderRadius:6, color:"#10b981", cursor:"pointer", fontSize:12, fontWeight:600 }}>✓ All seen</button>
-              </div>
-            )}
-            {unseenFlags.length === 0 && flags.filter(function(f) { return f.seen && f.task_subject !== "Weekly Customer Report"; }).length === 0 && (
-              <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>✅</div><div style={{ fontSize:13 }}>No flags</div></div>
-            )}
-            {unseenFlags.length > 0 && (
-              <div style={{ marginBottom:16 }}>
-                <div style={s.sectionLabel}>⚠️ Needs Attention</div>
-                {unseenFlags.map(function(f) {
-                  return (
-                    <div key={f.id} style={{ background:"#0e2d3e", border:"1px solid " + URGENCY_COLOR[f.urgency]+"44", borderLeft:"3px solid " + URGENCY_COLOR[f.urgency], borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                          <span style={{ fontSize:10, padding:"2px 7px", borderRadius:99, background:URGENCY_COLOR[f.urgency]+"33", color:URGENCY_COLOR[f.urgency], fontWeight:700 }}>{f.urgency}</span>
-                          <span style={{ fontSize:11, color:"#9ca3af" }}>{f.from_name}</span>
-                        </div>
-                        <span style={{ fontSize:10, color:"#6a8090" }}>{fmtDateTime(f.created_at)}</span>
-                      </div>
-                      {f.task_subject && f.task_subject !== "General flag" && <div style={{ fontSize:11, color:"#7f93a1", marginBottom:4 }}>Re: {f.task_subject}</div>}
-                      <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5, marginBottom:10 }}>{f.note}</div>
-                      <button onClick={function() { markFlagSeen(f.id); }} style={{ width:"100%", padding:"9px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:12, fontWeight:700, cursor:"pointer" }}>Got it</button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {flags.filter(function(f) { return f.seen && f.task_subject !== "Weekly Customer Report"; }).slice(0,5).map(function(f) {
-              return (
-                <div key={f.id} style={{ background:"#0b2735", border:"1px solid #10364a", borderLeft:"3px solid #557080", borderRadius:10, padding:"10px 12px", marginBottom:6, opacity:0.6 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                    <span style={{ fontSize:11, color:"#6a8090" }}>{f.from_name} · {f.urgency}</span>
-                    <span style={{ fontSize:10, color:"#557080" }}>{fmtDateTime(f.created_at)}</span>
-                  </div>
-                  <div style={{ fontSize:12, color:"#7f93a1", lineHeight:1.4 }}>{f.note}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {activeTab === "reports" && (
-          <div>
-            {weeklyReports.length === 0 && (
-              <div style={s.empty}><div style={{ fontSize:32, marginBottom:8 }}>📊</div><div style={{ fontSize:13 }}>No reports yet</div></div>
-            )}
-            {unreadReports.length > 0 && (
-              <div style={{ marginBottom:16 }}>
-                <div style={s.sectionLabel}>New</div>
-                {unreadReports.map(function(r) {
-                  return (
-                    <div key={r.id} style={{ background:"#0e2d3e", border:"1px solid #3b82f644", borderLeft:"3px solid #3b82f6", borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>from {r.from_name}</div>
-                          <div style={{ fontSize:10, color:"#7f93a1" }}>{fmtDateTime(r.created_at)}</div>
-                        </div>
-                        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                          <span style={{ fontSize:10, background:"#f97316", color:"#fff", borderRadius:99, padding:"2px 7px", fontWeight:700 }}>New</span>
-                          <button onClick={function() { if(window.confirm("Delete?")) deleteReport(r.id); }}
-                            style={{ background:"none", border:"1px solid #7f1d1d", borderRadius:6, color:"#ef4444", cursor:"pointer", padding:"3px 7px", fontSize:11 }}>🗑️</button>
-                        </div>
-                      </div>
-                      <pre style={{ background:"#08202c", border:"1px solid #1b4a60", borderRadius:8, padding:10, color:"#e2e8f0", fontSize:11, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.5, margin:"0 0 10px", overflowX:"auto" }}>{r.note}</pre>
-                      <button onClick={function() { markFlagSeen(r.id); }} style={{ width:"100%", padding:"9px", background:"#10b98122", border:"1px solid #10b981", borderRadius:8, color:"#10b981", fontSize:12, fontWeight:700, cursor:"pointer" }}>Mark Read</button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {weeklyReports.filter(function(r) { return r.seen; }).slice(0, 5).map(function(r) {
-              return (
-                <div key={r.id} style={{ background:"#0b2735", border:"1px solid #10364a", borderLeft:"3px solid #557080", borderRadius:10, padding:"10px 12px", marginBottom:6, opacity:0.6 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                    <span style={{ fontSize:12, color:"#7f93a1", fontWeight:600 }}>from {r.from_name}</span>
-                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <span style={{ fontSize:10, color:"#557080" }}>{fmtDateTime(r.created_at)}</span>
-                      <button onClick={function() { if(window.confirm("Delete?")) deleteReport(r.id); }}
-                        style={{ background:"none", border:"1px solid #7f1d1d", borderRadius:6, color:"#ef4444", cursor:"pointer", padding:"2px 6px", fontSize:10 }}>🗑️</button>
-                    </div>
-                  </div>
-                  <pre style={{ background:"#08202c", border:"1px solid #10364a", borderRadius:8, padding:8, color:"#7f93a1", fontSize:10, whiteSpace:"pre-wrap", fontFamily:"system-ui", lineHeight:1.5, margin:0, overflowX:"auto" }}>{r.note}</pre>
-                </div>
-              );
-            })}
           </div>
         )}
 

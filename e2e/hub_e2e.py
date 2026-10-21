@@ -517,7 +517,17 @@ def mobile_checks(browser):
         btn.tap()
         m.wait_for_timeout(1000)
         assert sql(f"select action_state||'|'||status from tasks where id={tid}") == "Completed|Done"
-        results.append((19, "Mobile: no sideways scrolling on / and /sean; Sean completes a task with a ≥40px tap target", "PASS", ""))
+        sql("insert into tasks(subject, owner, status, action_state, needs_review) values ('E2E decide on Kiwari','Sean','FYA','Our action','Sean to decide: pursue Kiwari via Firoz?')")
+        m.reload(wait_until="networkidle"); m.wait_for_timeout(800)
+        tabs = m.locator("button").filter(has_text="Decide")
+        tabs.first.tap(); m.wait_for_timeout(500)
+        expect(m.get_by_text("E2E decide on Kiwari").first).to_be_visible()
+        expect(m.get_by_text("pursue Kiwari via Firoz?").first).to_be_visible()
+        for old in ("Accounts", "Projects", "Flags", "Reports"):
+            assert m.locator("button").filter(has_text=old).count() == 0, f"old tab still there: {old}"
+        sw, iw = m.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")
+        assert sw <= iw + 1, f"/sean scrolls sideways after tabs ({sw}px)"
+        results.append((19, "Mobile: no sideways scrolling on / and /sean; Sean completes a task with a ≥40px tap target; Decide tab shows his questions; old tabs gone", "PASS", ""))
     except Exception as e:  # noqa
         m.screenshot(path="/home/claude/staging/shots/fail_19.png", full_page=True)
         results.append((19, "Mobile layouts", "FAIL", f"{type(e).__name__}: {str(e)[:300]}"))
