@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { ACTION_STATES, PRIORITIES, stateOf, isOpenTask, actionDate, dueBucket, needsChasing, isActiveLead, leadFollowUp, stageOf, todayISO, addDays, ago } from "../lib/hub";
-import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, normaliseCategory, ownerLabel, PEOPLE, rag, RAG } from "../lib/categories";
+import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, normaliseCategory, ownerLabel, PEOPLE, rag, RAG, QUESTION_TYPES, questionType } from "../lib/categories";
 import { setTaskState, scheduleFollowUp, replyReceived, loadTaskContacts, summariseContacts } from "../lib/data";
 import { C, inp, btn, Banner, Empty, Card, fmtDate, useHubUser } from "./ui";
 import { CategoryTag, StateTag, UrgentTag, DelegatedTag } from "./tags";
@@ -12,7 +12,8 @@ const VIEWS = [["all", "All open"], ["today", "Today"], ["upcoming", "Upcoming"]
 const ACTION_TAGS = [["Our action", "FYA"], ["Awaiting response", "FlwUP"], ["Monitoring", "FYI"]];
 // Old links (dashboard tiles, bookmarks) → new view + person
 const LEGACY = { overdue: ["today"], week: ["upcoming"], later: ["upcoming"], sean: ["all", "Sean"], vanya: ["all", "Vanya"], team: ["all"], mine: ["all", "ME"],
-  awaiting: ["all", null, "Awaiting response"], monitoring: ["all", null, "Monitoring"] };
+  awaiting: ["all", null, "Awaiting response"], monitoring: ["all", null, "Monitoring"],
+  decide: ["all", "All", null, "Sean to decide:"] };
 const GLOW_CSS = `@keyframes hubGlow{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.0),0 0 6px 1px rgba(239,68,68,.35)}50%{box-shadow:0 0 0 1px rgba(239,68,68,.55),0 0 16px 4px rgba(239,68,68,.45)}}.hub-glow{animation:hubGlow 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.hub-glow{animation:none;box-shadow:0 0 0 2px rgba(239,68,68,.6)}}@media (max-width:819px){.hub-chiprow{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none}.hub-chiprow>*{flex-shrink:0}}`;
 const CHASE_IN = [["2d", 2], ["3d", 3], ["1 wk", 7], ["2 wks", 14]];
 
@@ -21,7 +22,8 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
   const legacy = LEGACY[initialView];
   const [view, setView] = useState(legacy ? legacy[0] : initialView);
   const [who, setWho] = useState(legacy && legacy[1] ? (legacy[1] === "ME" ? me : legacy[1]) : initialWho);
-  const [tag, setTag] = useState((legacy && legacy[2]) || "All");          // FYA / FlwUP / FYI
+  const [tag, setTag] = useState((legacy && legacy[2]) || "All");
+  const [question, setQuestion] = useState((legacy && legacy[3]) || "All");   // needs_review label prefix          // FYA / FlwUP / FYI
   const [owner, setOwner] = useState("All");
   const [company, setCompany] = useState("");
   const [opp, setOpp] = useState("");
@@ -46,7 +48,7 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
     const t = tasks.filter((x) => !x.archived_at).map((x) => ({
       kind: "task", id: x.id, raw: x, title: x.subject, owner: x.owner, state: stateOf(x), date: actionDate(x),
       priority: x.priority, company_id: x.company_id, company: x.company || x.client, opportunity_id: x.opportunity_id,
-      waiting_on: x.waiting_on, next: x.next_action, visibility: x.visibility, category: normaliseCategory(x.category),
+      waiting_on: x.waiting_on, next: x.next_action, visibility: x.visibility, category: normaliseCategory(x.category), question: x.needs_review || null,
     }));
     const o = includeOpps ? opportunities.filter(isActiveLead).filter((x) => x.next_action || leadFollowUp(x)).map((x) => ({
       kind: "opp", id: x.id, raw: x, title: x.name || x.company, owner: x.next_action_owner || x.owner,
@@ -70,6 +72,7 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
   const passes = (r) =>
     (who === "All" || r.owner === who) &&
     (tag === "All" || r.state === tag) &&
+    (question === "All" || (question === "any" ? !!r.question : (r.question || "").startsWith(question))) &&
     (owner === "All" || r.owner === owner) &&
     (!company || String(r.company_id) === company) &&
     (!opp || String(r.opportunity_id) === opp) &&
@@ -130,6 +133,15 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
           <button key={c} onClick={() => setCategory(category === c ? "All" : c)} aria-pressed={category === c}
             style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: category === c ? CATEGORIES[c].fill : "none", color: CATEGORIES[c].ink, borderColor: category === c ? CATEGORIES[c].ink : CATEGORIES[c].ink + "66" }}>{c}</button>
         ))}
+      </div>
+      <div className="hub-chiprow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Questions</span>
+        {[...QUESTION_TYPES, { prefix: "any", label: "Any open question", ink: "#fde68a" }].map((qt) => {
+          const n = rows.filter((r) => open(r) && (qt.prefix === "any" ? !!r.question : (r.question || "").startsWith(qt.prefix))).length;
+          const on = question === qt.prefix;
+          return <button key={qt.prefix} onClick={() => setQuestion(on ? "All" : qt.prefix)} aria-pressed={on}
+            style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, fontWeight: 600, background: on ? qt.ink + "33" : "none", color: qt.ink, borderColor: on ? qt.ink : qt.ink + "55" }}>❓ {qt.label}{n ? ` · ${n}` : ""}</button>;
+        })}
       </div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: C.dim, marginBottom: 8 }}>
         {["red", "amber", "yellow", "green"].map((l) => <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: RAG[l].ink, display: "inline-block" }} />{RAG[l].label}</span>)}
@@ -192,6 +204,7 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
                 <div style={{ fontSize: 12, color: C.dim }}>{[r.company, r.waiting_on ? `waiting on ${r.waiting_on}` : null].filter(Boolean).join(" · ")}</div>
                 {ct?.last && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{ct.lastDir === "Inbound" ? "Last heard from them" : "Last contacted"} {ago(ct.last)}{ct.chases ? ` · chased ${ct.chases}×` : ""}</div>}
                 {r.next && <div style={{ fontSize: 12, color: C.accent, marginTop: 3 }}>→ {r.next}</div>}
+                {r.question && (() => { const qt = questionType(r.question); return <div style={{ fontSize: 12, color: qt.ink, marginTop: 3 }}>❓ {r.question.slice(qt.prefix.length).trim() || r.question}</div>; })()}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "auto" }} onClick={(e) => e.stopPropagation()}>
                 <div style={{ fontSize: 12, color: C.muted }}>{r.owner || "—"}</div>

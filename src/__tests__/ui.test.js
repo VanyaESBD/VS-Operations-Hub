@@ -336,3 +336,21 @@ describe("Done list is compact", () => {
     expect(screen.queryByRole("button", { name: "✓ Done" })).toBeNull();
   });
 });
+
+describe("Open questions — Sean to decide filter", () => {
+  const FollowUps = require("../hub/FollowUps").default;
+  const qs = [
+    { id: 701, subject: "Kiwari via Firoz", owner: "Sean", action_state: "Our action", status: "FYA", needs_review: "Sean to decide: pursue Kiwari?" },
+    { id: 702, subject: "CIMC balance check", owner: "Sean", action_state: "Our action", status: "FYA", needs_review: "Check records: has USD 4,187.27 been paid?" },
+    { id: 703, subject: "No question here", owner: "Vanya", action_state: "Our action", status: "To Do" },
+  ];
+  test("dashboard link opens only Sean's decisions, and the question shows on the card", () => {
+    render(<FollowUps initialView="decide" tasks={qs} opportunities={[]} companies={[]} onOpenTask={() => {}} onOpenOpportunity={() => {}} onChanged={() => {}} />);
+    expect(screen.getByText("Kiwari via Firoz")).toBeInTheDocument();
+    expect(screen.getByText(/pursue Kiwari\?/)).toBeInTheDocument();
+    expect(screen.queryByText("CIMC balance check")).not.toBeInTheDocument();
+    expect(screen.queryByText("No question here")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Any open question/ }));
+    expect(screen.getByText("CIMC balance check")).toBeInTheDocument();
+  });
+});

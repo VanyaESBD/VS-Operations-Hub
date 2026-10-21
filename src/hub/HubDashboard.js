@@ -80,6 +80,7 @@ export default function HubDashboard({ tasks, opportunities, companies, orders, 
           <Tile label="Sean to action" value={forSean.length} color="#f97316" onClick={() => go("followups", "sean")} hint="Only items needing Sean's action, decision or approval" />
           <Tile label="My items" value={openTasks.filter((t) => t.owner === me).length} color={C.accent} onClick={() => go("followups", "mine")} />
           <Tile label="Chase now" value={chase.length} color={C.green} onClick={() => go("followups", "awaiting")} hint="Waiting on someone and the follow-up date has arrived" />
+          <Tile label="Sean to decide" value={openTasks.filter((t) => (t.needs_review || "").startsWith("Sean to decide:")).length} color="#f97316" onClick={() => go("followups", "decide")} hint="Open questions only Sean can answer" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
           <div><SectionTitle>Overdue & due today</SectionTitle>{[...overdue, ...dueToday].slice(0, 8).map(tRow)}{overdue.length + dueToday.length === 0 && <Empty icon="✅">Nothing due</Empty>}</div>

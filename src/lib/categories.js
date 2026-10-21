@@ -119,3 +119,11 @@ export function rag(date, today, { done = false, updatedAt = null, updatedBy = n
   if (date <= addDaysISO(today, 2)) return { level: "yellow", glow: false };
   return { level: "green", glow: false };
 }
+
+// Open-question labels (tasks.needs_review starts with one of these). Set in the 21 Oct clean-up.
+export const QUESTION_TYPES = [
+  { prefix: "Sean to decide:", label: "Sean to decide", ink: "#f97316" },
+  { prefix: "Check records:", label: "Check records", ink: "#60a5fa" },
+  { prefix: "Awaiting confirmation:", label: "Awaiting confirmation", ink: "#facc15" },
+];
+export const questionType = (text) => (text ? QUESTION_TYPES.find((q) => text.startsWith(q.prefix)) || { prefix: "", label: "Open question", ink: "#fde68a" } : null);
