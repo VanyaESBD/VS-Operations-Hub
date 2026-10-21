@@ -11,12 +11,13 @@ export const QUICK_TYPE = "Quick task";
 const GLOW_CSS = `@keyframes hubGlow{0%,100%{box-shadow:0 0 6px 1px rgba(239,68,68,.35)}50%{box-shadow:0 0 16px 4px rgba(239,68,68,.45)}}.hub-glow{animation:hubGlow 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.hub-glow{animation:none;box-shadow:0 0 0 2px rgba(239,68,68,.6)}}`;
 
 export default function QuickList({ tasks, reminders, onChanged, onReminders, onOpenTask, goTasks }) {
-  const { name: me } = useHubUser();
+  const { name: me, role } = useHubUser();
   const today = todayISO();
   const [text, setText] = useState("");
   const [owner, setOwner] = useState(me);
   const [urgent, setUrgent] = useState(false);
-  const [mineOnly, setMineOnly] = useState(false);
+  // Everyone sees only their own quick items by default; Vanya (admin) runs the diary, so she sees all.
+  const [mineOnly, setMineOnly] = useState(role !== "admin" && me !== "Vanya");
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [rTitle, setRTitle] = useState("");

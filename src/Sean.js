@@ -257,7 +257,8 @@ export default function Sean() {
     .sort(function(a, b) { return (leadFollowUp(a) || "9999") > (leadFollowUp(b) || "9999") ? 1 : -1; });
   var oppsDue = oppsForSean.filter(function(o) { return ["overdue","today","week"].includes(dueBucket(leadFollowUp(o), today)); });
   var followTab = sortByUrgency(seanActive.filter(function(t) { return stateOf(t) === "Awaiting response"; }));
-  var decide = sortByUrgency(tasks.filter(function(t) { return isOpenTask(t) && (t.needs_review || "").indexOf("Sean to decide:") === 0; }));
+  // Vanya's own tasks never appear on Sean's lists (Vanya, 22 Oct).
+  var decide = sortByUrgency(tasks.filter(function(t) { return isOpenTask(t) && t.owner !== "Vanya" && (t.needs_review || "").indexOf("Sean to decide:") === 0; }));
   var mine = sortByUrgency(seanAction.filter(function(t) { return !isOverdue(t) && t.expected_date !== today; }));
   var doneRecent = tasks.filter(function(t) { return t.owner === "Sean" && stateOf(t) === "Completed"; })
     .sort(function(a, b) { return String(b.completed_at || b.actual_date || "").localeCompare(String(a.completed_at || a.actual_date || "")); }).slice(0, 40);

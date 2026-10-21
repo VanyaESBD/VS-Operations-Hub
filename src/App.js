@@ -745,8 +745,9 @@ export default function App() {
 
   // Quick list badge = open quick tasks + diary reminders due today or overdue.
   const todayStr = TODAY();
-  const quickCount = tasks.filter(t => t.task_type === "Quick task" && isOpenTask(t)).length
-    + reminders.filter(r => !r.completed && r.remind_date <= todayStr).length;
+  const quickMine = (owner) => role === "admin" || me === "Vanya" || owner === me;   // same rule as the Quick list page
+  const quickCount = tasks.filter(t => t.task_type === "Quick task" && isOpenTask(t) && quickMine(t.owner)).length
+    + reminders.filter(r => !r.completed && r.remind_date <= todayStr && quickMine(r.owner)).length;
 
   const VIEWS = [
     { id:"dashboard", label:"Dashboard", icon:"⬡" },

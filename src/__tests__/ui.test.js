@@ -354,3 +354,26 @@ describe("Open questions — Sean to decide filter", () => {
     expect(screen.getByText("CIMC balance check")).toBeInTheDocument();
   });
 });
+
+describe("Quick list shows only your own items (except for Vanya, who runs the diary)", () => {
+  const QuickList = require("../hub/QuickList").default;
+  const { UserContext } = require("../hub/ui");
+  const items = [
+    { id: 801, subject: "Receive tile delivery", owner: "Vanya", task_type: "Quick task", action_state: "Our action", status: "To Do", expected_date: T },
+    { id: 802, subject: "Call Kerr back", owner: "Sean", task_type: "Quick task", action_state: "Our action", status: "FYA", expected_date: T },
+  ];
+  const rem = [{ id: 9, title: "Vanya dentist", remind_date: T, owner: "Vanya", completed: false }, { id: 10, title: "Sean golf day", remind_date: T, owner: "Sean", completed: false }];
+  const renderAs = (name, role) => render(<UserContext.Provider value={{ name, role, signOut: null }}><QuickList tasks={items} reminders={rem} onChanged={() => {}} onReminders={() => {}} onOpenTask={() => {}} goTasks={() => {}} /></UserContext.Provider>);
+  test("Sean doesn't see Vanya's quick tasks or reminders", () => {
+    renderAs("Sean", "manager");
+    expect(screen.getByText("Call Kerr back")).toBeInTheDocument();
+    expect(screen.getByText("Sean golf day")).toBeInTheDocument();
+    expect(screen.queryByText("Receive tile delivery")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vanya dentist")).not.toBeInTheDocument();
+  });
+  test("Vanya sees everything by default", () => {
+    renderAs("Vanya", "admin");
+    expect(screen.getByText("Receive tile delivery")).toBeInTheDocument();
+    expect(screen.getByText("Call Kerr back")).toBeInTheDocument();
+  });
+});
