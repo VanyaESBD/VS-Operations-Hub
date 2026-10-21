@@ -129,3 +129,15 @@ export function Tag({ fill, ink, children, title, small }) {
     </span>
   );
 }
+
+// Built-in wordmark — no dependency on the ESBD website being reachable.
+export function HubLogo({ size = 1, sub = "Operations Hub" }) {
+  return (
+    <div style={{ lineHeight: 1.05 }} aria-label="ESBD Operations Hub">
+      <div style={{ fontSize: 26 * size, fontWeight: 900, letterSpacing: 2 * size, color: "#e2f6fb" }}>
+        ES<span style={{ color: "#18b9dc" }}>BD</span>
+      </div>
+      {sub && <div style={{ fontSize: 11 * size, color: "#7f93a1", letterSpacing: 0.5, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}

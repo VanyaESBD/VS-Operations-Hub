@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { CATEGORIES, normaliseCategory } from "./lib/categories";
 import { CategoryTag } from "./hub/tags";
+import { HubLogo } from "./hub/ui";
 import { todayISO, addDays, stageOf, isActiveLead, leadFollowUp, dueBucket, formatMoney, PIPELINE_STAGES, STAGE_COLOR, stateOf, isOpenTask, actionDate } from "./lib/hub";
 import { saveOpportunity, addActivityNote } from "./lib/data";
 
@@ -441,7 +442,7 @@ export default function Sean() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:70 }} />
+        <HubLogo size={0.7} sub={null} />
         <div style={{ textAlign:"right" }}>
           <div style={{ fontSize:12, fontWeight:700, color:"#e2e8f0" }}>
             {new Date().getHours() < 12 ? "Morning" : new Date().getHours() < 17 ? "Afternoon" : "Evening"}, Sean

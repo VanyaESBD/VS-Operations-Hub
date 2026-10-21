@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import QuickList from "./hub/QuickList";
 import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, isDueNowTask, isDueNowLead } from "./lib/hub";
 import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord, deleteTaskForever } from "./lib/data";
-import { useHubUser, Banner as HubBanner, Picker, Field as HubField } from "./hub/ui";
+import { useHubUser, Banner as HubBanner, Picker, Field as HubField, HubLogo } from "./hub/ui";
 import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, isPrivateCategory, normaliseCategory, ownerLabel, ASSIGNABLE } from "./lib/categories";
 import HubDashboard from "./hub/HubDashboard";
 import Pipeline, { OpportunityModal } from "./hub/Pipeline";
@@ -768,8 +768,7 @@ export default function App() {
   const Sidebar = (
     <div style={{ width:isMobile?"100%":220,background:"#08202c",borderRight:"1px solid #10364a",padding:isMobile?"16px 10px":"24px 12px",display:"flex",flexDirection:"column",minHeight:"100%" }}>
       <div style={{ padding:"0 8px 24px",borderBottom:"1px solid #10364a" }}>
-        <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width:120,marginBottom:6 }} />
-        <div style={{ fontSize:11,color:"#6a8090",marginTop:2 }}>Operations Tracker</div>
+        <div style={{ marginBottom:6 }}><HubLogo /></div>
       </div>
       <div style={{ marginTop:16,flex:1,overflowY:"auto" }}>
         {VIEWS.filter(v => !v.hidden).map(v=>(

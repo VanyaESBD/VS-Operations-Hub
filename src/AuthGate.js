@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "./supabase";
 import { AUTH_ENABLED, DEFAULT_USER } from "./lib/config";
-import { UserContext, C, inp, btn, Banner } from "./hub/ui";
+import { UserContext, C, inp, btn, Banner, HubLogo } from "./hub/ui";
 
 // Wraps the whole app.
 //  • Login OFF (default): renders the app exactly as before; "me" = Vanya on /, Sean on /sean.
@@ -86,7 +86,7 @@ function LoginForm() {
 
   return (
     <Shell>
-      <img src="https://esbd.co.za/wp-content/uploads/2024/07/4.png" alt="ESBD" style={{ width: 120, marginBottom: 12 }} />
+      <div style={{ marginBottom: 12 }}><HubLogo /></div>
       <h1 style={{ margin: "0 0 4px", fontSize: 20 }}>Operations Hub</h1>
       <div style={{ color: C.dim, fontSize: 13, marginBottom: 20 }}>Sign in to continue</div>
       {err && <Banner>{err}</Banner>}
