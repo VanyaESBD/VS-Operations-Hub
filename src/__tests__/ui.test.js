@@ -392,7 +392,8 @@ describe("Daily action list", () => {
   test("groups by person, splits FYA / chase / FYI / decide, skips future items and private by default", () => {
     const g = buildDailyActions({ tasks: list, today: T });
     const sean = g.find((x) => x.person === "Sean"), vanya = g.find((x) => x.person === "Vanya"), andrea = g.find((x) => x.person === "Andrea");
-    expect(sean.fya.map((i) => i.text)).toEqual(["Approve the UPD quote"]);
+    expect(sean.fya.map((i) => i.text)).toEqual(["Approve quote"]);
+    expect(sean.fya[0].ctx).toBe("→ Approve the UPD quote");
     expect(sean.decide.map((i) => i.text)).toEqual(["Pursue Kiwari?"]);
     expect(vanya.chase[0].text).toMatch(/^Chase Emily/);
     expect(vanya.fya).toHaveLength(0);

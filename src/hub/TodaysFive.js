@@ -9,7 +9,10 @@ const N = 5;
 const QUICK_VERB = /^(send|confirm|chase|call|email|e-mail|message|whatsapp|book|reply|forward|pay|sign|print|check|ask|remind|tell|share|upload|order)\b/i;
 const localDay = (ts) => (ts ? todayISO(new Date(ts)) : null);
 const isWeekend = (iso) => { const d = new Date(iso + "T00:00:00").getDay(); return d === 0 || d === 6; };
-const label = (t) => (t.next_action && t.next_action.trim()) || t.subject;
+// What the job is = the task name; the next step goes underneath (Vanya, 26 Oct: lines must make sense on their own).
+const label = (t) => t.subject;
+const isQuick = (t) => QUICK_VERB.test((t.next_action || "").trim()) || QUICK_VERB.test(t.subject || "");
+const nextStep = (t) => { const n = (t.next_action || "").trim(); return n && n !== t.subject ? n : null; };
 
 export function pickFive(tasks, me, today) {
   const mine = tasks.filter((t) => t.owner === me && isOpenTask(t) && stateOf(t) === "Our action");
@@ -17,8 +20,8 @@ export function pickFive(tasks, me, today) {
   const P = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
   const byUrgency = (a, b) => (P[a.priority] ?? 2) - (P[b.priority] ?? 2) || String(actionDate(a) || "9").localeCompare(String(actionDate(b) || "9")) || a.id - b.id;
   const quick = mine.filter((t) => t.task_type === "Quick task" && due(t)).sort(byUrgency);
-  const verb = mine.filter((t) => t.task_type !== "Quick task" && actionDate(t) && actionDate(t) <= today && QUICK_VERB.test(label(t))).sort(byUrgency);
-  const rest = mine.filter((t) => t.task_type !== "Quick task" && actionDate(t) && actionDate(t) <= today && !QUICK_VERB.test(label(t))).sort(byUrgency);
+  const verb = mine.filter((t) => t.task_type !== "Quick task" && actionDate(t) && actionDate(t) <= today && isQuick(t)).sort(byUrgency);
+  const rest = mine.filter((t) => t.task_type !== "Quick task" && actionDate(t) && actionDate(t) <= today && !isQuick(t)).sort(byUrgency);
   const seen = new Set();
   return [...quick, ...verb, ...rest].filter((t) => !seen.has(t.id) && seen.add(t.id));
 }
@@ -128,6 +131,7 @@ export default function TodaysFive({ tasks, onChanged, compact, who }) {
                   style={{ width: 28, height: 28, borderRadius: 6, border: `2px solid ${C.line}`, background: "none", color: C.dim, fontWeight: 900, cursor: "pointer", flexShrink: 0 }}>{greens + ambers + i + 1}</button>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.priority === "Urgent" && <span style={{ color: C.red }}>! </span>}{label(t)}</div>
+                  {nextStep(t) && <div style={{ fontSize: 12, color: C.accent, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>→ {nextStep(t)}</div>}
                   <div style={{ fontSize: 11, color: d && d < today ? "#fca5a5" : C.dim }}>{[t.company, d ? (d < today ? "overdue" : "today") : "quick"].filter(Boolean).join(" · ")}</div>
                 </div>
                 <button aria-label={`Tomorrow: ${label(t)}`} title="Move to tomorrow" disabled={!!busy} onClick={() => act(t, "move")}

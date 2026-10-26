@@ -524,7 +524,8 @@ def t25(page):
     page.get_by_role("button", name="＋ New ▾").first.click()
     page.get_by_role("menuitem", name="✅ Daily action list").click()
     d = page.get_by_role("dialog")
-    expect(d.get_by_text("E2E call the courier").first).to_be_visible()
+    expect(d.get_by_text("E2E action list item").first).to_be_visible()
+    expect(d.get_by_text("→ E2E call the courier").first).to_be_visible()
     expect(d.get_by_text("1d overdue").first).to_be_visible()
     close_modal(page)
 

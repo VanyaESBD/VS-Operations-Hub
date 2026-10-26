@@ -13,8 +13,8 @@ export function buildDailyActions({ tasks, opportunities = [], reminders = [], t
   const open = tasks.filter((t) => isOpenTask(t) && vis(t));
   const line = (t) => ({
     id: t.id, kind: "task", raw: t, owner: t.owner || "Unassigned",
-    text: (t.next_action && t.next_action.trim()) || t.subject,
-    ctx: t.next_action && t.next_action.trim() && t.next_action.trim() !== t.subject ? t.subject : null,
+    text: t.subject,   // the task name first; the next step is shown after it
+    ctx: t.next_action && t.next_action.trim() && t.next_action.trim() !== t.subject ? "→ " + t.next_action.trim() : null,
     date: actionDate(t), private: t.visibility === "private",
   });
   const groups = {};
@@ -38,7 +38,7 @@ export function buildDailyActions({ tasks, opportunities = [], reminders = [], t
   for (const o of opportunities.filter(isActiveLead)) {
     const d = leadFollowUp(o);
     if (!due(d) || stageOf(o) === "On Hold / Nurture") continue;
-    add(o.next_action_owner || o.owner, "fya", { id: o.id, kind: "opp", raw: o, owner: o.owner, text: o.next_action || `Follow up ${o.name || o.company}`, ctx: `🎯 ${o.name || o.company}`, date: d });
+    add(o.next_action_owner || o.owner, "fya", { id: o.id, kind: "opp", raw: o, owner: o.owner, text: `🎯 ${o.name || o.company}`, ctx: o.next_action ? "→ " + o.next_action : null, date: d });
   }
   for (const r of reminders.filter((r) => !r.completed && r.remind_date <= today && (includePrivate || r.visibility !== "private"))) {
     add(r.owner, "diary", { id: r.id, kind: "reminder", raw: r, owner: r.owner, text: r.title, ctx: r.description || null, date: r.remind_date });
@@ -70,7 +70,7 @@ export function actionsToText(list, today) {
       s += `${label}\n`;
       for (const it of g[k]) {
         const late = it.date && it.date < today ? ` (${daysLate(it.date, today)}d overdue)` : "";
-        s += `☐ ${it.text}${late}\n`;
+        s += `☐ ${it.text}${it.ctx && it.ctx.startsWith("→") ? " " + it.ctx : ""}${late}\n`;
       }
     }
   }
