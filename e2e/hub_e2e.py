@@ -187,7 +187,9 @@ def t7(page):
 def t8(page):
     nav(page, "Companies & projects")
     page.get_by_label("Search companies").fill("E2E Pharma")
+    page.wait_for_timeout(500)
     page.get_by_text("E2E Pharma Distribution", exact=True).click()
+    expect(page.get_by_role("dialog")).to_be_visible()
     page.get_by_role("dialog").get_by_role("button", name="+ Log communication").click()
     d = page.get_by_role("dialog").last
     d.get_by_label("Opportunity").select_option(label="E2E Pallet Porter trial")
@@ -199,8 +201,9 @@ def t8(page):
     fu = sql("select action_state||'|'||status||'|'||(follow_up_date is not null)::text from tasks where opportunity_id=(select id from leads where name='E2E Pallet Porter trial') and subject like 'Follow up:%'")
     assert fu == "Awaiting response|Follow Up|true", fu
     assert sql("select pipeline_stage from leads where name='E2E Pallet Porter trial'") == "Proposal / Quotation"
-    page.keyboard.press("Escape")
-    close_modal(page)
+    page.keyboard.press("Escape")   # Esc now closes the company window (26 Oct)
+    page.wait_for_timeout(300)
+    expect(page.get_by_role("dialog")).to_have_count(0)
 
 
 @check(9, "A wrong association can be corrected: 'Change links' moves a communication to a task")
@@ -526,6 +529,40 @@ def t25(page):
     close_modal(page)
 
 
+@check(26, "Bug sweep: pop-ups close on outside click, Esc and screen change; Sean's phone edit stops the glow")
+def t26(page):
+    page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(800)
+    # 🔔 New today: click outside closes it
+    page.get_by_label("New today").click()
+    expect(page.get_by_text(re.compile("New Today"))).to_be_visible()
+    page.mouse.click(600, 40); page.wait_for_timeout(200)
+    expect(page.get_by_text(re.compile("New Today"))).to_have_count(0)
+    # …Esc closes it
+    page.get_by_label("New today").click(); page.keyboard.press("Escape"); page.wait_for_timeout(200)
+    expect(page.get_by_text(re.compile("New Today"))).to_have_count(0)
+    # …changing screens closes it
+    page.get_by_label("New today").click(); nav(page, "Tasks")
+    expect(page.get_by_text(re.compile("New Today"))).to_have_count(0)
+    # ＋ New menu: outside click closes it
+    page.get_by_role("button", name="＋ New ▾").click()
+    expect(page.get_by_role("menu")).to_be_visible()
+    page.mouse.click(600, 40); page.wait_for_timeout(200)
+    expect(page.get_by_role("menu")).to_have_count(0)
+    # Esc closes a pop-up window
+    new_task(page); expect(page.get_by_role("dialog")).to_be_visible()
+    page.keyboard.press("Escape"); page.wait_for_timeout(200)
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    # Sean's phone edit records "Sean" and stops the glow
+    tid = sql("insert into tasks(subject, owner, status, action_state, expected_date, updated_by) values ('E2E Sean glow edit','Sean','FYA','Our action',current_date - 5,'Import (Vanya-approved)') returning id").splitlines()[0]
+    page.goto(URL + "/sean", wait_until="networkidle"); page.wait_for_timeout(800)
+    card = page.get_by_text("E2E Sean glow edit").first.locator("xpath=ancestor::div[.//button[@aria-label='Edit']][1]")
+    card.get_by_role("button", name="Edit").click()
+    page.get_by_placeholder("What needs to happen next?").fill("Call Kerr")
+    page.get_by_role("button", name="Save").click(); page.wait_for_timeout(1000)
+    assert sql(f"select updated_by from tasks where id={tid}") == "Sean"
+    page.goto(URL, wait_until="networkidle")
+
+
 def mobile_checks(browser):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, timezone_id=TZ)
     m = ctx.new_page()
@@ -574,7 +611,7 @@ def main():
         page.on("dialog", lambda dlg: dlg.accept())
         page.goto(URL, wait_until="networkidle")
         page.wait_for_timeout(1000)
-        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24, t25]:
+        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24, t25, t26]:
             # Fresh page for every check so one failure can't cascade into the next.
             page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(700)
             fn(page)

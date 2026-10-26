@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { ACTION_STATES, PRIORITIES, stateOf, isOpenTask, actionDate, dueBucket, needsChasing, isActiveLead, leadFollowUp, stageOf, todayISO, addDays, ago } from "../lib/hub";
 import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, normaliseCategory, ownerLabel, PEOPLE, rag, RAG, QUESTION_TYPES, questionType } from "../lib/categories";
 import { setTaskState, scheduleFollowUp, replyReceived, loadTaskContacts, summariseContacts } from "../lib/data";
-import { C, inp, btn, Banner, Empty, Card, fmtDate, useHubUser } from "./ui";
+import { C, inp, btn, Banner, Empty, Card, fmtDate, useHubUser, useDismiss } from "./ui";
 import { CategoryTag, StateTag, UrgentTag } from "./tags";
 
 // Order matters: the first tabs are the ones used every day.
@@ -225,11 +225,14 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
 // "Follow up in 2d / 3d / 1 wk / 2 wks / pick a date" — one tap to schedule the next chase.
 function ChaseButton({ label, onPick, busy }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, close, ref);
   const [date, setDate] = useState("");
   const today = todayISO();
   if (!open) return <button disabled={busy} style={{ ...btn("small"), color: "#e2f6fb", borderColor: C.accent }} onClick={() => setOpen(true)}>{busy ? "Saving…" : label}</button>;
   return (
-    <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", background: C.input, border: `1px solid ${C.accent}`, borderRadius: 8, padding: 4 }}>
+    <div ref={ref} style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", background: C.input, border: `1px solid ${C.accent}`, borderRadius: 8, padding: 4 }}>
       <span style={{ fontSize: 11, color: C.muted }}>Follow up in</span>
       {CHASE_IN.map(([l, n]) => <button key={l} style={{ ...btn("small"), padding: "3px 8px" }} onClick={() => { setOpen(false); onPick(addDays(today, n)); }}>{l}</button>)}
       <input type="date" aria-label="Follow-up date" min={today} value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inp, width: 140, padding: "3px 6px", fontSize: 12 }} />

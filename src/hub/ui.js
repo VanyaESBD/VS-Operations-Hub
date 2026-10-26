@@ -1,5 +1,5 @@
 // Shared UI for the CRM screens — matches the existing hub's dark theme.
-import { createContext, useContext, useId, isValidElement, cloneElement, Children } from "react";
+import { createContext, useContext, useId, useEffect, isValidElement, cloneElement, Children } from "react";
 import { DEFAULT_USER } from "../lib/config";
 
 export const UserContext = createContext({ name: DEFAULT_USER, role: null, signOut: null });
@@ -19,6 +19,7 @@ export const btn = (kind = "primary") => ({
 }[kind]);
 
 export function Modal({ children, onClose, wide }) {
+  useEffect(() => { const k = (e) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [onClose]);
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,10,20,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
       <div onClick={(e) => e.stopPropagation()} role="dialog" style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: 24, maxWidth: wide ? 980 : 740, width: "95vw", maxHeight: "92vh", overflowY: "auto" }}>
@@ -140,4 +141,21 @@ export function HubLogo({ size = 1, sub = "Operations Hub" }) {
       {sub && <div style={{ fontSize: 11 * size, color: "#7f93a1", letterSpacing: 0.5, marginTop: 2 }}>{sub}</div>}
     </div>
   );
+}
+
+// Close a popover when you click/tap outside it or press Esc (fixes "box stays open" bugs, 26 Oct 2026).
+export function useDismiss(open, onClose, ref) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown, { passive: true });
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose, ref]);
 }

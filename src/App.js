@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 import QuickList from "./hub/QuickList";
 import DailyActions from "./hub/DailyActions";
 import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, isDueNowTask, isDueNowLead } from "./lib/hub";
 import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord, deleteTaskForever } from "./lib/data";
-import { useHubUser, Banner as HubBanner, Picker, Field as HubField, HubLogo } from "./hub/ui";
+import { useHubUser, Banner as HubBanner, Picker, Field as HubField, HubLogo, useDismiss } from "./hub/ui";
 import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, isPrivateCategory, normaliseCategory, ownerLabel, ASSIGNABLE } from "./lib/categories";
 import HubDashboard from "./hub/HubDashboard";
 import Pipeline, { OpportunityModal } from "./hub/Pipeline";
@@ -53,6 +53,7 @@ const newTask = (overrides = {}) => ({
 
 
 function Modal({ children, onClose }) {
+  useEffect(() => { const k = (e) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [onClose]);
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,10,20,0.8)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}>
       <div onClick={(e)=>e.stopPropagation()} role="dialog" aria-modal="true" style={{ background:"#0b2735",border:"1px solid #1b4a60",borderRadius:16,padding:"28px",maxWidth:740,width:"95vw",maxHeight:"92vh",overflowY:"auto" }}>
@@ -277,11 +278,12 @@ function TaskForm({ initial, onSave, onClose, companies = [], opportunities = []
 
 
 function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
+  const { name: me } = useHubUser();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [author, setAuthor] = useState("Vanya");
+  const [author, setAuthor] = useState(me || "Vanya");   // whoever is signed in (was always "Vanya")
 
   const load = async () => {
     const { data } = await supabase.from("task_history").select("*").eq("task_id", taskId).order("created_at", { ascending: false });
@@ -365,9 +367,11 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
 
 
 function StickyNote({ onClose }) {
+  const { name: me } = useHubUser();
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState("");
-  const [author, setAuthor] = useState("Vanya");
+  const [author, setAuthor] = useState(me || "Vanya");   // whoever is signed in (was always "Vanya")
+  useEffect(() => { const k = (e) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", k); return () => document.removeEventListener("keydown", k); }, [onClose]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     loadNotes();
@@ -588,9 +592,18 @@ export default function App() {
   const [showNotes, setShowNotes] = useState(false);
   const [newMenu, setNewMenu] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const newMenuRef = useRef(null);
+  const notifRef = useRef(null);
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [status, setStatus] = useState("Connecting…");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeNewMenu = useCallback(() => setNewMenu(false), []);
+  const closeNotifs = useCallback(() => setShowNotifications(false), []);
+  useDismiss(newMenu, closeNewMenu, newMenuRef);
+  useDismiss(showNotifications, closeNotifs, notifRef);
+  // Changing screens closes any open popover.
+  useEffect(() => { setNewMenu(false); setShowNotifications(false); }, [view]);
   // Phone layout: below 820px the menu lives behind ☰ instead of taking a third of the screen.
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 820);
   useEffect(() => {
@@ -774,8 +787,8 @@ export default function App() {
         <button aria-label="Menu" onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"6px 10px",fontSize:16,display:isMobile?"block":"none" }}>☰</button>
         <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{VIEWS.find(v=>v.id===view)?.label}</span>
         <button aria-label="Search" onClick={()=>{ setView("search"); setSidebarOpen(false); }} style={{ padding:isMobile?"7px 8px":"7px 12px",background:view==="search"?"#123a4f":"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",fontSize:12,fontWeight:600 }}>🔍{isMobile?"":" Search"}</button>
-        <div style={{ position:"relative" }}>
-          <button onClick={()=>setShowNotifications(!showNotifications)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
+        <div ref={notifRef} style={{ position:"relative" }}>
+          <button aria-label="New today" aria-expanded={showNotifications} onClick={()=>setShowNotifications(!showNotifications)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
             🔔
             {newTasks.length>0 && <span style={{ position:"absolute",top:-6,right:-6,background:"#ef4444",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center" }}>{newTasks.length}</span>}
           </button>
@@ -804,10 +817,10 @@ export default function App() {
             </div>
           )}
         </div>
-        <div style={{ position:"relative" }}>
+        <div ref={newMenuRef} style={{ position:"relative" }}>
           <button aria-haspopup="menu" aria-expanded={newMenu} onClick={()=>setNewMenu(o=>!o)} style={{ padding:isMobile?"7px 10px":"7px 14px",background:"#118fb5",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>＋ New ▾</button>
           {newMenu && (
-            <div role="menu" onMouseLeave={()=>setNewMenu(false)} style={{ position:"absolute",right:0,top:38,width:220,background:"#0b2735",border:"1px solid #1b4a60",borderRadius:10,boxShadow:"0 16px 40px rgba(0,0,0,0.55)",padding:6,zIndex:900 }}>
+            <div role="menu" style={{ position:"absolute",right:0,top:38,width:220,background:"#0b2735",border:"1px solid #1b4a60",borderRadius:10,boxShadow:"0 16px 40px rgba(0,0,0,0.55)",padding:6,zIndex:900 }}>
               {[["📋 Task",()=>setModalTask({})],["⚡ Quick task",()=>{ setView("today"); }],["✉️ Log email / call",()=>setCommDraft({})],["📝 Note",()=>setShowNotes(true)],["✅ Daily action list",()=>setShowSummary(true)]].map(([l,fn])=>(
                 <button key={l} role="menuitem" onClick={()=>{ setNewMenu(false); fn(); }} style={{ display:"block",width:"100%",textAlign:"left",padding:"9px 10px",background:"none",border:"none",borderRadius:6,color:"#e2e8f0",cursor:"pointer",fontSize:13 }}
                   onMouseEnter={e=>e.currentTarget.style.background="#10364a"} onMouseLeave={e=>e.currentTarget.style.background="none"}>{l}</button>

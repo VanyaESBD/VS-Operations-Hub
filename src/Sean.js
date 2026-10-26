@@ -213,7 +213,7 @@ export default function Sean() {
 
   function markDone(id) {
     var original = tasks.find(function(t) { return t.id === id; });
-    supabase.from("tasks").update({ status:"Done", actual_date:TODAY() }).eq("id", id).then(function() {
+    supabase.from("tasks").update({ status:"Done", actual_date:TODAY(), updated_by:"Sean" }).eq("id", id).then(function() {
       if (original) {
         supabase.from("task_history").insert([{ task_id:id, changed_by:"Sean", entry_type:"status_change", old_status:original.status, new_status:"Done", note:null }]);
       }
@@ -229,6 +229,7 @@ export default function Sean() {
       next_action: form.next_action,
       notes: form.notes,
       actual_date: form.status === "Done" ? TODAY() : null,
+      updated_by: "Sean",   // records who changed it — also stops the overdue glow
     }).eq("id", original.id).then(function() {
       if (original.status !== form.status) {
         supabase.from("task_history").insert([{ task_id:original.id, changed_by:"Sean", entry_type:"status_change", old_status:original.status, new_status:form.status, note:null }]);
