@@ -573,10 +573,14 @@ def t27(page):
     greens_before = five.locator("span[style*='background: rgb(16, 185, 129)']").count()
     five.get_by_label("Done: E2E five A").click(); page.wait_for_timeout(1200)
     assert sql(f"select action_state from tasks where id={a}") == "Completed"
+    five.get_by_role("button", name="Undo").click(); page.wait_for_timeout(1200)
+    assert sql(f"select action_state from tasks where id={a}") == "Our action", "undo should reopen it"
+    five.get_by_label("Done: E2E five A").click(); page.wait_for_timeout(1200)
+    assert sql(f"select action_state from tasks where id={a}") == "Completed"
     assert five.locator("span[style*='background: rgb(16, 185, 129)']").count() == min(greens_before + 1, 5)
     five.get_by_label("Tomorrow: E2E five B").click(); page.wait_for_timeout(1200)
     assert sql(f"select (expected_date = (now() at time zone '{TZ}')::date + 1)::text from tasks where id={b}") == "true"
-    expect(five.get_by_text("E2E five B")).to_have_count(0)
+    expect(five.get_by_text("E2E five B", exact=True)).to_have_count(0)
 
 
 def mobile_checks(browser):

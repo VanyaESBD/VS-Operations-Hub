@@ -46,6 +46,7 @@ export default function TodaysFive({ tasks, onChanged, compact, who }) {
   const [error, setError] = useState(null);
   const [bonus, setBonus] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [last, setLast] = useState(null);   // { task, kind } — for Undo
 
   useEffect(() => {
     const since = new Date(today + "T00:00:00").toISOString();
@@ -65,11 +66,23 @@ export default function TodaysFive({ tasks, onChanged, compact, who }) {
   const finished = greens + ambers >= N && open.length === 0;
   const nothingToDo = candidates.length === 0 && greens + ambers < N;
 
+  // Changes are recorded under whoever is signed in (not the person whose five it is).
+  const actor = signedIn || me;
   const act = async (t, kind) => {
     setBusy(t.id + kind); setError(null);
-    const { error: e } = kind === "done" ? await setTaskState(t, "Completed", me) : await moveTaskTo(t, tomorrow, me);
+    const { error: e } = kind === "done" ? await setTaskState(t, "Completed", actor) : await moveTaskTo(t, tomorrow, actor);
     setBusy(null);
-    if (e) setError(e); else onChanged();
+    if (e) setError(e); else { setLast({ task: t, kind }); onChanged(); }
+  };
+  const undo = async () => {
+    if (!last) return;
+    const t = last.task;
+    setBusy("undo"); setError(null);
+    const { error: e } = last.kind === "done"
+      ? await setTaskState(t, stateOf(t), actor)
+      : await moveTaskTo(t, (t.action_state === "Awaiting response" ? t.follow_up_date : t.expected_date) || null, actor);
+    setBusy(null);
+    if (e) setError(e); else { setLast(null); onChanged(); }
   };
   const share = `Today's Five ${new Date(today + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}\n${squares.map((q) => (q === "g" ? "🟩" : q === "y" ? "🟨" : "⬜")).join("")}`;
   const copy = async () => { try { await navigator.clipboard.writeText(share); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ } };
@@ -87,6 +100,12 @@ export default function TodaysFive({ tasks, onChanged, compact, who }) {
         ))}
       </div>
       {error && <div style={{ color: "#fca5a5", fontSize: 12, marginBottom: 8 }}>{error}</div>}
+      {last && (
+        <div role="status" style={{ display: "flex", alignItems: "center", gap: 10, background: C.input, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", marginBottom: 8, fontSize: 12, color: C.muted }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{last.kind === "done" ? "✓ Done:" : "→ Moved to tomorrow:"} {label(last.task)}</span>
+          <button onClick={undo} disabled={busy === "undo"} style={{ ...btn("small"), padding: "3px 10px", color: C.accent, borderColor: C.accent }}>Undo</button>
+        </div>
+      )}
       {finished ? (
         <div style={{ textAlign: "center", padding: "4px 0" }}>
           <div style={{ fontSize: 30 }}>🎉</div>
