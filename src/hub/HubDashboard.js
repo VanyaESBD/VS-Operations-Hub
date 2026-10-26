@@ -4,6 +4,7 @@ import {
   isOpenTask, stateOf, actionDate, needsChasing, todayISO, addDays,
 } from "../lib/hub";
 import { loadRecentActivity, loadDataQuality } from "../lib/data";
+import TodaysFive from "./TodaysFive";
 import { C, SectionTitle, Card, Pill, Empty, fmtDate, fmtDateTime } from "./ui";
 
 function Tile({ label, value, color, onClick, hint }) {
@@ -29,7 +30,7 @@ function Row({ title, sub, right, color, onClick }) {
   );
 }
 
-export default function HubDashboard({ tasks, opportunities, orders, go, openTask, openOrder }) {
+export default function HubDashboard({ tasks, opportunities, orders, go, openTask, openOrder, onChanged = () => {} }) {
   const [activity, setActivity] = useState([]);
   const [quality, setQuality] = useState([]);
   const [showActivity, setShowActivity] = useState(false);
@@ -61,6 +62,7 @@ export default function HubDashboard({ tasks, opportunities, orders, go, openTas
   // Kept short on purpose (Vanya, 26 Oct 2026): today's numbers, what's due, pipeline at a glance, orders. Activity on request.
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      <div style={{ maxWidth: 560 }}><TodaysFive tasks={tasks} onChanged={onChanged} /></div>
       <section>
         <SectionTitle color={C.red}>Today — {new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 12 }}>

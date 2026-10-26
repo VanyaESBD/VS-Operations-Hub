@@ -10,7 +10,7 @@ export function makeSupabaseMock(tables = {}) {
     };
     const chain = {
       select: () => chain, order: () => chain, limit: () => chain, is: () => chain, not: () => chain, eq: (k, v) => { state.filters.push([k, v]); return chain; },
-      in: () => chain, maybeSingle: () => chain, single: () => chain, upsert: (p) => { state.op = "upsert"; state.payload = p; calls.push({ table, op: "upsert", payload: p }); return chain; },
+      in: () => chain, gte: () => chain, lte: () => chain, maybeSingle: () => chain, single: () => chain, upsert: (p) => { state.op = "upsert"; state.payload = p; calls.push({ table, op: "upsert", payload: p }); return chain; },
       insert: (p) => { state.op = "insert"; state.payload = p; calls.push({ table, op: "insert", payload: p }); return chain; },
       update: (p) => { state.op = "update"; state.payload = p; calls.push({ table, op: "update", payload: p, filters: state.filters }); return chain; },
       delete: () => { state.op = "delete"; calls.push({ table, op: "delete" }); return chain; },

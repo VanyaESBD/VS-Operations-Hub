@@ -404,3 +404,26 @@ describe("Daily action list", () => {
     expect(withPrivate.find((x) => x.person === "Sean").fya).toHaveLength(2);
   });
 });
+
+describe("Today's Five", () => {
+  const { pickFive, streakFor } = require("../hub/TodaysFive");
+  const day = (n) => addDays(T, n);
+  const base = { owner: "Vanya", action_state: "Our action", status: "To Do" };
+  test("quick jobs first, then due quick-verb jobs, then other due jobs; nothing future or someone else's", () => {
+    const tasks = [
+      { ...base, id: 1, subject: "Big report", expected_date: day(-3) },
+      { ...base, id: 2, subject: "x", next_action: "Send Eden the VAT amount", expected_date: day(-1) },
+      { ...base, id: 3, subject: "Book flight", task_type: "Quick task", expected_date: T },
+      { ...base, id: 4, subject: "Later", next_action: "Call Kerr", expected_date: day(3) },
+      { ...base, id: 5, owner: "Sean", subject: "Sean's", task_type: "Quick task", expected_date: T },
+    ];
+    expect(pickFive(tasks, "Vanya", T).map((t) => t.id)).toEqual([3, 2, 1]);
+  });
+  test("streak counts weekdays in a row with 5+ jobs done", () => {
+    const done = (d, n) => Array.from({ length: n }, (_, i) => ({ id: d + i, owner: "Vanya", action_state: "Completed", status: "Done", actual_date: d }));
+    let d1 = day(-1); while ([0, 6].includes(new Date(d1 + "T00:00:00").getDay())) d1 = addDays(d1, -1);
+    const s = streakFor([...done(d1, 5), ...done(T, 5)], "Vanya", T);
+    expect(s.streak).toBe(2);
+    expect(s.today).toBe(5);
+  });
+});

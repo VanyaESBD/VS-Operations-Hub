@@ -563,6 +563,22 @@ def t26(page):
     page.goto(URL, wait_until="networkidle")
 
 
+@check(27, "Today's Five: picks my quick jobs, ticking turns a square green, → tmrw turns one amber and moves the date")
+def t27(page):
+    a = sql("insert into tasks(subject, owner, status, action_state, task_type, expected_date, priority) values ('E2E five A','Vanya','To Do','Our action','Quick task',current_date,'Urgent') returning id").splitlines()[0]
+    b = sql("insert into tasks(subject, owner, status, action_state, task_type, expected_date) values ('E2E five B','Vanya','To Do','Our action','Quick task',current_date) returning id").splitlines()[0]
+    page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(1000)
+    five = page.get_by_role("region", name="Today's Five")
+    expect(five.get_by_text("E2E five A").first).to_be_visible()
+    greens_before = five.locator("span[style*='background: rgb(16, 185, 129)']").count()
+    five.get_by_label("Done: E2E five A").click(); page.wait_for_timeout(1200)
+    assert sql(f"select action_state from tasks where id={a}") == "Completed"
+    assert five.locator("span[style*='background: rgb(16, 185, 129)']").count() == min(greens_before + 1, 5)
+    five.get_by_label("Tomorrow: E2E five B").click(); page.wait_for_timeout(1200)
+    assert sql(f"select (expected_date = (now() at time zone '{TZ}')::date + 1)::text from tasks where id={b}") == "true"
+    expect(five.get_by_text("E2E five B")).to_have_count(0)
+
+
 def mobile_checks(browser):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, timezone_id=TZ)
     m = ctx.new_page()
@@ -611,7 +627,7 @@ def main():
         page.on("dialog", lambda dlg: dlg.accept())
         page.goto(URL, wait_until="networkidle")
         page.wait_for_timeout(1000)
-        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24, t25, t26]:
+        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24, t25, t26, t27]:
             # Fresh page for every check so one failure can't cascade into the next.
             page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(700)
             fn(page)

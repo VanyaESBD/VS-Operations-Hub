@@ -233,3 +233,12 @@ export const archiveProject = (id, archived = true) =>
 // Permanent delete (admin/manager only, enforced in the database by hub_delete_task).
 // Leaves a one-line trace in activity_log; communications are kept, just unlinked.
 export const deleteTaskForever = (id) => supabase.rpc("hub_delete_task", { p_id: id }).then(res);
+
+// Today's Five: tasks this person moved to tomorrow today (read from the change log, no new table).
+export const loadMovedToday = (actor, sinceISO, tomorrow) =>
+  supabase.from("activity_log").select("entity_id")
+    .eq("entity_type", "task").eq("actor", actor).in("field", ["expected_date", "follow_up_date"])
+    .eq("new_value", tomorrow).gte("created_at", sinceISO).then(res);
+export const moveTaskTo = (task, date, actor) =>
+  supabase.from("tasks").update(task.action_state === "Awaiting response" ? { follow_up_date: date, updated_by: actor } : { expected_date: date, updated_by: actor })
+    .eq("id", task.id).select().single().then(res);

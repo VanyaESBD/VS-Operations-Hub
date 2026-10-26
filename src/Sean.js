@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { CATEGORIES, normaliseCategory, rag, RAG, questionType } from "./lib/categories";
 import { CategoryTag } from "./hub/tags";
 import { HubLogo } from "./hub/ui";
+import TodaysFive from "./hub/TodaysFive";
 import { todayISO, addDays, stageOf, isActiveLead, leadFollowUp, dueBucket, formatMoney, PIPELINE_STAGES, STAGE_COLOR, stateOf, isOpenTask, actionDate } from "./lib/hub";
 import { saveOpportunity, addActivityNote } from "./lib/data";
 
@@ -329,6 +330,7 @@ export default function Sean() {
                 ? "Nothing needs you right now. 🎉"
                 : <span><b style={{ color: tOverdue.length ? "#fca5a5" : "#e2e8f0" }}>{tOverdue.length} overdue</b> · {tToday.length} due today · {decide.length} for your decision · {tFollow.length} follow-ups due · {oppsDue.length} deals to move</span>}
             </div>
+            <div style={{ marginBottom:14 }}><TodaysFive tasks={tasks} onChanged={load} compact who="Sean" /></div>
             <button onClick={function() { setShowNote(true); }} style={{ width:"100%", minHeight:46, background:"#1e3a8a33", border:"1px solid #1e3a8a", borderRadius:10, color:"#93c5fd", fontSize:14, fontWeight:600, marginBottom:16 }}>📝 Quick note to Vanya</button>
             {tOverdue.length > 0 && <div><div style={Object.assign({}, s.sectionLabel, { color:"#fca5a5" })}>⚠ Overdue</div>{tOverdue.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}
             {tToday.length > 0 && <div><div style={s.sectionLabel}>📅 Due today</div>{tToday.map(function(t) { return <TaskCard key={t.id} task={t} onEdit={setEditingTask} onDone={markDone} />; })}</div>}

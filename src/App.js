@@ -845,7 +845,7 @@ export default function App() {
 
             {view==="dashboard" && (
               <div>
-                <HubDashboard tasks={tasks} opportunities={leads} companies={companies} orders={orders}
+                <HubDashboard tasks={tasks} opportunities={leads} companies={companies} orders={orders} onChanged={loadTasks}
                   go={(v, sub)=>{ if (sub) setFollowView(sub); setView(v); }}
                   openTask={t=>setModalTask(t)} openOpp={o=>setModalOpp(o)} openOrder={()=>setView("orders")} />
               </div>
