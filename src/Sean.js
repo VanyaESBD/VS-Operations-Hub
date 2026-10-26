@@ -274,7 +274,7 @@ export default function Sean() {
   ];
 
   var s = {
-    page: { minHeight:"100vh", background:"#0a2432", color:"#e2e8f0", fontFamily:"system-ui,sans-serif", paddingBottom:40 },
+    page: { minHeight:"100vh", background:"#0a2432", color:"#e2e8f0", fontFamily:'Aptos,"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif', paddingBottom:40 },
     header: { background:"#08202c", padding:"12px 16px", borderBottom:"1px solid #10364a", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 },
     tabs: { display:"flex", borderBottom:"1px solid #10364a", background:"#08202c", position:"sticky", top:49, zIndex:99 },
     content: { padding:"12px" },

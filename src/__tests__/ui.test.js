@@ -136,13 +136,14 @@ describe("companies", () => {
 
 describe("dashboard", () => {
   const HubDashboard = require("../hub/HubDashboard").default;
-  test("'Sean to action' counts only items needing Sean's own action, not monitoring or delegated work", () => {
+  test("slim dashboard: 4 tiles with correct counts; a late order says 'target passed', never delivered; activity hidden until asked", () => {
     render(<HubDashboard tasks={tasks} opportunities={leads} companies={companies} orders={[{ id: 1, name: "PO29364", target_date: addDays(T, -1), customer_confirmed: true }]} go={() => {}} openTask={() => {}} openOpp={() => {}} openOrder={() => {}} />);
-    const tile = screen.getByText("Sean to action").parentElement;
-    expect(within(tile).getByText("1")).toBeInTheDocument();
-    // An order past its target date is shown as "not confirmed", never as delivered
-    expect(screen.getByText("Target passed — not confirmed")).toBeInTheDocument();
-    expect(screen.getByText(/not booked revenue/)).toBeInTheDocument();
+    expect(within(screen.getByText("Overdue").parentElement).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByText("Due today").parentElement).getByText("1")).toBeInTheDocument();
+    expect(screen.getByText(/target passed/)).toBeInTheDocument();
+    expect(screen.queryByText("Sean to action")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Commercial value/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show recent activity/ })).toBeInTheDocument();
   });
 });
 
@@ -205,7 +206,7 @@ describe("Today view (Vanya's follow-up workflow)", () => {
     expect(screen.getByText("Very overdue")).toBeInTheDocument();
     expect(screen.queryByText("Chase Emily")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Everyone" }));
-    fireEvent.click(screen.getByRole("button", { name: "HR" }));
+    fireEvent.change(screen.getByLabelText("Area"), { target: { value: "HR" } });
     expect(screen.getByText("Slightly overdue")).toBeInTheDocument();
     expect(screen.queryByText("Very overdue")).not.toBeInTheDocument();
   });
@@ -350,7 +351,7 @@ describe("Open questions — Sean to decide filter", () => {
     expect(screen.getByText(/pursue Kiwari\?/)).toBeInTheDocument();
     expect(screen.queryByText("CIMC balance check")).not.toBeInTheDocument();
     expect(screen.queryByText("No question here")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Any open question/ }));
+    fireEvent.change(screen.getByLabelText("Questions"), { target: { value: "any" } });
     expect(screen.getByText("CIMC balance check")).toBeInTheDocument();
   });
 });
@@ -375,5 +376,31 @@ describe("Quick list shows only your own items (except for Vanya, who runs the d
     renderAs("Vanya", "admin");
     expect(screen.getByText("Receive tile delivery")).toBeInTheDocument();
     expect(screen.getByText("Call Kerr back")).toBeInTheDocument();
+  });
+});
+
+describe("Daily action list", () => {
+  const { buildDailyActions, actionsToText } = require("../hub/DailyActions");
+  const list = [
+    { id: 901, subject: "Approve quote", owner: "Sean", action_state: "Our action", status: "FYA", expected_date: addDays(T, -2), next_action: "Approve the UPD quote" },
+    { id: 902, subject: "CIMC price", owner: "Vanya", action_state: "Awaiting response", status: "Follow Up", follow_up_date: T, waiting_on: "Emily" },
+    { id: 903, subject: "Later thing", owner: "Vanya", action_state: "Our action", status: "To Do", expected_date: addDays(T, 5) },
+    { id: 904, subject: "Mandy loan", owner: "Sean", action_state: "Our action", status: "FYA", expected_date: T, visibility: "private" },
+    { id: 905, subject: "Kiwari", owner: "Sean", action_state: "Our action", status: "FYA", needs_review: "Sean to decide: Pursue Kiwari?" },
+    { id: 906, subject: "Monitor supplier", owner: "Andrea", action_state: "Monitoring", status: "FYI", follow_up_date: T },
+  ];
+  test("groups by person, splits FYA / chase / FYI / decide, skips future items and private by default", () => {
+    const g = buildDailyActions({ tasks: list, today: T });
+    const sean = g.find((x) => x.person === "Sean"), vanya = g.find((x) => x.person === "Vanya"), andrea = g.find((x) => x.person === "Andrea");
+    expect(sean.fya.map((i) => i.text)).toEqual(["Approve the UPD quote"]);
+    expect(sean.decide.map((i) => i.text)).toEqual(["Pursue Kiwari?"]);
+    expect(vanya.chase[0].text).toMatch(/^Chase Emily/);
+    expect(vanya.fya).toHaveLength(0);
+    expect(andrea.fyi).toHaveLength(1);
+    const txt = actionsToText(g, T);
+    expect(txt).toMatch(/2d overdue/);
+    expect(txt).not.toMatch(/Mandy loan/);
+    const withPrivate = buildDailyActions({ tasks: list, today: T, includePrivate: true });
+    expect(withPrivate.find((x) => x.person === "Sean").fya).toHaveLength(2);
   });
 });

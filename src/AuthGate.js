@@ -105,7 +105,7 @@ function LoginForm() {
 
 function Shell({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "system-ui,sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: 'Aptos,"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif', display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ width: "100%", maxWidth: 380, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: 28 }}>{children}</div>
     </div>
   );

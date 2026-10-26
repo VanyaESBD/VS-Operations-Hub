@@ -44,6 +44,12 @@ def nav(page, label):
     page.wait_for_timeout(500)
 
 
+def new_task(page):
+    page.get_by_role("button", name="＋ New ▾").first.click()
+    page.get_by_role("menuitem", name="📋 Task").click()
+    page.wait_for_timeout(300)
+
+
 def open_search(page):
     page.get_by_role("button", name="Search").first.click()
     page.wait_for_timeout(400)
@@ -167,6 +173,7 @@ def t6(page):
 
 @check(7, "Marking Lost without a reason is refused; nothing is saved")
 def t7(page):
+    nav(page, "Sales Pipeline")
     page.get_by_text("E2E Pallet Porter trial").first.click()
     d = page.get_by_role("dialog")
     d.get_by_label("Stage").select_option("Lost")
@@ -213,7 +220,7 @@ def t9(page):
 
 @check(10, "Creating a follow-up task and updating its follow-up date work (and the change is logged)")
 def t10(page):
-    page.get_by_role("button", name="+ New Task").first.click()
+    new_task(page)
     d = page.get_by_role("dialog")
     d.get_by_label("Subject").fill("E2E supplier delivery update")
     d.get_by_label("Responsible").select_option("Vanya")
@@ -241,7 +248,7 @@ def t11(page):
     page.get_by_role("button", name=re.compile("^Andrea")).click()
     page.wait_for_timeout(300)
     owners = page.locator("div[style*='text-align: right'] >> div").all_inner_texts()
-    shown = [o for o in owners if o in ("Vanya", "Sean", "Andrea", "Jason", "Unassigned")]
+    shown = [o.replace(" ↗", "") for o in owners if o.replace(" ↗", "") in ("Vanya", "Sean", "Andrea", "Jason", "Unassigned")]
     assert shown and set(shown) == {"Andrea"}, shown
 
 
@@ -259,7 +266,7 @@ def t12(page):
     expect(page.get_by_text(re.compile("Nothing matches", re.I)).first).to_be_visible(timeout=5000)
 
 
-@check(13, "Dashboard shows the correct underlying numbers (overdue, Sean to action)")
+@check(13, "Dashboard shows the correct underlying numbers (overdue)")
 def t13(page):
     nav(page, "Dashboard")
     page.wait_for_timeout(800)
@@ -314,6 +321,7 @@ def t15(page):
 
 @check(16, "Inbox triage: a flagged email can be logged and linked; clearing it removes nothing else")
 def t16(page):
+    nav(page, "More ▾")
     nav(page, "Inbox Triage")
     page.get_by_role("button", name="+ Flag Email").click()
     page.get_by_label("Email Subject + Sender").fill("E2E RE: Delivery ETA — from CIMC")
@@ -414,7 +422,7 @@ def t20(page):
 
 @check(21, "Andrea/Jason/Siya: work can be assigned to them (marked delegated) and shows under their own tab")
 def t21(page):
-    page.get_by_role("button", name="+ New Task").first.click()
+    new_task(page)
     d = page.get_by_role("dialog")
     d.get_by_label("Subject").fill("E2E Andrea book courier")
     d.get_by_label("Responsible").select_option(label="Andrea · delegated")
@@ -498,6 +506,26 @@ def t24(page):
     expect(page.locator(".hub-glow", has_text="E2E untouched overdue")).to_have_count(0)
 
 
+@check(25, "Clean-up: one ＋ New menu, no duplicate buttons, More group, Aptos font stack, daily action list builds and copies")
+def t25(page):
+    page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(800)
+    for gone in ("Log Communication", "Quick Notes", "Daily Summary", "+ New Task"):
+        assert page.get_by_role("button", name=gone).count() == 0, f"still there: {gone}"
+    assert page.get_by_text("Data Quality", exact=True).count() == 0, "Data Quality should be under More"
+    nav(page, "More ▾")
+    expect(page.get_by_text("Data Quality", exact=True).first).to_be_visible()
+    fam = page.evaluate("getComputedStyle(document.querySelector('#root > div')).fontFamily")
+    assert fam.lower().startswith("aptos"), fam
+    tid = sql("insert into tasks(subject, owner, status, action_state, next_action, expected_date) values ('E2E action list item','Vanya','To Do','Our action','E2E call the courier',current_date - 1) returning id").splitlines()[0]
+    page.reload(wait_until="networkidle"); page.wait_for_timeout(600)
+    page.get_by_role("button", name="＋ New ▾").first.click()
+    page.get_by_role("menuitem", name="✅ Daily action list").click()
+    d = page.get_by_role("dialog")
+    expect(d.get_by_text("E2E call the courier").first).to_be_visible()
+    expect(d.get_by_text("1d overdue").first).to_be_visible()
+    close_modal(page)
+
+
 def mobile_checks(browser):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, timezone_id=TZ)
     m = ctx.new_page()
@@ -546,7 +574,7 @@ def main():
         page.on("dialog", lambda dlg: dlg.accept())
         page.goto(URL, wait_until="networkidle")
         page.wait_for_timeout(1000)
-        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24]:
+        for fn in [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t20, t21, t22, t23, t24, t25]:
             # Fresh page for every check so one failure can't cascade into the next.
             page.goto(URL, wait_until="networkidle"); page.wait_for_timeout(700)
             fn(page)

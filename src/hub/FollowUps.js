@@ -3,7 +3,7 @@ import { ACTION_STATES, PRIORITIES, stateOf, isOpenTask, actionDate, dueBucket, 
 import { CATEGORIES, CATEGORY_NAMES, STATE_STYLE, normaliseCategory, ownerLabel, PEOPLE, rag, RAG, QUESTION_TYPES, questionType } from "../lib/categories";
 import { setTaskState, scheduleFollowUp, replyReceived, loadTaskContacts, summariseContacts } from "../lib/data";
 import { C, inp, btn, Banner, Empty, Card, fmtDate, useHubUser } from "./ui";
-import { CategoryTag, StateTag, UrgentTag, DelegatedTag } from "./tags";
+import { CategoryTag, StateTag, UrgentTag } from "./tags";
 
 // Order matters: the first tabs are the ones used every day.
 // Row 1 — when / what. Row 2 — who. Row 3 — tags (Outlook action tags + area categories).
@@ -113,42 +113,35 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Who</span>
+      {/* One row: who · Outlook action tags · area · questions · colour key (Vanya, 26 Oct 2026: fewer rows) */}
+      <div className="hub-chiprow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
         {["All", ...PEOPLE].map((w) => {
           const n = w === "All" ? null : rows.filter((r) => r.owner === w && open(r)).length;
           return <button key={w} onClick={() => setWho(w)} aria-pressed={who === w} style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: who === w ? C.accent : "none", color: who === w ? "#fff" : C.muted, borderColor: who === w ? C.accent : C.line }}>{w === "All" ? "Everyone" : w}{n ? ` · ${n}` : ""}{["Siya", "Jason", "Andrea"].includes(w) ? " ↗" : ""}</button>;
         })}
-      </div>
-      <div className="hub-chiprow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Tags</span>
+        <span style={{ width: 1, height: 18, background: C.line, margin: "0 4px" }} />
         {ACTION_TAGS.map(([st, t]) => {
           const S = STATE_STYLE[st];
           return <button key={t} onClick={() => setTag(tag === st ? "All" : st)} aria-pressed={tag === st}
             style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, fontWeight: 700, background: tag === st ? S.fill : "none", color: S.ink, borderColor: tag === st ? S.ink : S.ink + "66" }}>{t}</button>;
         })}
-        <span style={{ width: 1, height: 18, background: C.line, margin: "0 4px" }} />
-        <button onClick={() => setCategory("All")} style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: category === "All" ? C.input : "none", color: C.muted }}>All areas</button>
-        {CATEGORY_NAMES.map((c) => (
-          <button key={c} onClick={() => setCategory(category === c ? "All" : c)} aria-pressed={category === c}
-            style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, background: category === c ? CATEGORIES[c].fill : "none", color: CATEGORIES[c].ink, borderColor: category === c ? CATEGORIES[c].ink : CATEGORIES[c].ink + "66" }}>{c}</button>
-        ))}
-      </div>
-      <div className="hub-chiprow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, color: C.dim, marginRight: 2 }}>Questions</span>
-        {[...QUESTION_TYPES, { prefix: "any", label: "Any open question", ink: "#fde68a" }].map((qt) => {
-          const n = rows.filter((r) => open(r) && (qt.prefix === "any" ? !!r.question : (r.question || "").startsWith(qt.prefix))).length;
-          const on = question === qt.prefix;
-          return <button key={qt.prefix} onClick={() => setQuestion(on ? "All" : qt.prefix)} aria-pressed={on}
-            style={{ ...btn("small"), padding: "3px 10px", borderRadius: 99, fontWeight: 600, background: on ? qt.ink + "33" : "none", color: qt.ink, borderColor: on ? qt.ink : qt.ink + "55" }}>❓ {qt.label}{n ? ` · ${n}` : ""}</button>;
-        })}
-      </div>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: C.dim, marginBottom: 8 }}>
-        {["red", "amber", "yellow", "green"].map((l) => <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: RAG[l].ink, display: "inline-block" }} />{RAG[l].label}</span>)}
-        <span>· glowing = 3+ days overdue and nobody has touched it</span>
+        <select aria-label="Area" value={category} onChange={(e) => setCategory(e.target.value)}
+          style={{ ...inp, width: "auto", padding: "3px 10px", borderRadius: 99, fontSize: 12, color: category === "All" ? C.muted : CATEGORIES[category].ink, borderColor: category === "All" ? C.line : CATEGORIES[category].ink }}>
+          <option value="All">Area ▾</option>{CATEGORY_NAMES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select aria-label="Questions" value={question} onChange={(e) => setQuestion(e.target.value)}
+          style={{ ...inp, width: "auto", padding: "3px 10px", borderRadius: 99, fontSize: 12, color: "#fdba74", borderColor: question === "All" ? C.line : "#f97316" }}>
+          <option value="All">❓ Questions ▾</option>
+          {[...QUESTION_TYPES, { prefix: "any", label: "Any open question" }].map((qt) => {
+            const n = rows.filter((r) => open(r) && (qt.prefix === "any" ? !!r.question : (r.question || "").startsWith(qt.prefix))).length;
+            return <option key={qt.prefix} value={qt.prefix}>{qt.label}{n ? ` · ${n}` : ""}</option>;
+          })}
+        </select>
+        <span title={["red", "amber", "yellow", "green"].map((l) => RAG[l].label).join(" · ") + " · glowing = 3+ days overdue and nobody has touched it"}
+          aria-label="Colour key" style={{ fontSize: 13, color: C.dim, cursor: "help", padding: "0 4px" }}>ⓘ</span>
       </div>
       <details style={{ marginBottom: 12 }}>
-        <summary style={{ cursor: "pointer", fontSize: 12, color: C.dim }}>More filters{[owner !== "All", company, opp, state !== "All", priority !== "All", from, to].filter(Boolean).length ? " (active)" : ""}</summary>
+        <summary style={{ cursor: "pointer", fontSize: 11, color: C.dim }}>More filters{[owner !== "All", company, opp, state !== "All", priority !== "All", from, to].filter(Boolean).length ? " (active)" : ""}</summary>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginTop: 10 }}>
           <select style={inp} value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner"><option value="All">Any owner</option>{[...new Set(rows.map((r) => r.owner).filter(Boolean))].sort().map((o) => <option key={o} value={o}>{ownerLabel(o)}</option>)}</select>
           <select style={inp} value={company} onChange={(e) => setCompany(e.target.value)} aria-label="Company"><option value="">Any company</option>{companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -197,7 +190,6 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
                   {r.kind === "opp" && <span style={{ fontSize: 11, color: C.violet, fontWeight: 700 }}>🎯 {r.stage}</span>}
                   <UrgentTag priority={r.priority} small />
                   {chase && <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: C.red, borderRadius: 99, padding: "1px 8px" }}>chase now</span>}
-                  <DelegatedTag owner={r.owner} small />
                   {r.visibility === "private" && <span style={{ fontSize: 10, color: C.dim }}>🔒 private</span>}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{r.title}</div>
@@ -207,7 +199,7 @@ export default function FollowUps({ tasks, opportunities, companies, initialView
                 {r.question && (() => { const qt = questionType(r.question); return <div style={{ fontSize: 12, color: qt.ink, marginTop: 3 }}>❓ {r.question.slice(qt.prefix.length).trim() || r.question}</div>; })()}
               </div>
               <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "auto" }} onClick={(e) => e.stopPropagation()}>
-                <div style={{ fontSize: 12, color: C.muted }}>{r.owner || "—"}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{r.owner || "—"}{["Siya", "Jason", "Andrea"].includes(r.owner) ? " ↗" : ""}</div>
                 {r.date && <div title={RAG[light.level].label + (light.glow ? " — not touched since it went overdue" : "")} style={{ fontSize: 12, color: RAG[light.level].ink, fontWeight: light.level === "red" || light.level === "amber" ? 700 : 400, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><span aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: RAG[light.level].ink, display: "inline-block" }} />{r.state === "Awaiting response" ? "follow up " : ""}{fmtDate(r.date)}</div>}
                 {!r.date && open(r) && <div style={{ fontSize: 11, color: C.faint }}>no date</div>}
                 {r.kind === "task" && isOpenTask(r.raw) && (

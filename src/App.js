@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 import QuickList from "./hub/QuickList";
+import DailyActions from "./hub/DailyActions";
 import { ACTION_STATES, STATE_COLOR, stateOf, isOpenTask, validateTask, stateToStatus, friendlyError, todayISO, isDueNowTask, isDueNowLead } from "./lib/hub";
 import { loadCompanies, loadContacts, loadOrders, saveTask as saveTaskRecord, archive as archiveRecord, deleteTaskForever } from "./lib/data";
 import { useHubUser, Banner as HubBanner, Picker, Field as HubField, HubLogo } from "./hub/ui";
@@ -22,7 +23,6 @@ const fmtDateTime = (ts) => {
   const d = new Date(ts);
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 };
-const isOverdue = (t) => isOpenTask(t) && stateOf(t) === "Our action" && t.expected_date && t.expected_date < TODAY();
 
 // Normalise company/client: trim + title case to prevent duplicates
 const normaliseName = (s) => {
@@ -51,30 +51,6 @@ const newTask = (overrides = {}) => ({
   ...overrides,
 });
 
-function generateSummary(tasks) {
-  const today = TODAY();
-  const seanFYA = tasks.filter(t => t.owner === "Sean" && t.status === "FYA");
-  const fyi = tasks.filter(t => t.status === "FYI" || t.task_type === "FYI").filter(t => t.status !== "Done");
-  const urgent = tasks.filter(t => t.priority === "Urgent" && t.status !== "Done");
-  const followUp = tasks.filter(t => t.status === "Follow Up");
-  const jasonTasks = tasks.filter(t => t.owner === "Jason" && t.status !== "Done");
-  const andreaTasks = tasks.filter(t => t.owner === "Andrea" && t.status !== "Done");
-  const jasonDone = tasks.filter(t => t.owner === "Jason" && t.actual_date === today);
-  const andreaDone = tasks.filter(t => t.owner === "Andrea" && t.actual_date === today);
-  const jasonOverdue = tasks.filter(t => t.owner === "Jason" && isOverdue(t));
-  const andreaOverdue = tasks.filter(t => t.owner === "Andrea" && isOverdue(t));
-  let summary = `📋 *ESBD Daily Summary — ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}*\n\n`;
-  if (seanFYA.length > 0) { summary += `🟠 *FYA — Sean*\n`; seanFYA.forEach(t => summary += `• ${t.subject}${t.client ? ` | ${t.client}` : ""}\n`); summary += "\n"; }
-  if (fyi.length > 0) { summary += `🟣 *FYI*\n`; fyi.forEach(t => summary += `• ${t.subject}${t.client ? ` | ${t.client}` : ""}\n`); summary += "\n"; }
-  if (urgent.length > 0) { summary += `🔴 *TO DO (Urgent)*\n`; urgent.forEach(t => summary += `• ${t.subject}${t.next_action ? ` — ${t.next_action}` : ""}\n`); summary += "\n"; }
-  if (followUp.length > 0) { summary += `🏌️ *Follow Up*\n`; followUp.forEach(t => summary += `• ${t.client || t.subject}${t.next_action ? ` | ${t.next_action}` : ""}\n`); summary += "\n"; }
-  if (jasonTasks.length > 0 || andreaTasks.length > 0) {
-    summary += `👥 *Team Update*\n`;
-    if (jasonTasks.length > 0) summary += `• Jason: ${jasonTasks.length} active${jasonDone.length > 0 ? `, ${jasonDone.length} completed today` : ""}${jasonOverdue.length > 0 ? `, ⚠️ ${jasonOverdue.length} overdue` : ""}\n`;
-    if (andreaTasks.length > 0) summary += `• Andrea: ${andreaTasks.length} active${andreaDone.length > 0 ? `, ${andreaDone.length} completed today` : ""}${andreaOverdue.length > 0 ? `, ⚠️ ${andreaOverdue.length} overdue` : ""}\n`;
-  }
-  return summary;
-}
 
 function Modal({ children, onClose }) {
   return (
@@ -247,34 +223,45 @@ function TaskForm({ initial, onSave, onClose, companies = [], opportunities = []
         <Field label="State" required>
           <select style={{ ...inp, borderColor: STATE_COLOR[st] }} value={st} onChange={(e)=>set("action_state",e.target.value)}>{ACTION_STATES.map(s=><option key={s} value={s}>{STATE_STYLE[s]?.label || s}</option>)}</select>
         </Field>
-        <Field label="Priority"><select style={inp} value={form.priority} onChange={(e)=>set("priority",e.target.value)}>{PRIORITIES.map(p=><option key={p}>{p}</option>)}</select></Field>
-        <Field label="Category">
-          <select style={{ ...inp, borderColor: normaliseCategory(form.category) ? CATEGORIES[normaliseCategory(form.category)].ink : undefined, color: normaliseCategory(form.category) ? CATEGORIES[normaliseCategory(form.category)].ink : inp.color }}
-            value={normaliseCategory(form.category) || ""}
-            onChange={(e)=>{ const c=e.target.value||null; set("category",c); if (isPrivateCategory(c)) set("visibility","private"); }}>
-            <option value="">— None</option>{CATEGORY_NAMES.map(c=><option key={c} value={c} style={{ color: CATEGORIES[c].ink }}>{c}{CATEGORIES[c].private?" (private)":""}</option>)}
-          </select>
-        </Field>
-        <Field label="Task Type"><select style={inp} value={form.task_type||"Information Request"} onChange={(e)=>set("task_type",e.target.value)}>{TASK_TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
         <Field label="Due Date"><input type="date" style={inp} value={form.expected_date||""} onChange={(e)=>set("expected_date",e.target.value)} />{err("expected_date") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("expected_date")}</div>}</Field>
-        <Field label="🔔 Follow-up Date" required={st==="Awaiting response"}><input type="date" style={inp} value={form.follow_up_date||""} onChange={(e)=>set("follow_up_date",e.target.value)} title="Comes back into Today on this date" />{err("follow_up_date") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("follow_up_date")}</div>}</Field>
+        {st==="Awaiting response" && <>
+          <Field label="🔔 Follow-up Date" required={st==="Awaiting response"}><input type="date" style={inp} value={form.follow_up_date||""} onChange={(e)=>set("follow_up_date",e.target.value)} title="Comes back into Today on this date" />{err("follow_up_date") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("follow_up_date")}</div>}</Field>
+        </>}
         {(st==="Awaiting response"||st==="Monitoring") && <>
           <Field label="Waiting on"><input style={inp} value={form.waiting_on||""} onChange={(e)=>set("waiting_on",e.target.value)} placeholder="Who must respond? e.g. Emily (CIMC)" /></Field>
           <Field label="Expected response by"><input type="date" style={inp} value={form.expected_response_date||""} onChange={(e)=>set("expected_response_date",e.target.value)} /></Field>
         </>}
         <Field label="Company"><Picker value={form.company_id} onChange={(id)=>{ set("company_id",id); const c=companies.find(x=>x.id===id); if(c) set("company",c.name); const pr=projects.find(x=>x.id===form.project_id); if (pr && id && pr.company_id && pr.company_id!==id) { set("project_id",null); set("project",""); } }} noneLabel="— Not linked" options={companies.map(c=>({ value:c.id, label:c.name }))} /></Field>
         <Field label="Project"><Picker value={form.project_id} onChange={(id)=>{ set("project_id",id); const pr=projects.find(x=>x.id===id); set("project", pr ? pr.name : ""); if (pr && pr.company_id && !form.company_id) { set("company_id",pr.company_id); const c=companies.find(x=>x.id===pr.company_id); if (c) set("company",c.name); } }} noneLabel={form.project && !form.project_id ? `— ${form.project} (not linked)` : "— None"} options={projects.filter(p=>!p.archived_at && (!form.company_id || p.company_id===form.company_id || p.id===form.project_id)).map(p=>({ value:p.id, label:p.name }))} /></Field>
-        <Field label="Opportunity"><Picker value={form.opportunity_id} onChange={(id)=>set("opportunity_id",id)} noneLabel="— None" options={opportunities.filter(o=>!form.company_id||o.company_id===form.company_id).map(o=>({ value:o.id, label:o.name||o.company }))} /></Field>
-        <Field label="Client / contact"><input style={inp} value={form.client||""} onChange={(e)=>set("client",e.target.value)} /></Field>
-        {!form.company_id && <Field label="Company (text, if no record)"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>}
-        <Field label="Email"><input style={inp} value={form.email||""} onChange={(e)=>set("email",e.target.value)} /></Field>
-        <Field label="Date Received"><input type="date" style={inp} value={form.date_received||""} onChange={(e)=>set("date_received",e.target.value)} /></Field>
-        <Field label="Visibility"><select style={inp} value={form.visibility||"team"} onChange={(e)=>set("visibility",e.target.value)}><option value="team">Team</option><option value="private">Private (Sean & Vanya only, once login is on)</option></select></Field>
         <div style={{ gridColumn:"1/-1" }}><Field label="Next Action"><input style={inp} value={form.next_action||""} onChange={(e)=>set("next_action",e.target.value)} /></Field></div>
         {form.follow_up_date && <div style={{ gridColumn:"1/-1" }}><Field label="Follow-up Note"><input style={inp} value={form.follow_up_note||""} onChange={(e)=>set("follow_up_note",e.target.value)} placeholder="What to check or ask when you follow up..." /></Field></div>}
         <div style={{ gridColumn:"1/-1" }}><Field label="Notes"><textarea style={{ ...inp,minHeight:72,resize:"vertical" }} value={form.notes||""} onChange={(e)=>set("notes",e.target.value)} placeholder="Add context, details or background..." /></Field></div>
         {(st === "Completed" || st === "Cancelled") && <div style={{ gridColumn:"1/-1" }}><Field label="Outcome"><input style={inp} value={form.outcome||""} onChange={(e)=>set("outcome",e.target.value)} placeholder={st==="Completed"?"What was actually achieved?":"Why was it cancelled?"} /></Field></div>}
       </div>
+      {/* Everything else, one click away (Vanya, 26 Oct 2026: 8 fields up front) */}
+      <details style={{ marginTop:14,borderTop:"1px solid #10364a",paddingTop:10 }}>
+        <summary style={{ cursor:"pointer",fontSize:12,color:"#118fb5" }}>More details ▾ <span style={{ color:"#6a8090" }}>— priority, category, task type, follow-up date, opportunity, contact, email, date received, visibility</span></summary>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14,marginTop:12 }}>
+          <Field label="Priority"><select style={inp} value={form.priority} onChange={(e)=>set("priority",e.target.value)}>{PRIORITIES.map(p=><option key={p}>{p}</option>)}</select></Field>
+          <Field label="Category">
+            <select style={{ ...inp, borderColor: normaliseCategory(form.category) ? CATEGORIES[normaliseCategory(form.category)].ink : undefined, color: normaliseCategory(form.category) ? CATEGORIES[normaliseCategory(form.category)].ink : inp.color }}
+              value={normaliseCategory(form.category) || ""}
+              onChange={(e)=>{ const c=e.target.value||null; set("category",c); if (isPrivateCategory(c)) set("visibility","private"); }}>
+              <option value="">— None</option>{CATEGORY_NAMES.map(c=><option key={c} value={c} style={{ color: CATEGORIES[c].ink }}>{c}{CATEGORIES[c].private?" (private)":""}</option>)}
+            </select>
+          </Field>
+          <Field label="Task Type"><select style={inp} value={form.task_type||"Information Request"} onChange={(e)=>set("task_type",e.target.value)}>{TASK_TYPES.map(t=><option key={t}>{t}</option>)}</select></Field>
+          {st!=="Awaiting response" && <>
+            <Field label="🔔 Follow-up Date" required={st==="Awaiting response"}><input type="date" style={inp} value={form.follow_up_date||""} onChange={(e)=>set("follow_up_date",e.target.value)} title="Comes back into Today on this date" />{err("follow_up_date") && <div style={{ fontSize:11,color:"#fca5a5" }}>{err("follow_up_date")}</div>}</Field>
+          </>}
+          <Field label="Opportunity"><Picker value={form.opportunity_id} onChange={(id)=>set("opportunity_id",id)} noneLabel="— None" options={opportunities.filter(o=>!form.company_id||o.company_id===form.company_id).map(o=>({ value:o.id, label:o.name||o.company }))} /></Field>
+          <Field label="Client / contact"><input style={inp} value={form.client||""} onChange={(e)=>set("client",e.target.value)} /></Field>
+          {!form.company_id && <Field label="Company (text, if no record)"><CompanyDropdown value={form.company} onChange={v=>set("company",v)} /></Field>}
+          <Field label="Email"><input style={inp} value={form.email||""} onChange={(e)=>set("email",e.target.value)} /></Field>
+          <Field label="Date Received"><input type="date" style={inp} value={form.date_received||""} onChange={(e)=>set("date_received",e.target.value)} /></Field>
+          <Field label="Visibility"><select style={inp} value={form.visibility||"team"} onChange={(e)=>set("visibility",e.target.value)}><option value="team">Team</option><option value="private">Private (Sean & Vanya only, once login is on)</option></select></Field>
+        </div>
+      </details>
       {v.warnings.length > 0 && <div style={{ marginTop:12,fontSize:12,color:"#fde68a" }}>Missing (you can still save): {v.warnings.join(" · ")}</div>}
       <div style={{ marginTop:24,display:"flex",gap:10,justifyContent:"flex-end" }}>
         <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #1b4a60",borderRadius:8,color:"#7f93a1",cursor:"pointer" }}>Cancel</button>
@@ -376,24 +363,6 @@ function TaskActivityFeed({ taskId, taskNotes, onNoteAdded }) {
 
 
 
-function SummaryModal({ tasks, onClose }) {
-  const summary = generateSummary(tasks);
-  const [copied, setCopied] = useState(false);
-  const copy = () => { navigator.clipboard.writeText(summary); setCopied(true); setTimeout(()=>setCopied(false),2000); };
-  return (
-    <Modal onClose={onClose}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-        <h2 style={{ margin:0,fontSize:18,fontWeight:700,color:"#e2e8f0" }}>📋 Daily WhatsApp Summary</h2>
-        <button onClick={onClose} style={{ background:"none",border:"none",color:"#7f93a1",cursor:"pointer",fontSize:20 }}>✕</button>
-      </div>
-      <pre style={{ background:"#08202c",border:"1px solid #1b4a60",borderRadius:8,padding:16,color:"#e2e8f0",fontSize:13,whiteSpace:"pre-wrap",fontFamily:"system-ui",lineHeight:1.6,maxHeight:400,overflowY:"auto" }}>{summary}</pre>
-      <div style={{ marginTop:16,display:"flex",gap:10,justifyContent:"flex-end" }}>
-        <button onClick={onClose} style={{ padding:"10px 20px",background:"none",border:"1px solid #1b4a60",borderRadius:8,color:"#7f93a1",cursor:"pointer" }}>Close</button>
-        <button onClick={copy} style={{ padding:"10px 24px",background:"#118fb5",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontWeight:700 }}>{copied?"✅ Copied!":"📋 Copy for WhatsApp"}</button>
-      </div>
-    </Modal>
-  );
-}
 
 function StickyNote({ onClose }) {
   const [notes, setNotes] = useState([]);
@@ -617,6 +586,8 @@ export default function App() {
   const [modalTask, setModalTask] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [newMenu, setNewMenu] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [status, setStatus] = useState("Connecting…");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -754,13 +725,14 @@ export default function App() {
     // "Tasks" opens on Today = overdue + due today: tasks, scheduled follow-ups and opportunity follow-ups.
     { id:"followups", label:"Tasks", icon:"⏱", count: tasks.filter(t=>isDueNowTask(t)).length + leads.filter(l=>isDueNowLead(l)).length },
     { id:"today", label:"Quick list", icon:"⚡", count: quickCount },
-    { id:"companies", label:"Companies & projects", icon:"🏢", count: companies.length },
-    { id:"pipeline", label:"Sales Pipeline", icon:"🎯", count: leads.length },
-    { id:"orders", label:"Orders", icon:"📦", count: orders.filter(o=>!o.actual_date).length },
-    { id:"quality", label:"Data Quality", icon:"🧹" },
-    // Kept until the Outlook connection is live (Vanya, 19 Oct 2026).
-    { id:"seanweek", label:"Sean's Week", icon:"📅", count:seanWeek.length },
-    { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length },
+    // Badges only where something needs doing (Vanya, 26 Oct 2026).
+    { id:"companies", label:"Companies & projects", icon:"🏢" },
+    { id:"pipeline", label:"Sales Pipeline", icon:"🎯" },
+    { id:"orders", label:"Orders", icon:"📦" },
+    // Under "More" — Sean's Week and Inbox Triage kept until the Outlook connection is live (Vanya, 19 Oct 2026).
+    { id:"quality", label:"Data Quality", icon:"🧹", more:true },
+    { id:"seanweek", label:"Sean's Week", icon:"📅", more:true },
+    { id:"inbox", label:"Inbox Triage", icon:"🗑️", count:pendingInbox.length, more:true },
     { id:"search", label:"Search", icon:"🔍", hidden:true },
   ];
 
@@ -772,7 +744,7 @@ export default function App() {
         <div style={{ marginBottom:6 }}><HubLogo /></div>
       </div>
       <div style={{ marginTop:16,flex:1,overflowY:"auto" }}>
-        {VIEWS.filter(v => !v.hidden).map(v=>(
+        {VIEWS.filter(v => !v.hidden && (!v.more || moreOpen || view===v.id)).map(v=>(
           <button key={v.id} onClick={()=>{ setView(v.id); setSidebarOpen(false); }}
             style={{ width:"100%",textAlign:"left",padding:"9px 12px",borderRadius:8,border:"none",cursor:"pointer",background:view===v.id?"#123a4f":"none",color:view===v.id?"#118fb5":"#7f93a1",display:"flex",alignItems:"center",gap:10,fontSize:13,fontWeight:view===v.id?600:400,marginBottom:2 }}>
             <span style={{ fontSize:14,width:16,textAlign:"center" }}>{v.icon}</span>
@@ -780,6 +752,9 @@ export default function App() {
             {v.count!==undefined&&v.count>0&&<span style={{ background:v.id==="today"?"#7f1d1d":v.id==="overdue"?"#7f1d1d":v.id==="leads"?"#1e3a8a":v.id==="inbox"?"#7f1d1d":v.id==="flags"?"#7f1d1d":v.id==="projects"?"#d97706":v.id==="accounts"?"#118fb533":"#1b4a60",color:v.id==="today"?"#fca5a5":v.id==="overdue"?"#fca5a5":v.id==="leads"?"#93c5fd":v.id==="inbox"?"#fca5a5":v.id==="flags"?"#fca5a5":v.id==="projects"?"#fff":v.id==="accounts"?"#118fb5":"#9ca3af",borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:v.id==="today"?700:400 }}>{v.count}</span>}
           </button>
         ))}
+        <button onClick={()=>setMoreOpen(o=>!o)} style={{ width:"100%",textAlign:"left",padding:"8px 12px",borderRadius:8,border:"none",borderTop:"1px solid #10364a",marginTop:6,cursor:"pointer",background:"none",color:"#6a8090",fontSize:12 }}>
+          {moreOpen ? "Less ▴" : "More ▾"}{!moreOpen && pendingInbox.length>0 ? ` · ${pendingInbox.length} in inbox` : ""}
+        </button>
       </div>
       <div style={{ paddingTop:16,borderTop:"1px solid #10364a" }}>
         <div style={{ fontSize:10,color:"#557080",textAlign:"center",marginBottom:8 }}>
@@ -787,24 +762,18 @@ export default function App() {
         </div>
         {signOut && <div style={{ fontSize:11,color:"#7f93a1",textAlign:"center",marginBottom:8 }}>Signed in as {me} · <button onClick={signOut} style={{ background:"none",border:"none",color:"#118fb5",cursor:"pointer",fontSize:11 }}>Sign out</button></div>}
         <a href="/sean" style={{ display:"block",textAlign:"center",padding:"8px",background:"#10364a",border:"1px solid #18b9dc",borderRadius:8,color:"#5ccee8",fontSize:12,fontWeight:600,marginBottom:8,textDecoration:"none" }}>📱 Sean's phone view</a>
-        <button onClick={()=>setCommDraft({})} style={{ width:"100%",padding:"8px",background:"#10364a",border:"1px solid #10b981",borderRadius:8,color:"#10b981",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>✉️ Log Communication</button>
-        <button onClick={()=>setShowNotes(!showNotes)} style={{ width:"100%",padding:"8px",background:"#10364a",border:"1px solid #1e3a8a",borderRadius:8,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📝 Quick Notes</button>
-        <button onClick={()=>setShowSummary(true)} style={{ width:"100%",padding:"8px",background:"#10364a",border:"1px solid #1b4a60",borderRadius:8,color:"#118fb5",cursor:"pointer",fontSize:12,fontWeight:600,marginBottom:8 }}>📋 Daily Summary</button>
-        <button onClick={()=>setModalTask({})} style={{ width:"100%",padding:"10px",background:"#118fb5",border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700 }}>+ New Task</button>
       </div>
     </div>
   );
 
   return (
-    <div style={{ minHeight:"100vh",background:"#0a2432",color:"#e2e8f0",fontFamily:"system-ui,sans-serif",display:"flex",flexDirection:"column" }}>
-      <style>{`*{box-sizing:border-box;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#0a2432;} ::-webkit-scrollbar-thumb{background:#1b4a60;border-radius:3px;} select option{background:#10364a;}`}</style>
+    <div style={{ minHeight:"100vh",background:"#0a2432",color:"#e2e8f0",fontFamily:'Aptos,"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif',display:"flex",flexDirection:"column" }}>
+      <style>{`*{box-sizing:border-box;} button,input,select,textarea{font-family:inherit;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#0a2432;} ::-webkit-scrollbar-thumb{background:#1b4a60;border-radius:3px;} select option{background:#10364a;}`}</style>
 
       <div style={{ display:"flex",alignItems:"center",padding:isMobile?"10px 10px":"14px 16px",borderBottom:"1px solid #10364a",background:"#08202c",gap:isMobile?6:12 }}>
         <button aria-label="Menu" onClick={()=>setSidebarOpen(true)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"6px 10px",fontSize:16,display:isMobile?"block":"none" }}>☰</button>
         <span style={{ fontSize:16,fontWeight:800,color:"#e2e8f0",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{VIEWS.find(v=>v.id===view)?.label}</span>
         <button aria-label="Search" onClick={()=>{ setView("search"); setSidebarOpen(false); }} style={{ padding:isMobile?"7px 8px":"7px 12px",background:view==="search"?"#123a4f":"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",fontSize:12,fontWeight:600 }}>🔍{isMobile?"":" Search"}</button>
-        <button aria-label="Quick notes" onClick={()=>setShowNotes(!showNotes)} style={{ padding:isMobile?"7px 8px":"7px 12px",background:"none",border:"1px solid #1e3a8a",borderRadius:7,color:"#60a5fa",cursor:"pointer",fontSize:12,fontWeight:600 }}>📝</button>
-        <button aria-label="Summary" onClick={()=>setShowSummary(true)} style={{ display:isMobile?"none":"block",padding:"7px 12px",background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#118fb5",cursor:"pointer",fontSize:12,fontWeight:600 }}>📋</button>
         <div style={{ position:"relative" }}>
           <button onClick={()=>setShowNotifications(!showNotifications)} style={{ background:"none",border:"1px solid #1b4a60",borderRadius:7,color:"#7f93a1",cursor:"pointer",padding:"7px 10px",fontSize:16,position:"relative" }}>
             🔔
@@ -835,7 +804,17 @@ export default function App() {
             </div>
           )}
         </div>
-        <button onClick={()=>setModalTask({})} style={{ padding:isMobile?"7px 10px":"7px 14px",background:"#118fb5",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>+ New</button>
+        <div style={{ position:"relative" }}>
+          <button aria-haspopup="menu" aria-expanded={newMenu} onClick={()=>setNewMenu(o=>!o)} style={{ padding:isMobile?"7px 10px":"7px 14px",background:"#118fb5",border:"none",borderRadius:7,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>＋ New ▾</button>
+          {newMenu && (
+            <div role="menu" onMouseLeave={()=>setNewMenu(false)} style={{ position:"absolute",right:0,top:38,width:220,background:"#0b2735",border:"1px solid #1b4a60",borderRadius:10,boxShadow:"0 16px 40px rgba(0,0,0,0.55)",padding:6,zIndex:900 }}>
+              {[["📋 Task",()=>setModalTask({})],["⚡ Quick task",()=>{ setView("today"); }],["✉️ Log email / call",()=>setCommDraft({})],["📝 Note",()=>setShowNotes(true)],["✅ Daily action list",()=>setShowSummary(true)]].map(([l,fn])=>(
+                <button key={l} role="menuitem" onClick={()=>{ setNewMenu(false); fn(); }} style={{ display:"block",width:"100%",textAlign:"left",padding:"9px 10px",background:"none",border:"none",borderRadius:6,color:"#e2e8f0",cursor:"pointer",fontSize:13 }}
+                  onMouseEnter={e=>e.currentTarget.style.background="#10364a"} onMouseLeave={e=>e.currentTarget.style.background="none"}>{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ flex:1,display:"flex",overflow:"hidden" }}>
@@ -911,7 +890,7 @@ export default function App() {
       )}
       {commDraft && <CommLog initial={commDraft} companies={companies} contacts={contacts} opportunities={leads} tasks={tasks} onClose={()=>setCommDraft(null)} onSaved={()=>{ setCommDraft(null); reloadAll(); }} />}
 
-      {showSummary && <SummaryModal tasks={tasks} onClose={()=>setShowSummary(false)} />}
+      {showSummary && <DailyActions tasks={tasks} opportunities={leads} reminders={reminders} onClose={()=>setShowSummary(false)} onOpenTask={t=>{ setShowSummary(false); setModalTask(t); }} />}
       {showNotes && <StickyNote onClose={()=>setShowNotes(false)} />}
     </div>
   );
